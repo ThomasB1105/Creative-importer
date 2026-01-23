@@ -1,8 +1,14 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 
-// META APP CONFIG - Tu dois créer une app sur developers.facebook.com
+// META APP CONFIG - Configuration de l'app Facebook
+// Pour configurer votre propre app:
+// 1. Allez sur https://developers.facebook.com/apps
+// 2. Créez une nouvelle app ou utilisez une existante
+// 3. Activez "Facebook Login" et configurez les URLs de redirection
+// 4. Activez les permissions nécessaires dans "App Review"
+// 5. Remplacez l'appId ci-dessous par votre App ID
 const META_APP = {
-  appId: "1265761725396528", // Ton App ID
+  appId: "1265761725396528", // Votre App ID Facebook
   apiVersion: "v21.0",
   redirectUri: window.location.origin + window.location.pathname,
 };
@@ -158,8 +164,8 @@ const authHelpers = {
       "business_management",
       "pages_read_engagement",
       "pages_show_list",
-      "instagram_basic",
-      "instagram_manage_insights",
+      "instagram_content_publish",
+      "pages_read_user_content",
     ].join(",");
 
     return (
@@ -178,57 +184,117 @@ const createMetaApi = (accessToken) => ({
   baseUrl: `https://graph.facebook.com/${META_APP.apiVersion}`,
 
   async fetchUser() {
-    const res = await fetch(
-      `${this.baseUrl}/me?fields=id,name,picture&access_token=${accessToken}`
-    );
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    return data;
+    try {
+      const res = await fetch(
+        `${this.baseUrl}/me?fields=id,name,picture&access_token=${accessToken}`
+      );
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error.message || "Erreur lors de la récupération des données utilisateur");
+      }
+      return data;
+    } catch (error) {
+      console.error("fetchUser error:", error);
+      throw error;
+    }
   },
 
   async fetchAdAccounts() {
-    const res = await fetch(
-      `${this.baseUrl}/me/adaccounts?fields=id,name,currency,account_status,amount_spent,business{id,name}&limit=100&access_token=${accessToken}`
-    );
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    return data.data || [];
+    try {
+      const res = await fetch(
+        `${this.baseUrl}/me/adaccounts?fields=id,name,currency,account_status,amount_spent,business{id,name}&limit=100&access_token=${accessToken}`
+      );
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error.message || "Erreur lors de la récupération des comptes publicitaires");
+      }
+      return data.data || [];
+    } catch (error) {
+      console.error("fetchAdAccounts error:", error);
+      throw error;
+    }
   },
 
   async fetchPages() {
-    const res = await fetch(
-      `${this.baseUrl}/me/accounts?fields=id,name,picture,instagram_business_account{id,name,username,profile_picture_url}&limit=100&access_token=${accessToken}`
-    );
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    return data.data || [];
+    try {
+      const res = await fetch(
+        `${this.baseUrl}/me/accounts?fields=id,name,picture,instagram_business_account{id,name,username,profile_picture_url}&limit=100&access_token=${accessToken}`
+      );
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error.message || "Erreur lors de la récupération des pages");
+      }
+      return data.data || [];
+    } catch (error) {
+      console.error("fetchPages error:", error);
+      throw error;
+    }
   },
 
   async fetchPixels(adAccountId) {
-    const res = await fetch(
-      `${this.baseUrl}/${adAccountId}/adspixels?fields=id,name&access_token=${accessToken}`
-    );
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    return data.data || [];
+    try {
+      const res = await fetch(
+        `${this.baseUrl}/${adAccountId}/adspixels?fields=id,name&access_token=${accessToken}`
+      );
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error.message || "Erreur lors de la récupération des pixels");
+      }
+      return data.data || [];
+    } catch (error) {
+      console.error("fetchPixels error:", error);
+      throw error;
+    }
   },
 
   async fetchCampaigns(adAccountId) {
-    const res = await fetch(
-      `${this.baseUrl}/${adAccountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget&filtering=[{"field":"status","operator":"IN","value":["ACTIVE","PAUSED"]}]&limit=50&access_token=${accessToken}`
-    );
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    return data.data || [];
+    try {
+      const res = await fetch(
+        `${this.baseUrl}/${adAccountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget&filtering=[{"field":"status","operator":"IN","value":["ACTIVE","PAUSED"]}]&limit=50&access_token=${accessToken}`
+      );
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error.message || "Erreur lors de la récupération des campagnes");
+      }
+      return data.data || [];
+    } catch (error) {
+      console.error("fetchCampaigns error:", error);
+      throw error;
+    }
   },
 
   async fetchAdsets(campaignId) {
-    const res = await fetch(
-      `${this.baseUrl}/${campaignId}/adsets?fields=id,name,status,daily_budget&filtering=[{"field":"status","operator":"IN","value":["ACTIVE","PAUSED"]}]&limit=50&access_token=${accessToken}`
-    );
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    return data.data || [];
+    try {
+      const res = await fetch(
+        `${this.baseUrl}/${campaignId}/adsets?fields=id,name,status,daily_budget&filtering=[{"field":"status","operator":"IN","value":["ACTIVE","PAUSED"]}]&limit=50&access_token=${accessToken}`
+      );
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error.message || "Erreur lors de la récupération des adsets");
+      }
+      return data.data || [];
+    } catch (error) {
+      console.error("fetchAdsets error:", error);
+      throw error;
+    }
   },
 });
 
@@ -309,7 +375,9 @@ export default function App() {
             setAccessToken(token);
             setUser(userData);
           } catch (err) {
+            console.error("Auth error:", err);
             setAuthError("Erreur lors de la connexion: " + err.message);
+            authHelpers.clearToken();
           }
         }
       } else {
@@ -327,7 +395,9 @@ export default function App() {
             authHelpers.saveUser(userData);
           } catch (err) {
             // Token expired or invalid
+            console.error("Token validation error:", err);
             authHelpers.clearToken();
+            setAuthError("Session expirée. Veuillez vous reconnecter.");
           }
         }
       }
@@ -676,7 +746,13 @@ export default function App() {
                   color: "#ef4444",
                 }}
               >
-                {authError}
+                <div style={{ fontWeight: "600", marginBottom: "4px" }}>
+                  ⚠️ Erreur de connexion
+                </div>
+                <div>{authError}</div>
+                <div style={{ marginTop: "8px", fontSize: "11px", color: "#fca5a5" }}>
+                  Assurez-vous que votre App Facebook est correctement configurée avec les permissions requises.
+                </div>
               </div>
             )}
 
