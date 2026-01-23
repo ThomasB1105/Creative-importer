@@ -1011,7 +1011,7 @@ export default function App() {
         campaignData.append("name", nomenclature.campaign);
         campaignData.append("objective", "OUTCOME_SALES");
         campaignData.append("status", "PAUSED");
-        campaignData.append("special_ad_categories", "[]");
+        campaignData.append("special_ad_categories", JSON.stringify([]));
 
         if (budgetType === "cbo") {
           campaignData.append("daily_budget", Math.round(parseFloat(budget) * 100));
@@ -1025,7 +1025,10 @@ export default function App() {
         );
 
         const campaignResult = await campaignResponse.json();
-        if (campaignResult.error) throw new Error(campaignResult.error.message);
+        if (campaignResult.error) {
+          console.error("Campaign creation error:", campaignResult.error);
+          throw new Error(`Campaign: ${campaignResult.error.message} (Code: ${campaignResult.error.code})`);
+        }
 
         campaignId = campaignResult.id;
         results.campaigns.push({ id: campaignId, name: nomenclature.campaign });
@@ -1039,6 +1042,18 @@ export default function App() {
         console.log(`✅ Using existing adset: ${adsetId}`);
       } else {
         console.log("📦 Creating new adset...");
+
+        // Map optimization event to correct Meta format
+        const eventMapping = {
+          purchase: "PURCHASE",
+          add_to_cart: "ADD_TO_CART",
+          initiate_checkout: "INITIATE_CHECKOUT",
+          add_payment_info: "ADD_PAYMENT_INFO",
+          view_content: "VIEW_CONTENT",
+          search: "SEARCH",
+          lead: "LEAD"
+        };
+
         const adsetData = new FormData();
         adsetData.append("name", nomenclature.adset);
         adsetData.append("campaign_id", campaignId);
@@ -1046,7 +1061,7 @@ export default function App() {
         adsetData.append("optimization_goal", "OFFSITE_CONVERSIONS");
         adsetData.append("promoted_object", JSON.stringify({
           pixel_id: selectedPixel?.id,
-          custom_event_type: optimizationEvent.toUpperCase(),
+          custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
         }));
 
         if (budgetType === "abo") {
@@ -1069,7 +1084,10 @@ export default function App() {
         );
 
         const adsetResult = await adsetResponse.json();
-        if (adsetResult.error) throw new Error(adsetResult.error.message);
+        if (adsetResult.error) {
+          console.error("Adset creation error:", adsetResult.error);
+          throw new Error(`Adset: ${adsetResult.error.message} (Code: ${adsetResult.error.code})`);
+        }
 
         adsetId = adsetResult.id;
         results.adsets.push({ id: adsetId, name: nomenclature.adset });
@@ -1090,9 +1108,10 @@ export default function App() {
         // Create ad creative
         const creativeData = new FormData();
         creativeData.append("name", adName);
-        creativeData.append("object_story_spec", JSON.stringify({
+
+        // Build object_story_spec
+        const objectStorySpec = {
           page_id: selectedPage.id,
-          instagram_actor_id: instagramAccount?.id,
           link_data: {
             link: destinationUrl,
             message: filteredTexts[i % filteredTexts.length] || filteredTexts[0],
@@ -1103,7 +1122,14 @@ export default function App() {
             },
             [hashData.type === "video" ? "video_id" : "image_hash"]: hashData.hash,
           },
-        }));
+        };
+
+        // Only add instagram_actor_id if available
+        if (instagramAccount?.id) {
+          objectStorySpec.instagram_actor_id = instagramAccount.id;
+        }
+
+        creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
         creativeData.append("access_token", accessToken);
 
         const creativeResponse = await fetch(
