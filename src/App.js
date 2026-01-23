@@ -584,10 +584,14 @@ export default function App() {
   const structurePreview = useMemo(() => {
     const numGroups = Object.keys(groupedFiles).length;
     const numFiles = uploadedFiles.length;
-    if (budgetType === "abo" && aboMode === "1:1:1")
-      return { campaigns: numFiles, adsets: numFiles, ads: numFiles };
-    if (budgetType === "abo" && aboMode === "multi")
-      return { campaigns: 1, adsets: numGroups, ads: numFiles };
+    if (budgetType === "abo") {
+      if (aboMode === "1:1:1")
+        return { campaigns: numFiles, adsets: numFiles, ads: numFiles };
+      if (aboMode === "multi")
+        return { campaigns: 1, adsets: numGroups, ads: numFiles };
+      if (aboMode === "existing")
+        return { campaigns: 0, adsets: numGroups, ads: numFiles };
+    }
     if (budgetType === "cbo") {
       if (cboMode === "new" || cboMode === "existing_new_adset")
         return {
@@ -1540,31 +1544,48 @@ export default function App() {
                     >
                       📦 Campagne {isLoadingCampaigns && "(chargement...)"}
                     </div>
-                    <div style={{ maxHeight: "150px", overflowY: "auto" }}>
-                      {existingCampaigns.map((c) => (
-                        <div
-                          key={c.id}
-                          onClick={() => setSelectedCampaign(c)}
-                          style={{
-                            padding: "10px",
-                            borderRadius: "6px",
-                            marginBottom: "6px",
-                            border:
-                              selectedCampaign?.id === c.id
-                                ? "2px solid #22c55e"
-                                : "1px solid rgba(255,255,255,0.1)",
-                            cursor: "pointer",
-                          }}
-                        >
-                          <div style={{ fontSize: "12px", fontWeight: "500" }}>
-                            {c.name}
+                    {existingCampaigns.length === 0 && !isLoadingCampaigns ? (
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "#71717a",
+                          padding: "10px",
+                          textAlign: "center",
+                        }}
+                      >
+                        Aucune campagne CBO trouvée. Créez d'abord une campagne CBO dans Meta Ads Manager.
+                      </div>
+                    ) : (
+                      <div style={{ maxHeight: "150px", overflowY: "auto" }}>
+                        {existingCampaigns.map((c) => (
+                          <div
+                            key={c.id}
+                            onClick={() => setSelectedCampaign(c)}
+                            style={{
+                              padding: "10px",
+                              borderRadius: "6px",
+                              marginBottom: "6px",
+                              border:
+                                selectedCampaign?.id === c.id
+                                  ? "2px solid #22c55e"
+                                  : "1px solid rgba(255,255,255,0.1)",
+                              background:
+                                selectedCampaign?.id === c.id
+                                  ? "rgba(34,197,94,0.1)"
+                                  : "transparent",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <div style={{ fontSize: "12px", fontWeight: "500" }}>
+                              {c.name}
+                            </div>
+                            <div style={{ fontSize: "10px", color: "#71717a" }}>
+                              {c.status}
+                            </div>
                           </div>
-                          <div style={{ fontSize: "10px", color: "#71717a" }}>
-                            {c.status}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1634,18 +1655,29 @@ export default function App() {
                   {[
                     {
                       id: "1:1:1",
-                      name: "1️⃣ Structure 1:1:1",
+                      name: "1️⃣ Structure 1:1:1 (Nouvelle campagne)",
                       desc: "1 campagne par créa → 1 adset → 1 ad",
                     },
                     {
                       id: "multi",
-                      name: "📊 Structure Multi",
+                      name: "📊 Structure Multi (Nouvelle campagne)",
                       desc: "1 campagne → X adsets → Y ads",
+                    },
+                    {
+                      id: "existing",
+                      name: "📦 Campagne existante → Nouveaux Adsets",
+                      desc: "Ajouter des adsets à une campagne ABO existante",
                     },
                   ].map((opt) => (
                     <div
                       key={opt.id}
-                      onClick={() => setAboMode(opt.id)}
+                      onClick={() => {
+                        setAboMode(opt.id);
+                        if (opt.id !== "existing") {
+                          setSelectedCampaign(null);
+                          setSelectedAdset(null);
+                        }
+                      }}
                       style={{
                         padding: "14px",
                         borderRadius: "10px",
@@ -1653,6 +1685,10 @@ export default function App() {
                           aboMode === opt.id
                             ? "2px solid #f59e0b"
                             : "1px solid rgba(255,255,255,0.1)",
+                        background:
+                          aboMode === opt.id
+                            ? "rgba(245,158,11,0.1)"
+                            : "transparent",
                         cursor: "pointer",
                       }}
                     >
@@ -1671,12 +1707,76 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+
+                {aboMode === "existing" && (
+                  <div
+                    style={{
+                      marginTop: "16px",
+                      padding: "14px",
+                      background: "rgba(0,0,0,0.2)",
+                      borderRadius: "10px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      📦 Campagne {isLoadingCampaigns && "(chargement...)"}
+                    </div>
+                    {existingCampaigns.length === 0 && !isLoadingCampaigns ? (
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "#71717a",
+                          padding: "10px",
+                          textAlign: "center",
+                        }}
+                      >
+                        Aucune campagne trouvée
+                      </div>
+                    ) : (
+                      <div style={{ maxHeight: "150px", overflowY: "auto" }}>
+                        {existingCampaigns.map((c) => (
+                          <div
+                            key={c.id}
+                            onClick={() => setSelectedCampaign(c)}
+                            style={{
+                              padding: "10px",
+                              borderRadius: "6px",
+                              marginBottom: "6px",
+                              border:
+                                selectedCampaign?.id === c.id
+                                  ? "2px solid #f59e0b"
+                                  : "1px solid rgba(255,255,255,0.1)",
+                              background:
+                                selectedCampaign?.id === c.id
+                                  ? "rgba(245,158,11,0.1)"
+                                  : "transparent",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <div style={{ fontSize: "12px", fontWeight: "500" }}>
+                              {c.name}
+                            </div>
+                            <div style={{ fontSize: "10px", color: "#71717a" }}>
+                              {c.status}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
             {!(
               (budgetType === "cbo" && cboMode === "existing_adset") ||
-              (budgetType === "abo" && aboMode === "1:1:1")
+              (budgetType === "abo" && aboMode === "1:1:1") ||
+              (budgetType === "abo" && aboMode === "existing")
             ) && (
               <div style={{ ...box, marginBottom: "24px" }}>
                 <h4
