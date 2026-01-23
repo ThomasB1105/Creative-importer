@@ -158,14 +158,13 @@ const authHelpers = {
 
   // Generate OAuth URL
   getOAuthUrl() {
+    // Permissions de base qui ne nécessitent pas d'App Review Facebook
     const permissions = [
       "ads_management",
       "ads_read",
       "business_management",
       "pages_read_engagement",
       "pages_show_list",
-      "instagram_content_publish",
-      "pages_read_user_content",
     ].join(",");
 
     return (
