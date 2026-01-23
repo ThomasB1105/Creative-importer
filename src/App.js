@@ -260,19 +260,27 @@ const createMetaApi = (accessToken) => ({
 
   async fetchCampaigns(adAccountId) {
     try {
-      const res = await fetch(
-        `${this.baseUrl}/${adAccountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget&filtering=[{"field":"status","operator":"IN","value":["ACTIVE","PAUSED"]}]&limit=50&access_token=${accessToken}`
-      );
+      console.log("🔍 Fetching campaigns for account:", adAccountId);
+      const url = `${this.baseUrl}/${adAccountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget&filtering=[{"field":"status","operator":"IN","value":["ACTIVE","PAUSED"]}]&limit=50&access_token=${accessToken}`;
+      console.log("📡 API URL:", url.replace(accessToken, "***TOKEN***"));
+
+      const res = await fetch(url);
       if (!res.ok) {
+        const errorText = await res.text();
+        console.error("❌ HTTP error response:", errorText);
         throw new Error(`HTTP error! status: ${res.status}`);
       }
       const data = await res.json();
+      console.log("📦 Raw API response:", data);
+
       if (data.error) {
+        console.error("❌ API returned error:", data.error);
         throw new Error(data.error.message || "Erreur lors de la récupération des campagnes");
       }
+      console.log("✅ Found campaigns:", data.data?.length || 0);
       return data.data || [];
     } catch (error) {
-      console.error("fetchCampaigns error:", error);
+      console.error("💥 fetchCampaigns error:", error);
       throw error;
     }
   },
@@ -461,8 +469,13 @@ export default function App() {
     setExistingCampaigns([]);
     api
       .fetchCampaigns(selectedAdAccount.id)
-      .then(setExistingCampaigns)
-      .catch(() => {})
+      .then((campaigns) => {
+        console.log("✅ Campaigns loaded:", campaigns.length, "campaigns");
+        setExistingCampaigns(campaigns);
+      })
+      .catch((error) => {
+        console.error("❌ Error loading campaigns:", error);
+      })
       .finally(() => setIsLoadingCampaigns(false));
   }, [selectedAdAccount, accessToken]);
 
