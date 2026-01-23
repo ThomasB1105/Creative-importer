@@ -954,6 +954,11 @@ export default function App() {
     try {
       console.log("🚀 Starting campaign creation...");
 
+      // Validate required fields
+      if (!selectedPixel?.id && objective === "conversions") {
+        throw new Error("Pixel requis pour les conversions. Veuillez sélectionner un pixel dans l'étape 1.");
+      }
+
       const results = {
         campaigns: [],
         adsets: [],
@@ -1059,10 +1064,15 @@ export default function App() {
         adsetData.append("campaign_id", campaignId);
         adsetData.append("billing_event", "IMPRESSIONS");
         adsetData.append("optimization_goal", "OFFSITE_CONVERSIONS");
-        adsetData.append("promoted_object", JSON.stringify({
-          pixel_id: selectedPixel?.id,
-          custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
-        }));
+        adsetData.append("bid_strategy", "LOWEST_COST_WITHOUT_CAP");
+
+        // Only add promoted_object if we have a pixel
+        if (selectedPixel?.id) {
+          adsetData.append("promoted_object", JSON.stringify({
+            pixel_id: selectedPixel.id,
+            custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
+          }));
+        }
 
         if (budgetType === "abo") {
           adsetData.append("daily_budget", Math.round(parseFloat(budget) * 100));
@@ -1077,6 +1087,15 @@ export default function App() {
         }));
         adsetData.append("status", "PAUSED");
         adsetData.append("access_token", accessToken);
+
+        console.log("📤 Adset params:", {
+          name: nomenclature.adset,
+          campaign_id: campaignId,
+          pixel_id: selectedPixel?.id,
+          event: eventMapping[optimizationEvent] || "PURCHASE",
+          countries: selectedCountries.map(c => GEO_ZONES[c].code),
+          budget: budgetType === "abo" ? Math.round(parseFloat(budget) * 100) : "N/A (CBO)"
+        });
 
         const adsetResponse = await fetch(
           `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adsets`,
