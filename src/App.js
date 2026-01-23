@@ -337,6 +337,8 @@ export default function App() {
   const [isLoadingPixels, setIsLoadingPixels] = useState(false);
   const [adAccountSearch, setAdAccountSearch] = useState("");
   const [pageSearch, setPageSearch] = useState("");
+  const [campaignSearch, setCampaignSearch] = useState("");
+  const [adsetSearch, setAdsetSearch] = useState("");
 
   // Campaign structure
   const [step, setStep] = useState(0);
@@ -543,6 +545,26 @@ export default function App() {
         p.instagram_business_account?.username?.toLowerCase().includes(s)
     );
   }, [pages, pageSearch]);
+
+  const filteredCampaigns = useMemo(() => {
+    if (!campaignSearch.trim()) return existingCampaigns;
+    const s = campaignSearch.toLowerCase();
+    return existingCampaigns.filter(
+      (c) =>
+        c.name?.toLowerCase().includes(s) ||
+        c.id?.includes(s)
+    );
+  }, [existingCampaigns, campaignSearch]);
+
+  const filteredAdsets = useMemo(() => {
+    if (!adsetSearch.trim()) return existingAdsets;
+    const s = adsetSearch.toLowerCase();
+    return existingAdsets.filter(
+      (a) =>
+        a.name?.toLowerCase().includes(s) ||
+        a.id?.includes(s)
+    );
+  }, [existingAdsets, adsetSearch]);
 
   const instagramAccount = selectedPage?.instagram_business_account || null;
 
@@ -1570,7 +1592,26 @@ export default function App() {
                     >
                       📦 Campagne {isLoadingCampaigns && "(chargement...)"}
                     </div>
-                    {existingCampaigns.length === 0 && !isLoadingCampaigns ? (
+                    {existingCampaigns.length > 0 && (
+                      <input
+                        type="text"
+                        placeholder="🔍 Rechercher une campagne..."
+                        value={campaignSearch}
+                        onChange={(e) => setCampaignSearch(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "8px 12px",
+                          borderRadius: "6px",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          background: "rgba(0,0,0,0.3)",
+                          color: "#fff",
+                          fontSize: "12px",
+                          marginBottom: "10px",
+                          outline: "none",
+                        }}
+                      />
+                    )}
+                    {filteredCampaigns.length === 0 && !isLoadingCampaigns ? (
                       <div
                         style={{
                           fontSize: "11px",
@@ -1579,11 +1620,13 @@ export default function App() {
                           textAlign: "center",
                         }}
                       >
-                        Aucune campagne CBO trouvée. Créez d'abord une campagne CBO dans Meta Ads Manager.
+                        {existingCampaigns.length === 0
+                          ? "Aucune campagne CBO trouvée. Créez d'abord une campagne CBO dans Meta Ads Manager."
+                          : "Aucune campagne ne correspond à votre recherche."}
                       </div>
                     ) : (
                       <div style={{ maxHeight: "150px", overflowY: "auto" }}>
-                        {existingCampaigns.map((c) => (
+                        {filteredCampaigns.map((c) => (
                           <div
                             key={c.id}
                             onClick={() => setSelectedCampaign(c)}
@@ -1633,28 +1676,62 @@ export default function App() {
                     >
                       📁 Adset {isLoadingAdsets && "(chargement...)"}
                     </div>
-                    <div style={{ maxHeight: "120px", overflowY: "auto" }}>
-                      {existingAdsets.map((a) => (
-                        <div
-                          key={a.id}
-                          onClick={() => setSelectedAdset(a)}
-                          style={{
-                            padding: "10px",
-                            borderRadius: "6px",
-                            marginBottom: "6px",
-                            border:
-                              selectedAdset?.id === a.id
-                                ? "2px solid #e879f9"
-                                : "1px solid rgba(255,255,255,0.1)",
-                            cursor: "pointer",
-                          }}
-                        >
-                          <div style={{ fontSize: "12px", fontWeight: "500" }}>
-                            {a.name}
+                    {existingAdsets.length > 0 && (
+                      <input
+                        type="text"
+                        placeholder="🔍 Rechercher un adset..."
+                        value={adsetSearch}
+                        onChange={(e) => setAdsetSearch(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "8px 12px",
+                          borderRadius: "6px",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          background: "rgba(0,0,0,0.3)",
+                          color: "#fff",
+                          fontSize: "12px",
+                          marginBottom: "10px",
+                          outline: "none",
+                        }}
+                      />
+                    )}
+                    {filteredAdsets.length === 0 && !isLoadingAdsets ? (
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "#71717a",
+                          padding: "10px",
+                          textAlign: "center",
+                        }}
+                      >
+                        {existingAdsets.length === 0
+                          ? "Aucun adset trouvé pour cette campagne"
+                          : "Aucun adset ne correspond à votre recherche."}
+                      </div>
+                    ) : (
+                      <div style={{ maxHeight: "120px", overflowY: "auto" }}>
+                        {filteredAdsets.map((a) => (
+                          <div
+                            key={a.id}
+                            onClick={() => setSelectedAdset(a)}
+                            style={{
+                              padding: "10px",
+                              borderRadius: "6px",
+                              marginBottom: "6px",
+                              border:
+                                selectedAdset?.id === a.id
+                                  ? "2px solid #e879f9"
+                                  : "1px solid rgba(255,255,255,0.1)",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <div style={{ fontSize: "12px", fontWeight: "500" }}>
+                              {a.name}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1752,7 +1829,26 @@ export default function App() {
                     >
                       📦 Campagne {isLoadingCampaigns && "(chargement...)"}
                     </div>
-                    {existingCampaigns.length === 0 && !isLoadingCampaigns ? (
+                    {existingCampaigns.length > 0 && (
+                      <input
+                        type="text"
+                        placeholder="🔍 Rechercher une campagne..."
+                        value={campaignSearch}
+                        onChange={(e) => setCampaignSearch(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "8px 12px",
+                          borderRadius: "6px",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          background: "rgba(0,0,0,0.3)",
+                          color: "#fff",
+                          fontSize: "12px",
+                          marginBottom: "10px",
+                          outline: "none",
+                        }}
+                      />
+                    )}
+                    {filteredCampaigns.length === 0 && !isLoadingCampaigns ? (
                       <div
                         style={{
                           fontSize: "11px",
@@ -1761,11 +1857,13 @@ export default function App() {
                           textAlign: "center",
                         }}
                       >
-                        Aucune campagne trouvée
+                        {existingCampaigns.length === 0
+                          ? "Aucune campagne trouvée"
+                          : "Aucune campagne ne correspond à votre recherche."}
                       </div>
                     ) : (
                       <div style={{ maxHeight: "150px", overflowY: "auto" }}>
-                        {existingCampaigns.map((c) => (
+                        {filteredCampaigns.map((c) => (
                           <div
                             key={c.id}
                             onClick={() => setSelectedCampaign(c)}
