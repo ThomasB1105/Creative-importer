@@ -378,6 +378,9 @@ export default function App() {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [adGroups, setAdGroups] = useState([]); // Groups of creatives mapped together
+  const [mappingMode, setMappingMode] = useState(false); // Enable mapping interface
+  const [draggedFile, setDraggedFile] = useState(null); // File being dragged
   const [campaignName, setCampaignName] = useState("");
   const [clientCode, setClientCode] = useState("");
   const [objective, setObjective] = useState("conversions");
@@ -2862,6 +2865,224 @@ export default function App() {
                 })}
               </div>
             )}
+
+            {/* Mapping Mode */}
+            {uploadedFiles.length > 0 && (() => {
+              const formats = [...new Set(uploadedFiles.map(f => f.format))];
+              const hasMultipleFormats = formats.length > 1;
+
+              if (!hasMultipleFormats) return null;
+
+              return (
+                <div style={{ ...box, marginBottom: "24px" }}>
+                  <div style={{ display: "flex", alignItems: "center", marginBottom: "16px" }}>
+                    <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "600" }}>
+                      🔗 Mapping des formats
+                    </h3>
+                    <button
+                      onClick={() => setMappingMode(!mappingMode)}
+                      style={{
+                        marginLeft: "auto",
+                        padding: "6px 12px",
+                        borderRadius: "6px",
+                        border: "none",
+                        background: mappingMode ? "rgba(34,197,94,0.2)" : "rgba(99,102,241,0.2)",
+                        color: mappingMode ? "#22c55e" : "#6366f1",
+                        cursor: "pointer",
+                        fontSize: "11px",
+                        fontWeight: "500",
+                      }}
+                    >
+                      {mappingMode ? "✓ Mode actif" : "Activer"}
+                    </button>
+                  </div>
+
+                  {!mappingMode ? (
+                    <div style={{ fontSize: "12px", color: "#71717a", lineHeight: "1.6" }}>
+                      Plusieurs formats détectés ({formats.length} formats). Activez le mapping pour grouper des créatives de formats différents dans la même ad (ex: story + carré).
+                    </div>
+                  ) : (
+                    <div>
+                      {/* Instructions */}
+                      <div style={{
+                        padding: "12px",
+                        background: "rgba(99,102,241,0.1)",
+                        borderRadius: "8px",
+                        marginBottom: "16px",
+                        fontSize: "11px",
+                        lineHeight: "1.6",
+                      }}>
+                        💡 <strong>Glissez-déposez</strong> des créatives pour les grouper ensemble. Chaque groupe deviendra une ad avec plusieurs formats.
+                      </div>
+
+                      {/* Existing Groups */}
+                      {adGroups.length > 0 && (
+                        <div style={{ marginBottom: "16px" }}>
+                          <div style={{ fontSize: "12px", fontWeight: "600", marginBottom: "10px", color: "#a5b4fc" }}>
+                            📦 Groupes créés ({adGroups.length})
+                          </div>
+                          {adGroups.map((group, groupIndex) => (
+                            <div
+                              key={groupIndex}
+                              style={{
+                                padding: "12px",
+                                background: "rgba(34,197,94,0.05)",
+                                border: "1px solid rgba(34,197,94,0.2)",
+                                borderRadius: "8px",
+                                marginBottom: "10px",
+                              }}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                if (draggedFile && !group.fileIds.includes(draggedFile.id)) {
+                                  setAdGroups(prev => prev.map((g, i) =>
+                                    i === groupIndex
+                                      ? { ...g, fileIds: [...g.fileIds, draggedFile.id] }
+                                      : { ...g, fileIds: g.fileIds.filter(id => id !== draggedFile.id) }
+                                  ));
+                                }
+                                setDraggedFile(null);
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
+                                <span style={{ fontSize: "11px", fontWeight: "600", color: "#22c55e" }}>
+                                  Groupe #{groupIndex + 1}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setAdGroups(prev => prev.filter((_, i) => i !== groupIndex));
+                                  }}
+                                  style={{
+                                    marginLeft: "auto",
+                                    padding: "2px 6px",
+                                    fontSize: "10px",
+                                    border: "none",
+                                    background: "rgba(239,68,68,0.2)",
+                                    color: "#ef4444",
+                                    borderRadius: "4px",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Supprimer
+                                </button>
+                              </div>
+                              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                {group.fileIds.map(fileId => {
+                                  const file = uploadedFiles.find(f => f.id === fileId);
+                                  if (!file) return null;
+                                  const placement = META_PLACEMENTS[file.format];
+                                  return (
+                                    <div
+                                      key={fileId}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                        padding: "6px 10px",
+                                        background: placement?.bgColor || "rgba(255,255,255,0.05)",
+                                        borderRadius: "6px",
+                                        fontSize: "10px",
+                                      }}
+                                    >
+                                      <span>{placement?.icon || "📁"}</span>
+                                      <span style={{ color: placement?.color || "#fff" }}>
+                                        {placement?.name || file.format}
+                                      </span>
+                                      <button
+                                        onClick={() => {
+                                          setAdGroups(prev => prev.map((g, i) =>
+                                            i === groupIndex
+                                              ? { ...g, fileIds: g.fileIds.filter(id => id !== fileId) }
+                                              : g
+                                          ).filter(g => g.fileIds.length > 0));
+                                        }}
+                                        style={{
+                                          background: "transparent",
+                                          border: "none",
+                                          color: "#ef4444",
+                                          cursor: "pointer",
+                                          padding: "0 4px",
+                                        }}
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Create New Group */}
+                      <button
+                        onClick={() => {
+                          setAdGroups(prev => [...prev, { fileIds: [] }]);
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "10px",
+                          borderRadius: "8px",
+                          border: "1px dashed rgba(99,102,241,0.3)",
+                          background: "transparent",
+                          color: "#6366f1",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          marginBottom: "16px",
+                        }}
+                      >
+                        + Créer un nouveau groupe
+                      </button>
+
+                      {/* Available Files */}
+                      <div style={{ fontSize: "12px", fontWeight: "600", marginBottom: "10px", color: "#a5b4fc" }}>
+                        📁 Créatives disponibles
+                      </div>
+                      <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill,minmax(120px,1fr))",
+                        gap: "8px",
+                      }}>
+                        {uploadedFiles
+                          .filter(file => !adGroups.some(g => g.fileIds.includes(file.id)))
+                          .map(file => {
+                            const placement = META_PLACEMENTS[file.format];
+                            return (
+                              <div
+                                key={file.id}
+                                draggable
+                                onDragStart={() => setDraggedFile(file)}
+                                onDragEnd={() => setDraggedFile(null)}
+                                style={{
+                                  padding: "10px",
+                                  background: placement?.bgColor || "rgba(255,255,255,0.05)",
+                                  border: `1px solid ${placement?.color || "rgba(255,255,255,0.1)"}`,
+                                  borderRadius: "8px",
+                                  cursor: "grab",
+                                  textAlign: "center",
+                                  fontSize: "10px",
+                                }}
+                              >
+                                <div style={{ fontSize: "24px", marginBottom: "4px" }}>
+                                  {placement?.icon || "📁"}
+                                </div>
+                                <div style={{ color: placement?.color || "#fff", fontWeight: "500" }}>
+                                  {placement?.name || file.format}
+                                </div>
+                                <div style={{ color: "#71717a", fontSize: "9px", marginTop: "2px" }}>
+                                  {file.type === "video" ? "🎬" : "🖼️"}
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={() => setStep(2)} style={btn2}>
                 ← Config
