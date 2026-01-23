@@ -391,7 +391,7 @@ export default function App() {
   const [primaryTexts, setPrimaryTexts] = useState([""]);  // Array of texts
   const [headlines, setHeadlines] = useState([""]);  // Array of headlines
   const [destinationUrl, setDestinationUrl] = useState("");
-  const [bidStrategy, setBidStrategy] = useState("none"); // Bid strategy selection
+  const [bidStrategy, setBidStrategy] = useState("LOWEST_COST"); // Bid strategy selection
 
   // Campaign creation states
   const [isCreating, setIsCreating] = useState(false);
@@ -1019,13 +1019,9 @@ export default function App() {
         campaignData.append("status", "PAUSED");
         campaignData.append("special_ad_categories", JSON.stringify([]));
 
-        // Apply bid strategy if selected
-        if (bidStrategy !== "none") {
-          campaignData.append("bid_strategy", bidStrategy);
-          console.log(`💰 Using bid strategy: ${bidStrategy}`);
-        } else {
-          console.log(`💰 No bid strategy = Volume le plus élevé (default)`);
-        }
+        // Apply bid strategy
+        campaignData.append("bid_strategy", bidStrategy);
+        console.log(`💰 Using bid strategy: ${bidStrategy}`);
 
         if (budgetType === "cbo") {
           campaignData.append("daily_budget", Math.round(parseFloat(budget) * 100));
@@ -2681,12 +2677,12 @@ export default function App() {
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     <button
-                      onClick={() => setBidStrategy("none")}
+                      onClick={() => setBidStrategy("LOWEST_COST")}
                       style={{
                         padding: "10px 12px",
                         borderRadius: "8px",
-                        border: bidStrategy === "none" ? "2px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
-                        background: bidStrategy === "none" ? "rgba(99,102,241,0.2)" : "transparent",
+                        border: bidStrategy === "LOWEST_COST" ? "2px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
+                        background: bidStrategy === "LOWEST_COST" ? "rgba(99,102,241,0.2)" : "transparent",
                         color: "#fff",
                         cursor: "pointer",
                         textAlign: "left",
@@ -4110,7 +4106,7 @@ export default function App() {
                     setPrimaryTexts([""]);
                     setHeadlines([""]);
                     setDestinationUrl("");
-                    setBidStrategy("none");
+                    setBidStrategy("LOWEST_COST");
                     setCreationResult(null);
                     setCreationError(null);
                     setSelectedCampaign(null);
