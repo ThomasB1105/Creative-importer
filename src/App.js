@@ -1139,8 +1139,16 @@ export default function App() {
 
       // Step 4: Create ads
       console.log("📦 Creating ads...");
-      const filteredTexts = primaryTexts.filter(t => t.trim());
-      const filteredHeadlines = headlines.filter(h => h.trim());
+      const filteredTexts = primaryTexts.filter(t => t && t.trim());
+      const filteredHeadlines = headlines.filter(h => h && h.trim());
+
+      // Validate required fields
+      if (filteredTexts.length === 0) {
+        throw new Error("Au moins un texte principal est requis pour créer les publicités");
+      }
+      if (!destinationUrl || !destinationUrl.trim()) {
+        throw new Error("L'URL de destination est requise pour créer les publicités");
+      }
 
       for (let i = 0; i < validHashes.length; i++) {
         const hashData = validHashes[i];
@@ -1152,23 +1160,36 @@ export default function App() {
         const creativeData = new FormData();
         creativeData.append("name", adName);
 
-        // Build object_story_spec
-        const objectStorySpec = {
-          page_id: selectedPage.id,
-          link_data: {
-            link: destinationUrl,
-            message: filteredTexts[i % filteredTexts.length] || filteredTexts[0],
-            name: filteredHeadlines[i % filteredHeadlines.length] || filteredHeadlines[0],
-            [hashData.type === "video" ? "video_id" : "image_hash"]: hashData.hash,
-          },
+        // Build link_data step-by-step
+        const linkData = {
+          link: destinationUrl.trim(),
+          message: filteredTexts[i % filteredTexts.length],
         };
+
+        // Add headline only if available
+        if (filteredHeadlines.length > 0) {
+          linkData.name = filteredHeadlines[i % filteredHeadlines.length];
+        }
+
+        // Add media (image or video)
+        if (hashData.type === "video") {
+          linkData.video_id = hashData.hash;
+        } else {
+          linkData.image_hash = hashData.hash;
+        }
 
         // Add call_to_action only if not NO_BUTTON
         if (callToAction !== "NO_BUTTON") {
-          objectStorySpec.link_data.call_to_action = {
+          linkData.call_to_action = {
             type: callToAction,
           };
         }
+
+        // Build object_story_spec
+        const objectStorySpec = {
+          page_id: selectedPage.id,
+          link_data: linkData,
+        };
 
         // Only add instagram_actor_id if available
         if (instagramAccount?.id) {
