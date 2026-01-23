@@ -391,7 +391,7 @@ export default function App() {
   const [primaryTexts, setPrimaryTexts] = useState([""]);  // Array of texts
   const [headlines, setHeadlines] = useState([""]);  // Array of headlines
   const [destinationUrl, setDestinationUrl] = useState("");
-  const [bidStrategy, setBidStrategy] = useState("LOWEST_COST"); // Bid strategy selection
+  const [bidStrategy, setBidStrategy] = useState(""); // Bid strategy selection (empty = Volume le plus élevé)
 
   // Campaign creation states
   const [isCreating, setIsCreating] = useState(false);
@@ -1019,9 +1019,13 @@ export default function App() {
         campaignData.append("status", "PAUSED");
         campaignData.append("special_ad_categories", JSON.stringify([]));
 
-        // Apply bid strategy
-        campaignData.append("bid_strategy", bidStrategy);
-        console.log(`💰 Using bid strategy: ${bidStrategy}`);
+        // Apply bid strategy only if specified (empty = Volume le plus élevé par défaut)
+        if (bidStrategy) {
+          campaignData.append("bid_strategy", bidStrategy);
+          console.log(`💰 Using bid strategy: ${bidStrategy}`);
+        } else {
+          console.log(`💰 No bid strategy = Volume le plus élevé (default)`);
+        }
 
         if (budgetType === "cbo") {
           campaignData.append("daily_budget", Math.round(parseFloat(budget) * 100));
@@ -2677,12 +2681,12 @@ export default function App() {
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                     <button
-                      onClick={() => setBidStrategy("LOWEST_COST")}
+                      onClick={() => setBidStrategy("")}
                       style={{
                         padding: "10px 12px",
                         borderRadius: "8px",
-                        border: bidStrategy === "LOWEST_COST" ? "2px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
-                        background: bidStrategy === "LOWEST_COST" ? "rgba(99,102,241,0.2)" : "transparent",
+                        border: bidStrategy === "" ? "2px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
+                        background: bidStrategy === "" ? "rgba(99,102,241,0.2)" : "transparent",
                         color: "#fff",
                         cursor: "pointer",
                         textAlign: "left",
@@ -2690,7 +2694,7 @@ export default function App() {
                     >
                       <div style={{ fontSize: "11px", fontWeight: "600" }}>Volume le plus élevé</div>
                       <div style={{ fontSize: "9px", color: "#71717a", marginTop: "2px" }}>
-                        Obtenir les meilleurs résultats pour le budget
+                        Obtenir les meilleurs résultats pour le budget (aucune stratégie)
                       </div>
                     </button>
                     <button
@@ -4106,7 +4110,7 @@ export default function App() {
                     setPrimaryTexts([""]);
                     setHeadlines([""]);
                     setDestinationUrl("");
-                    setBidStrategy("LOWEST_COST");
+                    setBidStrategy("");
                     setCreationResult(null);
                     setCreationError(null);
                     setSelectedCampaign(null);
