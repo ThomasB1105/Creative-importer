@@ -1059,28 +1059,7 @@ export default function App() {
           lead: "LEAD"
         };
 
-        const adsetData = new FormData();
-        adsetData.append("name", nomenclature.adset);
-        adsetData.append("campaign_id", campaignId);
-        adsetData.append("billing_event", "IMPRESSIONS");
-        adsetData.append("optimization_goal", "OFFSITE_CONVERSIONS");
-        adsetData.append("bid_strategy", "LOWEST_COST_WITHOUT_CAP");
-        adsetData.append("destination_type", "WEBSITE");
-
-        // Promoted object with pixel for conversions
-        const promotedObject = {
-          pixel_id: selectedPixel.id,
-          custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
-        };
-        adsetData.append("promoted_object", JSON.stringify(promotedObject));
-
-        // Budget handling
-        if (budgetType === "abo") {
-          const dailyBudget = Math.round(parseFloat(budget) * 100);
-          adsetData.append("daily_budget", dailyBudget.toString());
-        }
-
-        // Targeting
+        // Build targeting
         const targeting = {
           geo_locations: {
             countries: selectedCountries.map(c => GEO_ZONES[c].code),
@@ -1088,19 +1067,46 @@ export default function App() {
           age_min: 18,
           age_max: 65,
         };
-        adsetData.append("targeting", JSON.stringify(targeting));
 
-        adsetData.append("status", "PAUSED");
-        adsetData.append("access_token", accessToken);
+        // Build promoted object
+        const promotedObject = {
+          pixel_id: selectedPixel.id,
+          custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
+        };
 
-        console.log("📤 Adset creation params:", {
+        console.log("📤 Adset creation params (detailed):", {
           name: nomenclature.adset,
           campaign_id: campaignId,
-          promoted_object: promotedObject,
-          targeting: targeting,
-          budget: budgetType === "abo" ? Math.round(parseFloat(budget) * 100) : "N/A (CBO)",
-          destination_type: "WEBSITE"
+          promoted_object_raw: promotedObject,
+          promoted_object_stringified: JSON.stringify(promotedObject),
+          targeting_raw: targeting,
+          targeting_stringified: JSON.stringify(targeting),
+          budget_type: budgetType,
+          budget_value: budgetType === "abo" ? Math.round(parseFloat(budget) * 100) : "N/A (CBO)",
+          pixel_id: selectedPixel.id,
+          event: eventMapping[optimizationEvent],
         });
+
+        const adsetData = new FormData();
+        adsetData.append("name", nomenclature.adset);
+        adsetData.append("campaign_id", campaignId);
+        adsetData.append("status", "PAUSED");
+        adsetData.append("billing_event", "IMPRESSIONS");
+        adsetData.append("optimization_goal", "OFFSITE_CONVERSIONS");
+
+        // For OUTCOME_SALES, use LOWEST_COST_WITHOUT_CAP or remove bid_strategy
+        // adsetData.append("bid_strategy", "LOWEST_COST_WITHOUT_CAP");
+
+        adsetData.append("promoted_object", JSON.stringify(promotedObject));
+        adsetData.append("targeting", JSON.stringify(targeting));
+
+        // Budget handling - required for ABO, not for CBO
+        if (budgetType === "abo") {
+          const dailyBudget = Math.round(parseFloat(budget) * 100);
+          adsetData.append("daily_budget", dailyBudget);
+        }
+
+        adsetData.append("access_token", accessToken);
 
         const adsetResponse = await fetch(
           `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adsets`,
@@ -1109,8 +1115,16 @@ export default function App() {
 
         const adsetResult = await adsetResponse.json();
         if (adsetResult.error) {
-          console.error("Adset creation error:", adsetResult.error);
-          throw new Error(`Adset: ${adsetResult.error.message} (Code: ${adsetResult.error.code})`);
+          console.error("❌ Adset creation error FULL:", JSON.stringify(adsetResult.error, null, 2));
+          console.error("❌ Error details:", {
+            message: adsetResult.error.message,
+            code: adsetResult.error.code,
+            error_subcode: adsetResult.error.error_subcode,
+            error_user_title: adsetResult.error.error_user_title,
+            error_user_msg: adsetResult.error.error_user_msg,
+            fbtrace_id: adsetResult.error.fbtrace_id,
+          });
+          throw new Error(`Adset: ${adsetResult.error.message} (Code: ${adsetResult.error.code}${adsetResult.error.error_subcode ? `, Subcode: ${adsetResult.error.error_subcode}` : ''})`);
         }
 
         adsetId = adsetResult.id;
