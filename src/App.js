@@ -31,12 +31,30 @@ const OBJECTIVES = {
 
 const OPTIMIZATION_EVENTS = {
   conversions: [
-    { id: "purchase", name: "Achat", code: "PUR", icon: "💳" },
-    { id: "add_to_cart", name: "Ajout panier", code: "ATC", icon: "🛒" },
+    { id: "purchase", name: "Achat (Purchase)", code: "PUR", icon: "💳" },
+    { id: "add_to_cart", name: "Ajout panier (ATC)", code: "ATC", icon: "🛒" },
+    { id: "initiate_checkout", name: "Début paiement", code: "IC", icon: "💰" },
+    { id: "add_payment_info", name: "Info paiement", code: "API", icon: "💳" },
+    { id: "view_content", name: "Voir contenu", code: "VC", icon: "👁️" },
+    { id: "search", name: "Recherche", code: "SCH", icon: "🔍" },
   ],
   lead_form: [{ id: "lead", name: "Lead", code: "LEAD", icon: "📋" }],
   lead_site: [{ id: "lead", name: "Lead", code: "LEAD", icon: "📋" }],
 };
+
+const CALL_TO_ACTIONS = [
+  { id: "LEARN_MORE", name: "En savoir plus", icon: "📖" },
+  { id: "SHOP_NOW", name: "Acheter", icon: "🛍️" },
+  { id: "SIGN_UP", name: "S'inscrire", icon: "✍️" },
+  { id: "DOWNLOAD", name: "Télécharger", icon: "⬇️" },
+  { id: "APPLY_NOW", name: "Postuler", icon: "📝" },
+  { id: "BOOK_NOW", name: "Réserver", icon: "📅" },
+  { id: "CONTACT_US", name: "Nous contacter", icon: "📞" },
+  { id: "GET_QUOTE", name: "Devis", icon: "💼" },
+  { id: "SUBSCRIBE", name: "S'abonner", icon: "🔔" },
+  { id: "WATCH_MORE", name: "Voir plus", icon: "▶️" },
+  { id: "NO_BUTTON", name: "Pas de bouton", icon: "⚪" },
+];
 
 const META_PLACEMENTS = {
   story: {
@@ -364,6 +382,7 @@ export default function App() {
   const [clientCode, setClientCode] = useState("");
   const [objective, setObjective] = useState("conversions");
   const [optimizationEvent, setOptimizationEvent] = useState("purchase");
+  const [callToAction, setCallToAction] = useState("LEARN_MORE");
   const [budget, setBudget] = useState("50");
   const [selectedCountries, setSelectedCountries] = useState(["france"]);
   const [primaryTexts, setPrimaryTexts] = useState([""]);  // Array of texts
@@ -2123,6 +2142,93 @@ export default function App() {
                     ))}
                   </div>
                 </div>
+
+                {/* Événement d'optimisation (seulement pour conversions) */}
+                {objective === "conversions" && (
+                  <div style={box}>
+                    <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
+                      🎯 Événement de conversion
+                    </p>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(2,1fr)",
+                        gap: "8px",
+                      }}
+                    >
+                      {OPTIMIZATION_EVENTS.conversions.map((event) => (
+                        <button
+                          key={event.id}
+                          onClick={() => setOptimizationEvent(event.id)}
+                          style={{
+                            padding: "10px 8px",
+                            borderRadius: "8px",
+                            border:
+                              optimizationEvent === event.id
+                                ? "2px solid #22c55e"
+                                : "1px solid rgba(255,255,255,0.1)",
+                            background:
+                              optimizationEvent === event.id
+                                ? "rgba(34,197,94,0.2)"
+                                : "transparent",
+                            color: "#fff",
+                            cursor: "pointer",
+                            textAlign: "center",
+                          }}
+                        >
+                          <span style={{ fontSize: "16px", display: "block" }}>
+                            {event.icon}
+                          </span>
+                          <span style={{ fontSize: "10px" }}>{event.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Call to Action */}
+                <div style={box}>
+                  <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
+                    👆 Bouton d'action (CTA)
+                  </p>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2,1fr)",
+                      gap: "8px",
+                      maxHeight: "200px",
+                      overflowY: "auto",
+                    }}
+                  >
+                    {CALL_TO_ACTIONS.map((cta) => (
+                      <button
+                        key={cta.id}
+                        onClick={() => setCallToAction(cta.id)}
+                        style={{
+                          padding: "10px 8px",
+                          borderRadius: "8px",
+                          border:
+                            callToAction === cta.id
+                              ? "2px solid #f59e0b"
+                              : "1px solid rgba(255,255,255,0.1)",
+                          background:
+                            callToAction === cta.id
+                              ? "rgba(245,158,11,0.2)"
+                              : "transparent",
+                          color: "#fff",
+                          cursor: "pointer",
+                          textAlign: "left",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        <span style={{ fontSize: "16px" }}>{cta.icon}</span>
+                        <span style={{ fontSize: "11px" }}>{cta.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div
                 style={{
@@ -2664,6 +2770,49 @@ export default function App() {
                     </div>
                   )}
                 </div>
+
+                {/* Configuration summary */}
+                <div
+                  style={{
+                    padding: "12px",
+                    background: "rgba(99,102,241,0.1)",
+                    borderRadius: "8px",
+                    marginBottom: "16px",
+                    fontSize: "11px",
+                  }}
+                >
+                  <div style={{ marginBottom: "6px" }}>
+                    <span style={{ color: "#71717a" }}>Objectif:</span>{" "}
+                    <span style={{ fontWeight: "500" }}>
+                      {OBJECTIVES[objective]?.name}
+                    </span>
+                  </div>
+                  {objective === "conversions" && (
+                    <div style={{ marginBottom: "6px" }}>
+                      <span style={{ color: "#71717a" }}>Événement:</span>{" "}
+                      <span style={{ fontWeight: "500" }}>
+                        {
+                          OPTIMIZATION_EVENTS.conversions.find(
+                            (e) => e.id === optimizationEvent
+                          )?.name
+                        }
+                      </span>
+                    </div>
+                  )}
+                  <div style={{ marginBottom: "6px" }}>
+                    <span style={{ color: "#71717a" }}>CTA:</span>{" "}
+                    <span style={{ fontWeight: "500" }}>
+                      {CALL_TO_ACTIONS.find((c) => c.id === callToAction)?.name}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ color: "#71717a" }}>Budget:</span>{" "}
+                    <span style={{ fontWeight: "500" }}>
+                      {budget} {selectedAdAccount?.currency}/jour
+                    </span>
+                  </div>
+                </div>
+
                 <div
                   style={{
                     display: "grid",
@@ -2747,6 +2896,8 @@ export default function App() {
                         campaignName,
                         budget,
                         objective,
+                        optimizationEvent,
+                        callToAction,
                         countries: selectedCountries,
                         nomenclature,
                       },
@@ -2754,6 +2905,7 @@ export default function App() {
                         texts: primaryTexts.filter((t) => t.trim()),
                         headlines: headlines.filter((h) => h.trim()),
                         url: destinationUrl,
+                        cta: CALL_TO_ACTIONS.find((c) => c.id === callToAction)?.name,
                       },
                       files: uploadedFiles.map((f) => ({
                         name: f.adName,
