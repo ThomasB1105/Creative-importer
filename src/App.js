@@ -366,8 +366,8 @@ export default function App() {
   const [optimizationEvent, setOptimizationEvent] = useState("purchase");
   const [budget, setBudget] = useState("50");
   const [selectedCountries, setSelectedCountries] = useState(["france"]);
-  const [primaryTexts, setPrimaryTexts] = useState({ main: "" });
-  const [headlines, setHeadlines] = useState({ main: "" });
+  const [primaryTexts, setPrimaryTexts] = useState([""]);  // Array of texts
+  const [headlines, setHeadlines] = useState([""]);  // Array of headlines
   const [destinationUrl, setDestinationUrl] = useState("");
   const [callToAction, setCallToAction] = useState("learn_more");
 
@@ -626,8 +626,40 @@ export default function App() {
     return groups;
   }, [uploadedFiles, groupByFormat, splitByMediaType]);
 
+  // Nomenclature dynamique
+  const nomenclature = useMemo(() => {
+    const countries = selectedCountries
+      .map((c) => GEO_ZONES[c]?.code)
+      .join("")
+      .toUpperCase();
+    const budget = budgetType.toUpperCase();
+    const obj = OBJECTIVES[objective]?.name || "Conversions";
+
+    const campaign = [
+      clientCode || "XXX",
+      countries || "FR",
+      budget,
+      obj,
+      campaignName || "campagne",
+    ]
+      .filter(Boolean)
+      .join("_");
+
+    const adset = `${campaignName || "campagne"}_Broad`;
+
+    const today = new Date();
+    const dateStr = `${String(today.getDate()).padStart(2, "0")}${String(
+      today.getMonth() + 1
+    ).padStart(2, "0")}${String(today.getFullYear()).slice(-2)}`;
+
+    const ad = (num, mediaType) =>
+      `Ads${num}_${mediaType}_${dateStr}`;
+
+    return { campaign, adset, ad };
+  }, [clientCode, selectedCountries, budgetType, objective, campaignName]);
+
   const isStep2Valid =
-    primaryTexts.main && headlines.main && destinationUrl?.startsWith("http");
+    primaryTexts[0]?.trim() && headlines[0]?.trim() && destinationUrl?.startsWith("http");
 
   const structurePreview = useMemo(() => {
     const numGroups = Object.keys(groupedFiles).length;
@@ -2107,7 +2139,7 @@ export default function App() {
                       marginBottom: "14px",
                     }}
                   >
-                    <span style={{ fontWeight: "600" }}>✍️ Textes</span>
+                    <span style={{ fontWeight: "600" }}>✍️ Textes & Titres</span>
                     <span
                       style={{
                         marginLeft: "auto",
@@ -2123,31 +2155,156 @@ export default function App() {
                       {isStep2Valid ? "✓" : "⚠️"}
                     </span>
                   </div>
-                  <textarea
-                    value={primaryTexts.main}
-                    onChange={(e) => setPrimaryTexts({ main: e.target.value })}
-                    placeholder="Texte principal..."
-                    rows={3}
-                    style={{
-                      ...inp,
-                      marginBottom: "12px",
-                      border: primaryTexts.main
-                        ? "1px solid rgba(34,197,94,0.5)"
-                        : "1px solid rgba(239,68,68,0.5)",
-                    }}
-                  />
-                  <input
-                    value={headlines.main}
-                    onChange={(e) => setHeadlines({ main: e.target.value })}
-                    placeholder="Titre..."
-                    style={{
-                      ...inp,
-                      marginBottom: "12px",
-                      border: headlines.main
-                        ? "1px solid rgba(34,197,94,0.5)"
-                        : "1px solid rgba(239,68,68,0.5)",
-                    }}
-                  />
+
+                  {/* Textes */}
+                  {primaryTexts.map((text, idx) => (
+                    <div key={`text-${idx}`} style={{ marginBottom: "12px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        <span style={{ fontSize: "11px", color: "#71717a" }}>
+                          📝 Texte {idx === 0 ? "(Requis)" : `#${idx + 1}`}
+                        </span>
+                        {idx > 0 && (
+                          <button
+                            onClick={() => {
+                              const newTexts = primaryTexts.filter((_, i) => i !== idx);
+                              setPrimaryTexts(newTexts);
+                            }}
+                            style={{
+                              marginLeft: "auto",
+                              padding: "2px 6px",
+                              fontSize: "10px",
+                              border: "none",
+                              background: "rgba(239,68,68,0.2)",
+                              color: "#ef4444",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      <textarea
+                        value={text}
+                        onChange={(e) => {
+                          const newTexts = [...primaryTexts];
+                          newTexts[idx] = e.target.value;
+                          setPrimaryTexts(newTexts);
+                        }}
+                        placeholder={idx === 0 ? "Texte principal..." : `Variante ${idx}...`}
+                        rows={3}
+                        style={{
+                          ...inp,
+                          border:
+                            idx === 0 && !text
+                              ? "1px solid rgba(239,68,68,0.5)"
+                              : "1px solid rgba(255,255,255,0.1)",
+                        }}
+                      />
+                    </div>
+                  ))}
+                  {primaryTexts.length < 5 && (
+                    <button
+                      onClick={() => setPrimaryTexts([...primaryTexts, ""])}
+                      style={{
+                        width: "100%",
+                        padding: "8px",
+                        marginBottom: "16px",
+                        borderRadius: "6px",
+                        border: "1px dashed rgba(255,255,255,0.2)",
+                        background: "transparent",
+                        color: "#71717a",
+                        fontSize: "11px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      + Ajouter une variante de texte
+                    </button>
+                  )}
+
+                  {/* Titres */}
+                  {headlines.map((headline, idx) => (
+                    <div key={`headline-${idx}`} style={{ marginBottom: "12px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        <span style={{ fontSize: "11px", color: "#71717a" }}>
+                          📌 Titre {idx === 0 ? "(Requis)" : `#${idx + 1}`}
+                        </span>
+                        {idx > 0 && (
+                          <button
+                            onClick={() => {
+                              const newHeadlines = headlines.filter((_, i) => i !== idx);
+                              setHeadlines(newHeadlines);
+                            }}
+                            style={{
+                              marginLeft: "auto",
+                              padding: "2px 6px",
+                              fontSize: "10px",
+                              border: "none",
+                              background: "rgba(239,68,68,0.2)",
+                              color: "#ef4444",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        value={headline}
+                        onChange={(e) => {
+                          const newHeadlines = [...headlines];
+                          newHeadlines[idx] = e.target.value;
+                          setHeadlines(newHeadlines);
+                        }}
+                        placeholder={idx === 0 ? "Titre principal..." : `Variante ${idx}...`}
+                        style={{
+                          ...inp,
+                          border:
+                            idx === 0 && !headline
+                              ? "1px solid rgba(239,68,68,0.5)"
+                              : "1px solid rgba(255,255,255,0.1)",
+                        }}
+                      />
+                    </div>
+                  ))}
+                  {headlines.length < 5 && (
+                    <button
+                      onClick={() => setHeadlines([...headlines, ""])}
+                      style={{
+                        width: "100%",
+                        padding: "8px",
+                        marginBottom: "16px",
+                        borderRadius: "6px",
+                        border: "1px dashed rgba(255,255,255,0.2)",
+                        background: "transparent",
+                        color: "#71717a",
+                        fontSize: "11px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      + Ajouter une variante de titre
+                    </button>
+                  )}
+
+                  {/* URL */}
+                  <div style={{ marginBottom: "6px" }}>
+                    <span style={{ fontSize: "11px", color: "#71717a" }}>
+                      🔗 URL de destination (Requis)
+                    </span>
+                  </div>
                   <input
                     value={destinationUrl}
                     onChange={(e) => setDestinationUrl(e.target.value)}
@@ -2169,22 +2326,67 @@ export default function App() {
                       display: "grid",
                       gridTemplateColumns: "1fr 1fr",
                       gap: "10px",
+                      marginBottom: "16px",
                     }}
                   >
-                    <input
-                      value={clientCode}
-                      onChange={(e) =>
-                        setClientCode(e.target.value.toUpperCase())
-                      }
-                      placeholder="Code client"
-                      style={inp}
-                    />
-                    <input
-                      value={campaignName}
-                      onChange={(e) => setCampaignName(e.target.value)}
-                      placeholder="Nom campagne"
-                      style={inp}
-                    />
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#71717a" }}>
+                        Code client
+                      </span>
+                      <input
+                        value={clientCode}
+                        onChange={(e) =>
+                          setClientCode(e.target.value.toUpperCase())
+                        }
+                        placeholder="Ex: ANG"
+                        style={{ ...inp, marginTop: "4px" }}
+                      />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#71717a" }}>
+                        Nom de campagne
+                      </span>
+                      <input
+                        value={campaignName}
+                        onChange={(e) => setCampaignName(e.target.value)}
+                        placeholder="Ex: prospection"
+                        style={{ ...inp, marginTop: "4px" }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Preview de la nomenclature */}
+                  <div
+                    style={{
+                      background: "rgba(99,102,241,0.1)",
+                      border: "1px solid rgba(99,102,241,0.3)",
+                      borderRadius: "8px",
+                      padding: "12px",
+                    }}
+                  >
+                    <div style={{ fontSize: "10px", color: "#a5b4fc", marginBottom: "8px" }}>
+                      📋 Aperçu de la structure
+                    </div>
+                    <div style={{ fontSize: "11px", lineHeight: "1.6" }}>
+                      <div style={{ marginBottom: "4px" }}>
+                        <span style={{ color: "#71717a" }}>Campagne:</span>{" "}
+                        <span style={{ color: "#6366f1", fontWeight: "500" }}>
+                          {nomenclature.campaign}
+                        </span>
+                      </div>
+                      <div style={{ marginBottom: "4px" }}>
+                        <span style={{ color: "#71717a" }}>Adset:</span>{" "}
+                        <span style={{ color: "#22c55e", fontWeight: "500" }}>
+                          {nomenclature.adset}
+                        </span>
+                      </div>
+                      <div>
+                        <span style={{ color: "#71717a" }}>Ad (exemple):</span>{" "}
+                        <span style={{ color: "#f59e0b", fontWeight: "500" }}>
+                          {nomenclature.ad(1, "statique")}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2546,10 +2748,11 @@ export default function App() {
                         budget,
                         objective,
                         countries: selectedCountries,
+                        nomenclature,
                       },
                       adCopy: {
-                        text: primaryTexts.main,
-                        headline: headlines.main,
+                        texts: primaryTexts.filter((t) => t.trim()),
+                        headlines: headlines.filter((h) => h.trim()),
                         url: destinationUrl,
                       },
                       files: uploadedFiles.map((f) => ({
