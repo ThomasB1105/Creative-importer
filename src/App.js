@@ -1092,9 +1092,7 @@ export default function App() {
         adsetData.append("campaign_id", campaignId);
         adsetData.append("status", "PAUSED");
         adsetData.append("billing_event", "IMPRESSIONS");
-
-        // CRITICAL: For OUTCOME_SALES campaigns, use OUTCOME_SALES optimization goal
-        adsetData.append("optimization_goal", "OUTCOME_SALES");
+        adsetData.append("optimization_goal", "OFFSITE_CONVERSIONS");
 
         adsetData.append("promoted_object", JSON.stringify(promotedObject));
         adsetData.append("targeting", JSON.stringify(targeting));
