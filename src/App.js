@@ -388,7 +388,6 @@ export default function App() {
   const [primaryTexts, setPrimaryTexts] = useState([""]);  // Array of texts
   const [headlines, setHeadlines] = useState([""]);  // Array of headlines
   const [destinationUrl, setDestinationUrl] = useState("");
-  const [callToAction, setCallToAction] = useState("learn_more");
 
   // Check for OAuth callback or saved token on mount
   useEffect(() => {
