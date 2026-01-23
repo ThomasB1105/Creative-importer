@@ -1065,36 +1065,41 @@ export default function App() {
         adsetData.append("billing_event", "IMPRESSIONS");
         adsetData.append("optimization_goal", "OFFSITE_CONVERSIONS");
         adsetData.append("bid_strategy", "LOWEST_COST_WITHOUT_CAP");
+        adsetData.append("destination_type", "WEBSITE");
 
-        // Only add promoted_object if we have a pixel
-        if (selectedPixel?.id) {
-          adsetData.append("promoted_object", JSON.stringify({
-            pixel_id: selectedPixel.id,
-            custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
-          }));
-        }
+        // Promoted object with pixel for conversions
+        const promotedObject = {
+          pixel_id: selectedPixel.id,
+          custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
+        };
+        adsetData.append("promoted_object", JSON.stringify(promotedObject));
 
+        // Budget handling
         if (budgetType === "abo") {
-          adsetData.append("daily_budget", Math.round(parseFloat(budget) * 100));
+          const dailyBudget = Math.round(parseFloat(budget) * 100);
+          adsetData.append("daily_budget", dailyBudget.toString());
         }
 
-        adsetData.append("targeting", JSON.stringify({
+        // Targeting
+        const targeting = {
           geo_locations: {
             countries: selectedCountries.map(c => GEO_ZONES[c].code),
           },
           age_min: 18,
           age_max: 65,
-        }));
+        };
+        adsetData.append("targeting", JSON.stringify(targeting));
+
         adsetData.append("status", "PAUSED");
         adsetData.append("access_token", accessToken);
 
-        console.log("📤 Adset params:", {
+        console.log("📤 Adset creation params:", {
           name: nomenclature.adset,
           campaign_id: campaignId,
-          pixel_id: selectedPixel?.id,
-          event: eventMapping[optimizationEvent] || "PURCHASE",
-          countries: selectedCountries.map(c => GEO_ZONES[c].code),
-          budget: budgetType === "abo" ? Math.round(parseFloat(budget) * 100) : "N/A (CBO)"
+          promoted_object: promotedObject,
+          targeting: targeting,
+          budget: budgetType === "abo" ? Math.round(parseFloat(budget) * 100) : "N/A (CBO)",
+          destination_type: "WEBSITE"
         });
 
         const adsetResponse = await fetch(
