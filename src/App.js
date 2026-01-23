@@ -1159,18 +1159,23 @@ export default function App() {
             link: destinationUrl,
             message: filteredTexts[i % filteredTexts.length] || filteredTexts[0],
             name: filteredHeadlines[i % filteredHeadlines.length] || filteredHeadlines[0],
-            call_to_action: {
-              type: callToAction,
-              value: { link: destinationUrl },
-            },
             [hashData.type === "video" ? "video_id" : "image_hash"]: hashData.hash,
           },
         };
+
+        // Add call_to_action only if not NO_BUTTON
+        if (callToAction !== "NO_BUTTON") {
+          objectStorySpec.link_data.call_to_action = {
+            type: callToAction,
+          };
+        }
 
         // Only add instagram_actor_id if available
         if (instagramAccount?.id) {
           objectStorySpec.instagram_actor_id = instagramAccount.id;
         }
+
+        console.log(`📝 Creating creative for ${file.name}:`, JSON.stringify(objectStorySpec, null, 2));
 
         creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
         creativeData.append("access_token", accessToken);
