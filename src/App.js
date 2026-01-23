@@ -391,6 +391,7 @@ export default function App() {
   const [primaryTexts, setPrimaryTexts] = useState([""]);  // Array of texts
   const [headlines, setHeadlines] = useState([""]);  // Array of headlines
   const [destinationUrl, setDestinationUrl] = useState("");
+  const [bidStrategy, setBidStrategy] = useState("none"); // Bid strategy selection
 
   // Campaign creation states
   const [isCreating, setIsCreating] = useState(false);
@@ -1017,7 +1018,14 @@ export default function App() {
         campaignData.append("objective", "OUTCOME_SALES");
         campaignData.append("status", "PAUSED");
         campaignData.append("special_ad_categories", JSON.stringify([]));
-        // No bid_strategy = default = "Volume le plus élevé" (maximize results for budget)
+
+        // Apply bid strategy if selected
+        if (bidStrategy !== "none") {
+          campaignData.append("bid_strategy", bidStrategy);
+          console.log(`💰 Using bid strategy: ${bidStrategy}`);
+        } else {
+          console.log(`💰 No bid strategy = Volume le plus élevé (default)`);
+        }
 
         if (budgetType === "cbo") {
           campaignData.append("daily_budget", Math.round(parseFloat(budget) * 100));
@@ -2665,6 +2673,66 @@ export default function App() {
                     ))}
                   </div>
                 </div>
+
+                {/* Bid Strategy Selector */}
+                <div style={box}>
+                  <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
+                    💰 Stratégie d'enchère
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <button
+                      onClick={() => setBidStrategy("none")}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: "8px",
+                        border: bidStrategy === "none" ? "2px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
+                        background: bidStrategy === "none" ? "rgba(99,102,241,0.2)" : "transparent",
+                        color: "#fff",
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      <div style={{ fontSize: "11px", fontWeight: "600" }}>Volume le plus élevé</div>
+                      <div style={{ fontSize: "9px", color: "#71717a", marginTop: "2px" }}>
+                        Obtenir les meilleurs résultats pour le budget
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setBidStrategy("LOWEST_COST_WITH_BID_CAP")}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: "8px",
+                        border: bidStrategy === "LOWEST_COST_WITH_BID_CAP" ? "2px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
+                        background: bidStrategy === "LOWEST_COST_WITH_BID_CAP" ? "rgba(99,102,241,0.2)" : "transparent",
+                        color: "#fff",
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      <div style={{ fontSize: "11px", fontWeight: "600" }}>Limite d'enchères</div>
+                      <div style={{ fontSize: "9px", color: "#71717a", marginTop: "2px" }}>
+                        Contrôler le coût de chaque résultat
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setBidStrategy("COST_CAP")}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: "8px",
+                        border: bidStrategy === "COST_CAP" ? "2px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
+                        background: bidStrategy === "COST_CAP" ? "rgba(99,102,241,0.2)" : "transparent",
+                        color: "#fff",
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      <div style={{ fontSize: "11px", fontWeight: "600" }}>Objectif de coût</div>
+                      <div style={{ fontSize: "9px", color: "#71717a", marginTop: "2px" }}>
+                        Maintenir un coût moyen par résultat
+                      </div>
+                    </button>
+                  </div>
+                </div>
               </div>
               <div
                 style={{
@@ -4042,6 +4110,7 @@ export default function App() {
                     setPrimaryTexts([""]);
                     setHeadlines([""]);
                     setDestinationUrl("");
+                    setBidStrategy("none");
                     setCreationResult(null);
                     setCreationError(null);
                     setSelectedCampaign(null);
