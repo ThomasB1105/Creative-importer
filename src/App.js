@@ -2055,15 +2055,172 @@ export default function App() {
                 }}
               >
                 <div style={box}>
-                  <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
-                    💰 Budget ({selectedAdAccount?.currency}/jour)
-                  </p>
-                  <input
-                    type="number"
-                    value={budget}
-                    onChange={(e) => setBudget(e.target.value)}
-                    style={{ ...inp, fontSize: "18px", fontWeight: "600" }}
-                  />
+                  {/* Budget logic based on structure */}
+                  {(() => {
+                    // CBO: Campagne existante → Budget de la campagne (read-only)
+                    if (
+                      budgetType === "cbo" &&
+                      (cboMode === "existing_new_adset" ||
+                        cboMode === "existing_adset")
+                    ) {
+                      const campaignBudget =
+                        selectedCampaign?.daily_budget ||
+                        selectedCampaign?.lifetime_budget;
+                      return (
+                        <>
+                          <p style={{ margin: "0 0 8px", fontWeight: "600" }}>
+                            💰 Budget campagne actuel
+                          </p>
+                          <div
+                            style={{
+                              padding: "12px",
+                              background: "rgba(99,102,241,0.1)",
+                              borderRadius: "8px",
+                              fontSize: "18px",
+                              fontWeight: "600",
+                              color: "#6366f1",
+                            }}
+                          >
+                            {campaignBudget
+                              ? `${(campaignBudget / 100).toFixed(2)} ${
+                                  selectedAdAccount?.currency
+                                }/jour`
+                              : "Budget non défini"}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#71717a",
+                              marginTop: "6px",
+                            }}
+                          >
+                            ℹ️ Budget de la campagne existante (non modifiable)
+                          </div>
+                        </>
+                      );
+                    }
+
+                    // ABO: Campagne existante → Budget de la campagne (read-only)
+                    if (budgetType === "abo" && aboMode === "existing") {
+                      const campaignBudget =
+                        selectedCampaign?.daily_budget ||
+                        selectedCampaign?.lifetime_budget;
+                      return (
+                        <>
+                          <p style={{ margin: "0 0 8px", fontWeight: "600" }}>
+                            💰 Budget campagne actuel
+                          </p>
+                          <div
+                            style={{
+                              padding: "12px",
+                              background: "rgba(245,158,11,0.1)",
+                              borderRadius: "8px",
+                              fontSize: "18px",
+                              fontWeight: "600",
+                              color: "#f59e0b",
+                            }}
+                          >
+                            {campaignBudget
+                              ? `${(campaignBudget / 100).toFixed(2)} ${
+                                  selectedAdAccount?.currency
+                                }/jour`
+                              : "Budget non défini"}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#71717a",
+                              marginTop: "6px",
+                            }}
+                          >
+                            ℹ️ Le budget sera alloué par adset
+                          </div>
+                        </>
+                      );
+                    }
+
+                    // CBO nouvelle campagne → Budget éditable
+                    if (budgetType === "cbo" && cboMode === "new") {
+                      return (
+                        <>
+                          <p style={{ margin: "0 0 8px", fontWeight: "600" }}>
+                            💰 Budget de campagne ({selectedAdAccount?.currency}
+                            /jour)
+                          </p>
+                          <input
+                            type="number"
+                            value={budget}
+                            onChange={(e) => setBudget(e.target.value)}
+                            placeholder="Ex: 50"
+                            style={{
+                              ...inp,
+                              fontSize: "18px",
+                              fontWeight: "600",
+                            }}
+                          />
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#71717a",
+                              marginTop: "6px",
+                            }}
+                          >
+                            ℹ️ Meta optimise la répartition entre adsets
+                          </div>
+                        </>
+                      );
+                    }
+
+                    // ABO (1:1:1 ou multi) → Budget par adset
+                    if (
+                      budgetType === "abo" &&
+                      (aboMode === "1:1:1" || aboMode === "multi")
+                    ) {
+                      return (
+                        <>
+                          <p style={{ margin: "0 0 8px", fontWeight: "600" }}>
+                            💰 Budget par adset ({selectedAdAccount?.currency}
+                            /jour)
+                          </p>
+                          <input
+                            type="number"
+                            value={budget}
+                            onChange={(e) => setBudget(e.target.value)}
+                            placeholder="Ex: 50"
+                            style={{
+                              ...inp,
+                              fontSize: "18px",
+                              fontWeight: "600",
+                            }}
+                          />
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#71717a",
+                              marginTop: "6px",
+                            }}
+                          >
+                            ℹ️ Chaque adset aura ce budget quotidien
+                          </div>
+                        </>
+                      );
+                    }
+
+                    // Par défaut (ne devrait pas arriver)
+                    return (
+                      <>
+                        <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
+                          💰 Budget ({selectedAdAccount?.currency}/jour)
+                        </p>
+                        <input
+                          type="number"
+                          value={budget}
+                          onChange={(e) => setBudget(e.target.value)}
+                          style={{ ...inp, fontSize: "18px", fontWeight: "600" }}
+                        />
+                      </>
+                    );
+                  })()}
                 </div>
                 <div style={box}>
                   <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
