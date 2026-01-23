@@ -261,7 +261,13 @@ const createMetaApi = (accessToken) => ({
   async fetchCampaigns(adAccountId) {
     try {
       console.log("🔍 Fetching campaigns for account:", adAccountId);
-      const url = `${this.baseUrl}/${adAccountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget&filtering=[{"field":"status","operator":"IN","value":["ACTIVE","PAUSED"]}]&limit=50&access_token=${accessToken}`;
+
+      // Encode the filtering parameter properly
+      const filtering = JSON.stringify([
+        { field: "status", operator: "IN", value: ["ACTIVE", "PAUSED"] }
+      ]);
+
+      const url = `${this.baseUrl}/${adAccountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget&filtering=${encodeURIComponent(filtering)}&limit=50&access_token=${accessToken}`;
       console.log("📡 API URL:", url.replace(accessToken, "***TOKEN***"));
 
       const res = await fetch(url);
@@ -287,8 +293,13 @@ const createMetaApi = (accessToken) => ({
 
   async fetchAdsets(campaignId) {
     try {
+      // Encode the filtering parameter properly
+      const filtering = JSON.stringify([
+        { field: "status", operator: "IN", value: ["ACTIVE", "PAUSED"] }
+      ]);
+
       const res = await fetch(
-        `${this.baseUrl}/${campaignId}/adsets?fields=id,name,status,daily_budget&filtering=[{"field":"status","operator":"IN","value":["ACTIVE","PAUSED"]}]&limit=50&access_token=${accessToken}`
+        `${this.baseUrl}/${campaignId}/adsets?fields=id,name,status,daily_budget&filtering=${encodeURIComponent(filtering)}&limit=50&access_token=${accessToken}`
       );
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
