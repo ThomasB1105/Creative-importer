@@ -1093,6 +1093,7 @@ export default function App() {
         adsetData.append("status", "PAUSED");
         adsetData.append("billing_event", "IMPRESSIONS");
         adsetData.append("optimization_goal", "OFFSITE_CONVERSIONS");
+        adsetData.append("bid_strategy", "LOWEST_COST");
         adsetData.append("destination_type", "WEBSITE");
 
         adsetData.append("promoted_object", JSON.stringify(promotedObject));
