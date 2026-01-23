@@ -1092,18 +1092,19 @@ export default function App() {
         adsetData.append("campaign_id", campaignId);
         adsetData.append("status", "PAUSED");
         adsetData.append("billing_event", "IMPRESSIONS");
-        adsetData.append("optimization_goal", "OFFSITE_CONVERSIONS");
 
-        // For OUTCOME_SALES, use LOWEST_COST_WITHOUT_CAP or remove bid_strategy
-        // adsetData.append("bid_strategy", "LOWEST_COST_WITHOUT_CAP");
+        // CRITICAL: For OUTCOME_SALES campaigns, use OUTCOME_SALES optimization goal
+        adsetData.append("optimization_goal", "OUTCOME_SALES");
 
         adsetData.append("promoted_object", JSON.stringify(promotedObject));
         adsetData.append("targeting", JSON.stringify(targeting));
 
         // Budget handling - required for ABO, not for CBO
+        // Ensure minimum budget (Meta requires at least 1000 cents = 10 EUR/day)
         if (budgetType === "abo") {
-          const dailyBudget = Math.round(parseFloat(budget) * 100);
+          const dailyBudget = Math.max(1000, Math.round(parseFloat(budget) * 100));
           adsetData.append("daily_budget", dailyBudget);
+          console.log(`💰 Budget: ${dailyBudget} cents (${dailyBudget/100} EUR/day)`);
         }
 
         adsetData.append("access_token", accessToken);
