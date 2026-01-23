@@ -1017,7 +1017,7 @@ export default function App() {
         campaignData.append("objective", "OUTCOME_SALES");
         campaignData.append("status", "PAUSED");
         campaignData.append("special_ad_categories", JSON.stringify([]));
-        campaignData.append("bid_strategy", "LOWEST_COST_WITHOUT_CAP");
+        // No bid_strategy = default = "Volume le plus élevé" (maximize results for budget)
 
         if (budgetType === "cbo") {
           campaignData.append("daily_budget", Math.round(parseFloat(budget) * 100));
