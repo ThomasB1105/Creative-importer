@@ -2966,7 +2966,7 @@ export default function App() {
                                   Supprimer
                                 </button>
                               </div>
-                              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                                 {group.fileIds.map(fileId => {
                                   const file = uploadedFiles.find(f => f.id === fileId);
                                   if (!file) return null;
@@ -2975,19 +2975,84 @@ export default function App() {
                                     <div
                                       key={fileId}
                                       style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "6px",
-                                        padding: "6px 10px",
-                                        background: placement?.bgColor || "rgba(255,255,255,0.05)",
-                                        borderRadius: "6px",
-                                        fontSize: "10px",
+                                        position: "relative",
+                                        background: "rgba(255,255,255,0.05)",
+                                        border: `1px solid ${placement?.color || "rgba(255,255,255,0.1)"}`,
+                                        borderRadius: "8px",
+                                        overflow: "hidden",
+                                        width: "100px",
                                       }}
                                     >
-                                      <span>{placement?.icon || "📁"}</span>
-                                      <span style={{ color: placement?.color || "#fff" }}>
-                                        {placement?.name || file.format}
-                                      </span>
+                                      {/* Thumbnail */}
+                                      <div style={{
+                                        width: "100%",
+                                        height: "100px",
+                                        background: "#18181b",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        overflow: "hidden",
+                                        position: "relative",
+                                      }}>
+                                        {file.type === "video" ? (
+                                          <>
+                                            <video
+                                              src={file.preview}
+                                              style={{
+                                                width: "100%",
+                                                height: "100%",
+                                                objectFit: "cover",
+                                              }}
+                                              muted
+                                            />
+                                            <div style={{
+                                              position: "absolute",
+                                              top: "50%",
+                                              left: "50%",
+                                              transform: "translate(-50%, -50%)",
+                                              background: "rgba(0,0,0,0.6)",
+                                              borderRadius: "50%",
+                                              width: "24px",
+                                              height: "24px",
+                                              display: "flex",
+                                              alignItems: "center",
+                                              justifyContent: "center",
+                                              fontSize: "10px",
+                                            }}>
+                                              ▶
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <img
+                                            src={file.preview}
+                                            alt={file.name}
+                                            style={{
+                                              width: "100%",
+                                              height: "100%",
+                                              objectFit: "cover",
+                                            }}
+                                          />
+                                        )}
+                                      </div>
+
+                                      {/* Format Badge */}
+                                      <div style={{
+                                        padding: "4px 6px",
+                                        background: placement?.bgColor || "rgba(99,102,241,0.2)",
+                                        fontSize: "8px",
+                                        fontWeight: "600",
+                                        color: placement?.color || "#6366f1",
+                                        textAlign: "center",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: "3px",
+                                      }}>
+                                        <span>{placement?.icon || "📁"}</span>
+                                        <span>{placement?.name || file.format}</span>
+                                      </div>
+
+                                      {/* Remove Button */}
                                       <button
                                         onClick={() => {
                                           setAdGroups(prev => prev.map((g, i) =>
@@ -2997,11 +3062,21 @@ export default function App() {
                                           ).filter(g => g.fileIds.length > 0));
                                         }}
                                         style={{
-                                          background: "transparent",
+                                          position: "absolute",
+                                          top: "4px",
+                                          right: "4px",
+                                          background: "rgba(239,68,68,0.9)",
                                           border: "none",
-                                          color: "#ef4444",
+                                          color: "#fff",
+                                          borderRadius: "4px",
+                                          width: "20px",
+                                          height: "20px",
                                           cursor: "pointer",
-                                          padding: "0 4px",
+                                          fontSize: "12px",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          fontWeight: "bold",
                                         }}
                                       >
                                         ×
@@ -3041,8 +3116,8 @@ export default function App() {
                       </div>
                       <div style={{
                         display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill,minmax(120px,1fr))",
-                        gap: "8px",
+                        gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))",
+                        gap: "12px",
                       }}>
                         {uploadedFiles
                           .filter(file => !adGroups.some(g => g.fileIds.includes(file.id)))
@@ -3055,23 +3130,100 @@ export default function App() {
                                 onDragStart={() => setDraggedFile(file)}
                                 onDragEnd={() => setDraggedFile(null)}
                                 style={{
-                                  padding: "10px",
-                                  background: placement?.bgColor || "rgba(255,255,255,0.05)",
-                                  border: `1px solid ${placement?.color || "rgba(255,255,255,0.1)"}`,
-                                  borderRadius: "8px",
+                                  background: "rgba(255,255,255,0.05)",
+                                  border: `2px solid ${placement?.color || "rgba(255,255,255,0.1)"}`,
+                                  borderRadius: "10px",
                                   cursor: "grab",
-                                  textAlign: "center",
-                                  fontSize: "10px",
+                                  overflow: "hidden",
+                                  transition: "all 0.2s",
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.transform = "scale(1.02)";
+                                  e.currentTarget.style.borderColor = placement?.color || "#6366f1";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.transform = "scale(1)";
+                                  e.currentTarget.style.borderColor = placement?.color || "rgba(255,255,255,0.1)";
                                 }}
                               >
-                                <div style={{ fontSize: "24px", marginBottom: "4px" }}>
-                                  {placement?.icon || "📁"}
+                                {/* Thumbnail */}
+                                <div style={{
+                                  width: "100%",
+                                  height: "140px",
+                                  background: "#18181b",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  overflow: "hidden",
+                                  position: "relative",
+                                }}>
+                                  {file.type === "video" ? (
+                                    <>
+                                      <video
+                                        src={file.preview}
+                                        style={{
+                                          width: "100%",
+                                          height: "100%",
+                                          objectFit: "cover",
+                                        }}
+                                        muted
+                                      />
+                                      <div style={{
+                                        position: "absolute",
+                                        top: "50%",
+                                        left: "50%",
+                                        transform: "translate(-50%, -50%)",
+                                        background: "rgba(0,0,0,0.6)",
+                                        borderRadius: "50%",
+                                        width: "32px",
+                                        height: "32px",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontSize: "14px",
+                                      }}>
+                                        ▶
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <img
+                                      src={file.preview}
+                                      alt={file.name}
+                                      style={{
+                                        width: "100%",
+                                        height: "100%",
+                                        objectFit: "cover",
+                                      }}
+                                    />
+                                  )}
                                 </div>
-                                <div style={{ color: placement?.color || "#fff", fontWeight: "500" }}>
-                                  {placement?.name || file.format}
-                                </div>
-                                <div style={{ color: "#71717a", fontSize: "9px", marginTop: "2px" }}>
-                                  {file.type === "video" ? "🎬" : "🖼️"}
+
+                                {/* Info */}
+                                <div style={{ padding: "8px" }}>
+                                  <div style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                    padding: "3px 8px",
+                                    background: placement?.bgColor || "rgba(99,102,241,0.2)",
+                                    borderRadius: "4px",
+                                    fontSize: "9px",
+                                    fontWeight: "600",
+                                    color: placement?.color || "#6366f1",
+                                    marginBottom: "4px",
+                                  }}>
+                                    <span>{placement?.icon || "📁"}</span>
+                                    <span>{placement?.name || file.format}</span>
+                                  </div>
+                                  <div style={{
+                                    fontSize: "10px",
+                                    color: "#71717a",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
+                                  }}>
+                                    {file.name}
+                                  </div>
                                 </div>
                               </div>
                             );
