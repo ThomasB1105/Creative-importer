@@ -1093,8 +1093,7 @@ export default function App() {
         adsetData.append("status", "PAUSED");
         adsetData.append("billing_event", "IMPRESSIONS");
         adsetData.append("optimization_goal", "OFFSITE_CONVERSIONS");
-        adsetData.append("bid_strategy", "LOWEST_COST");
-        adsetData.append("destination_type", "WEBSITE");
+        // No bid_strategy = "Volume le plus élevé" (obtenir les meilleurs résultats pour le budget)
 
         adsetData.append("promoted_object", JSON.stringify(promotedObject));
         adsetData.append("targeting", JSON.stringify(targeting));
