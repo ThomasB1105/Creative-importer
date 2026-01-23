@@ -392,6 +392,11 @@ export default function App() {
   const [headlines, setHeadlines] = useState([""]);  // Array of headlines
   const [destinationUrl, setDestinationUrl] = useState("");
 
+  // Campaign creation states
+  const [isCreating, setIsCreating] = useState(false);
+  const [creationError, setCreationError] = useState(null);
+  const [creationResult, setCreationResult] = useState(null);
+
   // Check for OAuth callback or saved token on mount
   useEffect(() => {
     const checkAuth = async () => {
@@ -940,6 +945,213 @@ export default function App() {
       </div>
     );
   }
+
+  // Create campaign on Meta
+  const createCampaignOnMeta = async () => {
+    setIsCreating(true);
+    setCreationError(null);
+
+    try {
+      console.log("🚀 Starting campaign creation...");
+
+      const results = {
+        campaigns: [],
+        adsets: [],
+        ads: [],
+        errors: []
+      };
+
+      // Step 1: Upload images/videos and get hash IDs
+      console.log("📤 Uploading creatives...");
+      const uploadedHashes = await Promise.all(
+        uploadedFiles.map(async (file) => {
+          try {
+            const formData = new FormData();
+            formData.append("source", file.file);
+            formData.append("access_token", accessToken);
+
+            const endpoint = file.type === "video"
+              ? `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`
+              : `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`;
+
+            const response = await fetch(endpoint, {
+              method: "POST",
+              body: formData,
+            });
+
+            const data = await response.json();
+            if (data.error) throw new Error(data.error.message);
+
+            return {
+              fileId: file.id,
+              hash: file.type === "video" ? data.id : data.images[Object.keys(data.images)[0]].hash,
+              type: file.type,
+            };
+          } catch (err) {
+            console.error(`Error uploading ${file.name}:`, err);
+            results.errors.push(`Upload failed for ${file.name}: ${err.message}`);
+            return null;
+          }
+        })
+      );
+
+      const validHashes = uploadedHashes.filter(h => h !== null);
+      if (validHashes.length === 0) {
+        throw new Error("No creatives uploaded successfully");
+      }
+
+      // Step 2: Create or use existing campaign
+      let campaignId;
+      if (budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) {
+        campaignId = selectedCampaign?.id;
+        console.log(`✅ Using existing campaign: ${campaignId}`);
+      } else {
+        console.log("📦 Creating new campaign...");
+        const campaignData = new FormData();
+        campaignData.append("name", nomenclature.campaign);
+        campaignData.append("objective", "OUTCOME_SALES");
+        campaignData.append("status", "PAUSED");
+        campaignData.append("special_ad_categories", "[]");
+
+        if (budgetType === "cbo") {
+          campaignData.append("daily_budget", Math.round(parseFloat(budget) * 100));
+        }
+
+        campaignData.append("access_token", accessToken);
+
+        const campaignResponse = await fetch(
+          `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/campaigns`,
+          { method: "POST", body: campaignData }
+        );
+
+        const campaignResult = await campaignResponse.json();
+        if (campaignResult.error) throw new Error(campaignResult.error.message);
+
+        campaignId = campaignResult.id;
+        results.campaigns.push({ id: campaignId, name: nomenclature.campaign });
+        console.log(`✅ Campaign created: ${campaignId}`);
+      }
+
+      // Step 3: Create or use existing adset
+      let adsetId;
+      if (budgetType === "cbo" && cboMode === "existing_adset") {
+        adsetId = selectedAdset?.id;
+        console.log(`✅ Using existing adset: ${adsetId}`);
+      } else {
+        console.log("📦 Creating new adset...");
+        const adsetData = new FormData();
+        adsetData.append("name", nomenclature.adset);
+        adsetData.append("campaign_id", campaignId);
+        adsetData.append("billing_event", "IMPRESSIONS");
+        adsetData.append("optimization_goal", "OFFSITE_CONVERSIONS");
+        adsetData.append("promoted_object", JSON.stringify({
+          pixel_id: selectedPixel?.id,
+          custom_event_type: optimizationEvent.toUpperCase(),
+        }));
+
+        if (budgetType === "abo") {
+          adsetData.append("daily_budget", Math.round(parseFloat(budget) * 100));
+        }
+
+        adsetData.append("targeting", JSON.stringify({
+          geo_locations: {
+            countries: selectedCountries.map(c => GEO_ZONES[c].code),
+          },
+          age_min: 18,
+          age_max: 65,
+        }));
+        adsetData.append("status", "PAUSED");
+        adsetData.append("access_token", accessToken);
+
+        const adsetResponse = await fetch(
+          `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adsets`,
+          { method: "POST", body: adsetData }
+        );
+
+        const adsetResult = await adsetResponse.json();
+        if (adsetResult.error) throw new Error(adsetResult.error.message);
+
+        adsetId = adsetResult.id;
+        results.adsets.push({ id: adsetId, name: nomenclature.adset });
+        console.log(`✅ Adset created: ${adsetId}`);
+      }
+
+      // Step 4: Create ads
+      console.log("📦 Creating ads...");
+      const filteredTexts = primaryTexts.filter(t => t.trim());
+      const filteredHeadlines = headlines.filter(h => h.trim());
+
+      for (let i = 0; i < validHashes.length; i++) {
+        const hashData = validHashes[i];
+        const file = uploadedFiles.find(f => f.id === hashData.fileId);
+
+        const adName = nomenclature.ad(i + 1, file.format);
+
+        // Create ad creative
+        const creativeData = new FormData();
+        creativeData.append("name", adName);
+        creativeData.append("object_story_spec", JSON.stringify({
+          page_id: selectedPage.id,
+          instagram_actor_id: instagramAccount?.id,
+          link_data: {
+            link: destinationUrl,
+            message: filteredTexts[i % filteredTexts.length] || filteredTexts[0],
+            name: filteredHeadlines[i % filteredHeadlines.length] || filteredHeadlines[0],
+            call_to_action: {
+              type: callToAction,
+              value: { link: destinationUrl },
+            },
+            [hashData.type === "video" ? "video_id" : "image_hash"]: hashData.hash,
+          },
+        }));
+        creativeData.append("access_token", accessToken);
+
+        const creativeResponse = await fetch(
+          `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adcreatives`,
+          { method: "POST", body: creativeData }
+        );
+
+        const creativeResult = await creativeResponse.json();
+        if (creativeResult.error) {
+          console.error(`Error creating creative for ${file.name}:`, creativeResult.error);
+          results.errors.push(`Creative failed for ${file.name}: ${creativeResult.error.message}`);
+          continue;
+        }
+
+        // Create ad
+        const adData = new FormData();
+        adData.append("name", adName);
+        adData.append("adset_id", adsetId);
+        adData.append("creative", JSON.stringify({ creative_id: creativeResult.id }));
+        adData.append("status", "PAUSED");
+        adData.append("access_token", accessToken);
+
+        const adResponse = await fetch(
+          `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/ads`,
+          { method: "POST", body: adData }
+        );
+
+        const adResult = await adResponse.json();
+        if (adResult.error) {
+          console.error(`Error creating ad for ${file.name}:`, adResult.error);
+          results.errors.push(`Ad failed for ${file.name}: ${adResult.error.message}`);
+        } else {
+          results.ads.push({ id: adResult.id, name: adName });
+          console.log(`✅ Ad created: ${adResult.id}`);
+        }
+      }
+
+      setCreationResult(results);
+      setStep(5);
+      console.log("🎉 Campaign creation completed!", results);
+
+    } catch (error) {
+      console.error("❌ Campaign creation failed:", error);
+      setCreationError(error.message);
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   // MAIN APP
   return (
@@ -3455,21 +3667,38 @@ export default function App() {
                   📥 Export JSON
                 </button>
                 <button
-                  onClick={() => alert("🚀 Lancement!")}
+                  onClick={createCampaignOnMeta}
+                  disabled={isCreating}
                   style={{
                     width: "100%",
                     padding: "14px",
                     borderRadius: "10px",
                     border: "none",
-                    background: "linear-gradient(135deg,#22c55e,#16a34a)",
+                    background: isCreating
+                      ? "rgba(99,102,241,0.5)"
+                      : "linear-gradient(135deg,#22c55e,#16a34a)",
                     color: "#fff",
                     fontSize: "14px",
                     fontWeight: "600",
-                    cursor: "pointer",
+                    cursor: isCreating ? "not-allowed" : "pointer",
+                    opacity: isCreating ? 0.7 : 1,
                   }}
                 >
-                  🚀 Lancer sur Meta
+                  {isCreating ? "⏳ Création en cours..." : "🚀 Lancer sur Meta"}
                 </button>
+                {creationError && (
+                  <div style={{
+                    marginTop: "12px",
+                    padding: "12px",
+                    background: "rgba(239,68,68,0.1)",
+                    border: "1px solid rgba(239,68,68,0.3)",
+                    borderRadius: "8px",
+                    color: "#ef4444",
+                    fontSize: "11px",
+                  }}>
+                    ❌ Erreur: {creationError}
+                  </div>
+                )}
               </div>
               <div style={{ ...box, maxHeight: "400px", overflowY: "auto" }}>
                 <h3
@@ -3540,6 +3769,234 @@ export default function App() {
               <button onClick={() => setStep(3)} style={btn2}>
                 ← Upload
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 5: Finalization */}
+        {step === 5 && creationResult && (
+          <div>
+            <h2 style={{ fontSize: "18px", marginBottom: "24px", color: "#a5b4fc" }}>
+              05 — Finalisation
+            </h2>
+
+            {/* Success Summary */}
+            <div style={{ ...box, marginBottom: "24px" }}>
+              <div style={{
+                textAlign: "center",
+                padding: "24px",
+                background: "linear-gradient(135deg, rgba(34,197,94,0.2), rgba(34,197,94,0.05))",
+                borderRadius: "12px",
+                marginBottom: "24px",
+              }}>
+                <div style={{ fontSize: "48px", marginBottom: "12px" }}>🎉</div>
+                <h3 style={{ fontSize: "20px", fontWeight: "700", color: "#22c55e", marginBottom: "8px" }}>
+                  Campagne créée avec succès !
+                </h3>
+                <p style={{ fontSize: "12px", color: "#71717a" }}>
+                  Vos publicités sont prêtes et en pause sur Meta Ads Manager
+                </p>
+              </div>
+
+              {/* Stats */}
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "12px",
+                marginBottom: "24px",
+              }}>
+                <div style={{
+                  padding: "16px",
+                  background: "rgba(99,102,241,0.1)",
+                  borderRadius: "10px",
+                  textAlign: "center",
+                }}>
+                  <div style={{ fontSize: "28px", fontWeight: "700", color: "#6366f1" }}>
+                    {creationResult.campaigns.length}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#71717a", marginTop: "4px" }}>
+                    Campagne{creationResult.campaigns.length > 1 ? "s" : ""}
+                  </div>
+                </div>
+                <div style={{
+                  padding: "16px",
+                  background: "rgba(251,191,36,0.1)",
+                  borderRadius: "10px",
+                  textAlign: "center",
+                }}>
+                  <div style={{ fontSize: "28px", fontWeight: "700", color: "#fbbf24" }}>
+                    {creationResult.adsets.length}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#71717a", marginTop: "4px" }}>
+                    Adset{creationResult.adsets.length > 1 ? "s" : ""}
+                  </div>
+                </div>
+                <div style={{
+                  padding: "16px",
+                  background: "rgba(34,197,94,0.1)",
+                  borderRadius: "10px",
+                  textAlign: "center",
+                }}>
+                  <div style={{ fontSize: "28px", fontWeight: "700", color: "#22c55e" }}>
+                    {creationResult.ads.length}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#71717a", marginTop: "4px" }}>
+                    Publicité{creationResult.ads.length > 1 ? "s" : ""}
+                  </div>
+                </div>
+              </div>
+
+              {/* Details */}
+              <div style={{ marginBottom: "20px" }}>
+                <h4 style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "#a5b4fc" }}>
+                  📋 Détails de la création
+                </h4>
+
+                {creationResult.campaigns.length > 0 && (
+                  <div style={{ marginBottom: "12px" }}>
+                    <div style={{ fontSize: "11px", color: "#71717a", marginBottom: "6px" }}>Campagnes:</div>
+                    {creationResult.campaigns.map((c, i) => (
+                      <div key={i} style={{
+                        padding: "8px 12px",
+                        background: "rgba(99,102,241,0.05)",
+                        borderLeft: "3px solid #6366f1",
+                        borderRadius: "4px",
+                        fontSize: "11px",
+                        marginBottom: "4px",
+                      }}>
+                        ✅ {c.name}
+                        <span style={{ float: "right", color: "#71717a", fontSize: "9px" }}>
+                          ID: {c.id}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {creationResult.adsets.length > 0 && (
+                  <div style={{ marginBottom: "12px" }}>
+                    <div style={{ fontSize: "11px", color: "#71717a", marginBottom: "6px" }}>Adsets:</div>
+                    {creationResult.adsets.map((a, i) => (
+                      <div key={i} style={{
+                        padding: "8px 12px",
+                        background: "rgba(251,191,36,0.05)",
+                        borderLeft: "3px solid #fbbf24",
+                        borderRadius: "4px",
+                        fontSize: "11px",
+                        marginBottom: "4px",
+                      }}>
+                        ✅ {a.name}
+                        <span style={{ float: "right", color: "#71717a", fontSize: "9px" }}>
+                          ID: {a.id}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {creationResult.ads.length > 0 && (
+                  <div style={{ marginBottom: "12px" }}>
+                    <div style={{ fontSize: "11px", color: "#71717a", marginBottom: "6px" }}>
+                      Publicités ({creationResult.ads.length}):
+                    </div>
+                    <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+                      {creationResult.ads.map((ad, i) => (
+                        <div key={i} style={{
+                          padding: "6px 10px",
+                          background: "rgba(34,197,94,0.05)",
+                          borderLeft: "3px solid #22c55e",
+                          borderRadius: "4px",
+                          fontSize: "10px",
+                          marginBottom: "3px",
+                        }}>
+                          ✅ {ad.name}
+                          <span style={{ float: "right", color: "#71717a", fontSize: "9px" }}>
+                            {ad.id}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {creationResult.errors.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: "11px", color: "#ef4444", marginBottom: "6px" }}>
+                      ⚠️ Erreurs ({creationResult.errors.length}):
+                    </div>
+                    {creationResult.errors.map((err, i) => (
+                      <div key={i} style={{
+                        padding: "8px 12px",
+                        background: "rgba(239,68,68,0.05)",
+                        borderLeft: "3px solid #ef4444",
+                        borderRadius: "4px",
+                        fontSize: "10px",
+                        marginBottom: "4px",
+                        color: "#ef4444",
+                      }}>
+                        {err}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button
+                  onClick={() => {
+                    window.open(
+                      `https://business.facebook.com/adsmanager/manage/campaigns?act=${selectedAdAccount.id.replace("act_", "")}`,
+                      "_blank"
+                    );
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: "rgba(99,102,241,0.2)",
+                    color: "#6366f1",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                  }}
+                >
+                  🔗 Ouvrir Meta Ads Manager
+                </button>
+                <button
+                  onClick={() => {
+                    // Reset all states
+                    setStep(0);
+                    setUploadedFiles([]);
+                    setAdGroups([]);
+                    setMappingMode(false);
+                    setCampaignName("");
+                    setClientCode("");
+                    setBudget("50");
+                    setPrimaryTexts([""]);
+                    setHeadlines([""]);
+                    setDestinationUrl("");
+                    setCreationResult(null);
+                    setCreationError(null);
+                    setSelectedCampaign(null);
+                    setSelectedAdset(null);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: "linear-gradient(135deg,#22c55e,#16a34a)",
+                    color: "#fff",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                  }}
+                >
+                  ✨ Nouvelle intégration
+                </button>
+              </div>
             </div>
           </div>
         )}
