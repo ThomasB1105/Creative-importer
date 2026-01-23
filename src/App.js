@@ -262,12 +262,8 @@ const createMetaApi = (accessToken) => ({
     try {
       console.log("🔍 Fetching campaigns for account:", adAccountId);
 
-      // Encode the filtering parameter properly
-      const filtering = JSON.stringify([
-        { field: "status", operator: "IN", value: ["ACTIVE", "PAUSED"] }
-      ]);
-
-      const url = `${this.baseUrl}/${adAccountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget&filtering=${encodeURIComponent(filtering)}&limit=50&access_token=${accessToken}`;
+      // Simplified: no filtering, we'll filter client-side
+      const url = `${this.baseUrl}/${adAccountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget&limit=100&access_token=${accessToken}`;
       console.log("📡 API URL:", url.replace(accessToken, "***TOKEN***"));
 
       const res = await fetch(url);
@@ -283,8 +279,14 @@ const createMetaApi = (accessToken) => ({
         console.error("❌ API returned error:", data.error);
         throw new Error(data.error.message || "Erreur lors de la récupération des campagnes");
       }
-      console.log("✅ Found campaigns:", data.data?.length || 0);
-      return data.data || [];
+      console.log("✅ Total campaigns found:", data.data?.length || 0);
+
+      // Filter ACTIVE and PAUSED campaigns in JavaScript
+      const activeCampaigns = (data.data || []).filter(c =>
+        c.status === "ACTIVE" || c.status === "PAUSED"
+      );
+      console.log("✅ Active/Paused campaigns:", activeCampaigns.length);
+      return activeCampaigns;
     } catch (error) {
       console.error("💥 fetchCampaigns error:", error);
       throw error;
@@ -293,13 +295,9 @@ const createMetaApi = (accessToken) => ({
 
   async fetchAdsets(campaignId) {
     try {
-      // Encode the filtering parameter properly
-      const filtering = JSON.stringify([
-        { field: "status", operator: "IN", value: ["ACTIVE", "PAUSED"] }
-      ]);
-
+      // Simplified: no filtering, filter client-side
       const res = await fetch(
-        `${this.baseUrl}/${campaignId}/adsets?fields=id,name,status,daily_budget&filtering=${encodeURIComponent(filtering)}&limit=50&access_token=${accessToken}`
+        `${this.baseUrl}/${campaignId}/adsets?fields=id,name,status,daily_budget&limit=100&access_token=${accessToken}`
       );
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
@@ -308,7 +306,11 @@ const createMetaApi = (accessToken) => ({
       if (data.error) {
         throw new Error(data.error.message || "Erreur lors de la récupération des adsets");
       }
-      return data.data || [];
+      // Filter ACTIVE and PAUSED adsets client-side
+      const activeAdsets = (data.data || []).filter(a =>
+        a.status === "ACTIVE" || a.status === "PAUSED"
+      );
+      return activeAdsets;
     } catch (error) {
       console.error("fetchAdsets error:", error);
       throw error;
