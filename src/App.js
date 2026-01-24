@@ -8,7 +8,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 // 4. Activez les permissions nécessaires dans "App Review"
 // 5. Remplacez l'appId ci-dessous par votre App ID
 const META_APP = {
-  appId: "1265761725396528", // Votre App ID Facebook
+  appId: "720964414230898", // Votre App ID Facebook
   apiVersion: "v21.0",
   redirectUri: window.location.origin + window.location.pathname,
 };
