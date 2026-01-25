@@ -19,6 +19,10 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
   const [statusFilter, setStatusFilter] = useState("all"); // "all" | "ACTIVE" | "PAUSED"
   const [dateFilter, setDateFilter] = useState("last_7d"); // "today" | "last_3d" | "last_7d" | "last_30d"
 
+  // Sort states
+  const [sortField, setSortField] = useState(null);
+  const [sortDirection, setSortDirection] = useState("asc"); // "asc" | "desc"
+
   // Optimization mode states
   const [optimizationMode, setOptimizationMode] = useState("manual"); // "manual" | "auto"
   const [roasBreakeven, setRoasBreakeven] = useState(1.5);
@@ -387,18 +391,90 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
 
   // Filter data by status
   const getFilteredCampaigns = () => {
-    if (statusFilter === "all") return campaigns;
-    return campaigns.filter(c => c.status === statusFilter);
+    let filtered = statusFilter === "all" ? campaigns : campaigns.filter(c => c.status === statusFilter);
+    return sortData(filtered, 'campaign');
   };
 
   const getFilteredAdsets = () => {
-    if (statusFilter === "all") return adsets;
-    return adsets.filter(a => a.status === statusFilter);
+    let filtered = statusFilter === "all" ? adsets : adsets.filter(a => a.status === statusFilter);
+    return sortData(filtered, 'adset');
   };
 
   const getFilteredAds = () => {
-    if (statusFilter === "all") return ads;
-    return ads.filter(a => a.status === statusFilter);
+    let filtered = statusFilter === "all" ? ads : ads.filter(a => a.status === statusFilter);
+    return sortData(filtered, 'ad');
+  };
+
+  // Sort data
+  const sortData = (data, type) => {
+    if (!sortField) return data;
+
+    return [...data].sort((a, b) => {
+      let aVal, bVal;
+
+      switch (sortField) {
+        case 'name':
+          aVal = a.name?.toLowerCase() || '';
+          bVal = b.name?.toLowerCase() || '';
+          break;
+        case 'spend':
+          aVal = getSpend(a.insights);
+          bVal = getSpend(b.insights);
+          break;
+        case 'results':
+          const objectiveA = type === 'campaign' ? a.objective : campaigns.find(c => c.id === a.campaign_id)?.objective;
+          const objectiveB = type === 'campaign' ? b.objective : campaigns.find(c => c.id === b.campaign_id)?.objective;
+          aVal = getResults(a.insights, objectiveA);
+          bVal = getResults(b.insights, objectiveB);
+          break;
+        case 'cpa':
+          const objA = type === 'campaign' ? a.objective : campaigns.find(c => c.id === a.campaign_id)?.objective;
+          const objB = type === 'campaign' ? b.objective : campaigns.find(c => c.id === b.campaign_id)?.objective;
+          aVal = getCPA(a.insights, objA);
+          bVal = getCPA(b.insights, objB);
+          break;
+        case 'roas':
+          aVal = getROAS(a.insights);
+          bVal = getROAS(b.insights);
+          break;
+        case 'roas_4d':
+          aVal = getROAS(a.insights_4d);
+          bVal = getROAS(b.insights_4d);
+          break;
+        case 'roas_7d':
+          aVal = getROAS(a.insights_7d);
+          bVal = getROAS(b.insights_7d);
+          break;
+        case 'budget':
+          aVal = a.daily_budget || 0;
+          bVal = b.daily_budget || 0;
+          break;
+        default:
+          return 0;
+      }
+
+      if (sortDirection === 'asc') {
+        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+      } else {
+        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+      }
+    });
+  };
+
+  // Handle column header click for sorting
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('desc'); // Default to descending for numeric fields
+    }
+  };
+
+  // Render sort arrow
+  const renderSortArrow = (field) => {
+    if (sortField !== field) return null;
+    return sortDirection === 'asc' ? ' ▲' : ' ▼';
   };
 
   // Styles
@@ -957,16 +1033,16 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                       <table style={{ width: "100%", borderCollapse: "collapse" }}>
                         <thead>
                           <tr style={{ background: "rgba(30,41,59,0.4)" }}>
-                            <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Nom</th>
+                            <th onClick={() => handleSort('name')} style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Nom{renderSortArrow('name')}</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Statut</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Objectif</th>
-                            <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Budget</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Dépenses</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Résultats</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>CPA</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS 4j</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS 7j</th>
+                            <th onClick={() => handleSort('budget')} style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Budget{renderSortArrow('budget')}</th>
+                            <th onClick={() => handleSort('spend')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses{renderSortArrow('spend')}</th>
+                            <th onClick={() => handleSort('results')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Résultats{renderSortArrow('results')}</th>
+                            <th onClick={() => handleSort('cpa')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPA{renderSortArrow('cpa')}</th>
+                            <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS{renderSortArrow('roas')}</th>
+                            <th onClick={() => handleSort('roas_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 4j{renderSortArrow('roas_4d')}</th>
+                            <th onClick={() => handleSort('roas_7d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas_7d')}</th>
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Recommandation</th>
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Actions</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
@@ -1078,24 +1154,6 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                                         -10%
                                       </button>
                                       <button
-                                        onClick={() => updateBudget('campaign', campaign.id, campaign.daily_budget, 'max')}
-                                        disabled={optimizationMode === 'auto'}
-                                        style={{
-                                          padding: "4px 8px",
-                                          background: optimizationMode === 'auto' ? "rgba(71,85,105,0.2)" : "rgba(99,102,241,0.2)",
-                                          border: "1px solid rgba(99,102,241,0.3)",
-                                          borderRadius: "4px",
-                                          color: optimizationMode === 'auto' ? "#71717a" : "#a5b4fc",
-                                          fontSize: "10px",
-                                          fontWeight: "600",
-                                          cursor: optimizationMode === 'auto' ? "not-allowed" : "pointer",
-                                          transition: "all 0.2s",
-                                        }}
-                                        title="Set to max budget"
-                                      >
-                                        MAX
-                                      </button>
-                                      <button
                                         onClick={() => pauseItem('campaign', campaign.id)}
                                         disabled={optimizationMode === 'auto' || campaign.status !== 'ACTIVE'}
                                         style={{
@@ -1145,16 +1203,16 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                       <table style={{ width: "100%", borderCollapse: "collapse" }}>
                         <thead>
                           <tr style={{ background: "rgba(30,41,59,0.4)" }}>
-                            <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Nom</th>
+                            <th onClick={() => handleSort('name')} style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Nom{renderSortArrow('name')}</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Statut</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Optimisation</th>
-                            <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Budget</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Dépenses</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Résultats</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>CPA</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS 4j</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS 7j</th>
+                            <th onClick={() => handleSort('budget')} style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Budget{renderSortArrow('budget')}</th>
+                            <th onClick={() => handleSort('spend')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses{renderSortArrow('spend')}</th>
+                            <th onClick={() => handleSort('results')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Résultats{renderSortArrow('results')}</th>
+                            <th onClick={() => handleSort('cpa')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPA{renderSortArrow('cpa')}</th>
+                            <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS{renderSortArrow('roas')}</th>
+                            <th onClick={() => handleSort('roas_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 4j{renderSortArrow('roas_4d')}</th>
+                            <th onClick={() => handleSort('roas_7d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas_7d')}</th>
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Recommandation</th>
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Actions</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
@@ -1266,24 +1324,6 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                                         -10%
                                       </button>
                                       <button
-                                        onClick={() => updateBudget('adset', adset.id, adset.daily_budget, 'max')}
-                                        disabled={optimizationMode === 'auto'}
-                                        style={{
-                                          padding: "4px 8px",
-                                          background: optimizationMode === 'auto' ? "rgba(71,85,105,0.2)" : "rgba(99,102,241,0.2)",
-                                          border: "1px solid rgba(99,102,241,0.3)",
-                                          borderRadius: "4px",
-                                          color: optimizationMode === 'auto' ? "#71717a" : "#a5b4fc",
-                                          fontSize: "10px",
-                                          fontWeight: "600",
-                                          cursor: optimizationMode === 'auto' ? "not-allowed" : "pointer",
-                                          transition: "all 0.2s",
-                                        }}
-                                        title="Set to max budget"
-                                      >
-                                        MAX
-                                      </button>
-                                      <button
                                         onClick={() => pauseItem('adset', adset.id)}
                                         disabled={optimizationMode === 'auto' || adset.status !== 'ACTIVE'}
                                         style={{
@@ -1333,16 +1373,17 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                       <table style={{ width: "100%", borderCollapse: "collapse" }}>
                         <thead>
                           <tr style={{ background: "rgba(30,41,59,0.4)" }}>
-                            <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Nom</th>
+                            <th onClick={() => handleSort('name')} style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Nom{renderSortArrow('name')}</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Statut</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Creative</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Dépenses</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Résultats</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>CPA</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS 4j</th>
-                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS 7j</th>
+                            <th onClick={() => handleSort('spend')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses{renderSortArrow('spend')}</th>
+                            <th onClick={() => handleSort('results')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Résultats{renderSortArrow('results')}</th>
+                            <th onClick={() => handleSort('cpa')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPA{renderSortArrow('cpa')}</th>
+                            <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS{renderSortArrow('roas')}</th>
+                            <th onClick={() => handleSort('roas_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 4j{renderSortArrow('roas_4d')}</th>
+                            <th onClick={() => handleSort('roas_7d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas_7d')}</th>
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Recommandation</th>
+                            <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Actions</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
                           </tr>
                         </thead>
@@ -1408,12 +1449,34 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                                   );
                                 })()}
                               </td>
+                              <td style={{ padding: "16px 24px" }}>
+                                <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
+                                  <button
+                                    onClick={() => pauseItem('ad', ad.id)}
+                                    disabled={optimizationMode === 'auto' || ad.status !== 'ACTIVE'}
+                                    style={{
+                                      padding: "4px 8px",
+                                      background: optimizationMode === 'auto' || ad.status !== 'ACTIVE' ? "rgba(71,85,105,0.2)" : "rgba(251,191,36,0.2)",
+                                      border: "1px solid rgba(251,191,36,0.3)",
+                                      borderRadius: "4px",
+                                      color: optimizationMode === 'auto' || ad.status !== 'ACTIVE' ? "#71717a" : "#fbbf24",
+                                      fontSize: "10px",
+                                      fontWeight: "600",
+                                      cursor: optimizationMode === 'auto' || ad.status !== 'ACTIVE' ? "not-allowed" : "pointer",
+                                      transition: "all 0.2s",
+                                    }}
+                                    title="Pause ad"
+                                  >
+                                    CUT
+                                  </button>
+                                </div>
+                              </td>
                               <td style={{ padding: "16px 24px", fontSize: "11px", color: "#52525b", fontFamily: "monospace" }}>{ad.id}</td>
                             </tr>
                           ))}
                           {getFilteredAds().length === 0 && (
                             <tr>
-                              <td colSpan="11" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
+                              <td colSpan="12" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
                                 Aucune publicité trouvée
                               </td>
             </tr>
