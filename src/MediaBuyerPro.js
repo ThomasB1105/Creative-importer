@@ -17,7 +17,6 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
   // Filter states
   const [currentView, setCurrentView] = useState("campaigns"); // "campaigns" | "adsets" | "ads"
   const [statusFilter, setStatusFilter] = useState("all"); // "all" | "ACTIVE" | "PAUSED"
-  const [dateFilter, setDateFilter] = useState("last_7d"); // "today" | "last_3d" | "last_7d" | "last_30d"
 
   // Sort states
   const [sortField, setSortField] = useState(null);
@@ -30,6 +29,9 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
   const [maxDailyBudget, setMaxDailyBudget] = useState(1000);
   const [showOptimizationPanel, setShowOptimizationPanel] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
+
+  // SOP ABO - Paliers de scaling
+  const SCALING_TIERS = [30, 50, 70, 90, 120, 150, 210, 270, 330, 390, 450, 550, 650, 750];
 
   // Load ad accounts on mount
   useEffect(() => {
@@ -74,9 +76,9 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
       const timeRange4d = `{"since":"${formatDate(fourDaysAgo)}","until":"${formatDate(today)}"}`;
       const timeRange7d = `{"since":"${formatDate(sevenDaysAgo)}","until":"${formatDate(today)}"}`;
 
-      // Load campaigns with insights (main period)
+      // Load campaigns with insights (7 days period by default)
       const campaignsResponse = await fetch(
-        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/campaigns?fields=${fields.campaigns},insights.date_preset(${dateFilter}){${insightFields}}&limit=100&access_token=${accessToken}`
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/campaigns?fields=${fields.campaigns},insights.date_preset(last_7d){${insightFields}}&limit=100&access_token=${accessToken}`
       );
       const campaignsData = await campaignsResponse.json();
 
@@ -107,9 +109,9 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
         setCampaigns(campaignsWithMetrics);
       }
 
-      // Load adsets with insights (main period)
+      // Load adsets with insights (7 days period by default)
       const adsetsResponse = await fetch(
-        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/adsets?fields=${fields.adsets},insights.date_preset(${dateFilter}){${insightFields}}&limit=100&access_token=${accessToken}`
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/adsets?fields=${fields.adsets},insights.date_preset(last_7d){${insightFields}}&limit=100&access_token=${accessToken}`
       );
       const adsetsData = await adsetsResponse.json();
 
@@ -140,9 +142,9 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
         setAdsets(adsetsWithMetrics);
       }
 
-      // Load ads with insights (main period)
+      // Load ads with insights (7 days period by default)
       const adsResponse = await fetch(
-        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/ads?fields=${fields.ads},insights.date_preset(${dateFilter}){${insightFields}}&limit=100&access_token=${accessToken}`
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/ads?fields=${fields.ads},insights.date_preset(last_7d){${insightFields}}&limit=100&access_token=${accessToken}`
       );
       const adsData = await adsResponse.json();
 
@@ -183,7 +185,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
     } finally {
       setIsLoadingData(false);
     }
-  }, [selectedAccount, accessToken, dateFilter]);
+  }, [selectedAccount, accessToken]);
 
   useEffect(() => {
     if (selectedAccount) {
@@ -251,19 +253,80 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
     return 0;
   };
 
-  // Optimization functions
-  const getRecommendation = (insights_4d) => {
-    const roas4d = getROAS(insights_4d);
+  // Get ATC (Add to Cart) count from insights
+  const getATC = (insights) => {
+    if (!insights || !insights.actions) return 0;
+    const atcAction = insights.actions?.find(a => a.action_type === 'add_to_cart');
+    return atcAction ? parseInt(atcAction.value) : 0;
+  };
 
-    if (roas4d === 0) return { action: 'none', reason: 'Pas de données ROAS' };
-
-    if (roas4d < roasBreakeven) {
-      return { action: 'descale', reason: `ROAS 4j (${roas4d.toFixed(2)}) < Breakeven (${roasBreakeven})`, color: '#ef4444' };
-    } else if (roas4d >= roasBreakeven && roas4d < roasTarget) {
-      return { action: 'hold', reason: `ROAS 4j entre Breakeven et Target`, color: '#f59e0b' };
-    } else {
-      return { action: 'scale', reason: `ROAS 4j (${roas4d.toFixed(2)}) > Target (${roasTarget})`, color: '#22c55e' };
+  // Get next tier for scaling
+  const getNextTier = (currentBudget) => {
+    const budgetInEuros = currentBudget / 100;
+    for (let tier of SCALING_TIERS) {
+      if (tier > budgetInEuros) return tier;
     }
+    return budgetInEuros + 100; // Continue scaling if beyond tiers
+  };
+
+  // Get previous tier for descaling
+  const getPrevTier = (currentBudget) => {
+    const budgetInEuros = currentBudget / 100;
+    for (let i = SCALING_TIERS.length - 1; i >= 0; i--) {
+      if (SCALING_TIERS[i] < budgetInEuros) return SCALING_TIERS[i];
+    }
+    return 30; // Minimum tier
+  };
+
+  // Optimization functions based on SOP ABO
+  const getRecommendation = (item, insights_4d, insights_7d) => {
+    const roas4d = getROAS(insights_4d);
+    const roas7d = getROAS(insights_7d);
+    const spend4d = getSpend(insights_4d);
+    const spend7d = getSpend(insights_7d);
+    const atc4d = getATC(insights_4d);
+    const budget = (item.daily_budget || 0) / 100;
+
+    // ATTENTION : On ne touche pas au budget d'un ADSET tant qu'il n'y a pas minimum 90€ de dépenses
+    if (spend4d < 90) {
+      return { action: 'wait', reason: `Attendre 90€ de dépenses (actuellement ${spend4d.toFixed(2)}€)`, color: '#71717a' };
+    }
+
+    // Critères d'ajustement après testing
+    // Budget à 30 € et ROAS < ROAS BE → On cut
+    if (budget <= 30 && roas4d < roasBreakeven) {
+      return { action: 'cut', reason: `Budget à 30€ et ROAS 4j (${roas4d.toFixed(2)}) < Breakeven`, color: '#ef4444' };
+    }
+
+    // Budget à 30 € et ROAS entre ROAS BE et ROAS target → On laisse tourner
+    if (budget <= 30 && roas4d >= roasBreakeven && roas4d < roasTarget) {
+      return { action: 'hold', reason: `Budget à 30€, ROAS entre Breakeven et Target`, color: '#f59e0b' };
+    }
+
+    // ROAS ≤ ROAS BE → On descale
+    if (roas4d <= roasBreakeven) {
+      return { action: 'descale', reason: `ROAS 4j (${roas4d.toFixed(2)}) ≤ Breakeven (${roasBreakeven})`, color: '#ef4444' };
+    }
+
+    // ROAS dans la range ROAS target → Ne pas ajuster le budget
+    if (roas4d >= roasTarget && roas4d < roasTarget + 0.10) {
+      return { action: 'hold', reason: `ROAS 4j (${roas4d.toFixed(2)}) dans la range Target`, color: '#22c55e' };
+    }
+
+    // ROAS > ROAS target de 0,10 point → On scale
+    if (roas4d >= roasTarget + 0.10) {
+      if (roas4d > 4) {
+        return { action: 'scale_jump', reason: `ROAS 4j (${roas4d.toFixed(2)}) > 4 → Sauter un palier`, color: '#10b981' };
+      }
+      return { action: 'scale', reason: `ROAS 4j (${roas4d.toFixed(2)}) > Target + 0.10`, color: '#22c55e' };
+    }
+
+    // ROAS > ROAS BE → On laisse tourner
+    if (roas4d > roasBreakeven) {
+      return { action: 'hold', reason: `ROAS 4j (${roas4d.toFixed(2)}) > Breakeven`, color: '#22c55e' };
+    }
+
+    return { action: 'none', reason: 'Pas de données suffisantes', color: '#71717a' };
   };
 
   const updateBudget = async (itemType, itemId, currentBudget, action) => {
@@ -271,11 +334,19 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
       let newBudget = currentBudget;
 
       if (action === 'scale') {
-        newBudget = Math.min(currentBudget * 1.1, maxDailyBudget * 100); // +10%, max cap
+        // Scale to next tier
+        const nextTier = getNextTier(currentBudget);
+        newBudget = Math.min(nextTier * 100, maxDailyBudget * 100);
+      } else if (action === 'scale_jump') {
+        // Skip a tier when ROAS > 4
+        const nextTier = getNextTier(currentBudget);
+        const tierIndex = SCALING_TIERS.indexOf(nextTier);
+        const jumpTier = tierIndex < SCALING_TIERS.length - 1 ? SCALING_TIERS[tierIndex + 1] : nextTier + 100;
+        newBudget = Math.min(jumpTier * 100, maxDailyBudget * 100);
       } else if (action === 'descale') {
-        newBudget = currentBudget * 0.9; // -10%
-      } else if (action === 'max') {
-        newBudget = maxDailyBudget * 100;
+        // Descale to previous tier
+        const prevTier = getPrevTier(currentBudget);
+        newBudget = prevTier * 100;
       }
 
       newBudget = Math.round(newBudget);
@@ -715,75 +786,6 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
               </button>
             </div>
 
-            {/* Date Filter */}
-            <div style={{ display: "flex", gap: "8px", marginBottom: "16px", alignItems: "center" }}>
-              <span style={{ fontSize: "12px", color: "#71717a", marginRight: "8px" }}>📅 Période :</span>
-              <button
-                onClick={() => setDateFilter("today")}
-                style={{
-                  padding: "8px 16px",
-                  background: dateFilter === "today" ? "rgba(99,102,241,0.3)" : "rgba(30,41,59,0.4)",
-                  border: dateFilter === "today" ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(71,85,105,0.3)",
-                  borderRadius: "6px",
-                  color: dateFilter === "today" ? "#a5b4fc" : "#71717a",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-              >
-                1 jour
-              </button>
-              <button
-                onClick={() => setDateFilter("last_3d")}
-                style={{
-                  padding: "8px 16px",
-                  background: dateFilter === "last_3d" ? "rgba(99,102,241,0.3)" : "rgba(30,41,59,0.4)",
-                  border: dateFilter === "last_3d" ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(71,85,105,0.3)",
-                  borderRadius: "6px",
-                  color: dateFilter === "last_3d" ? "#a5b4fc" : "#71717a",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-              >
-                3 jours
-              </button>
-              <button
-                onClick={() => setDateFilter("last_7d")}
-                style={{
-                  padding: "8px 16px",
-                  background: dateFilter === "last_7d" ? "rgba(99,102,241,0.3)" : "rgba(30,41,59,0.4)",
-                  border: dateFilter === "last_7d" ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(71,85,105,0.3)",
-                  borderRadius: "6px",
-                  color: dateFilter === "last_7d" ? "#a5b4fc" : "#71717a",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-              >
-                7 jours
-              </button>
-              <button
-                onClick={() => setDateFilter("last_30d")}
-                style={{
-                  padding: "8px 16px",
-                  background: dateFilter === "last_30d" ? "rgba(99,102,241,0.3)" : "rgba(30,41,59,0.4)",
-                  border: dateFilter === "last_30d" ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(71,85,105,0.3)",
-                  borderRadius: "6px",
-                  color: dateFilter === "last_30d" ? "#a5b4fc" : "#71717a",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-              >
-                30 jours
-              </button>
-            </div>
-
             {/* Status Filters */}
             <div style={{ display: "flex", gap: "8px", marginBottom: "24px" }}>
               <button
@@ -1037,12 +1039,12 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Statut</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Objectif</th>
                             <th onClick={() => handleSort('budget')} style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Budget{renderSortArrow('budget')}</th>
-                            <th onClick={() => handleSort('spend')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses{renderSortArrow('spend')}</th>
+                            <th onClick={() => handleSort('spend')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses 7j{renderSortArrow('spend')}</th>
+                            <th onClick={() => handleSort('spend_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses 4j{renderSortArrow('spend_4d')}</th>
                             <th onClick={() => handleSort('results')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Résultats{renderSortArrow('results')}</th>
                             <th onClick={() => handleSort('cpa')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPA{renderSortArrow('cpa')}</th>
-                            <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS{renderSortArrow('roas')}</th>
+                            <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas')}</th>
                             <th onClick={() => handleSort('roas_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 4j{renderSortArrow('roas_4d')}</th>
-                            <th onClick={() => handleSort('roas_7d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas_7d')}</th>
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Recommandation</th>
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Actions</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
@@ -1084,6 +1086,9 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               </td>
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#e4e4e7", textAlign: "right", fontWeight: "600" }}>
                                 {campaign.insights ? `${getSpend(campaign.insights).toFixed(2)}€` : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#e4e4e7", textAlign: "right", fontWeight: "600" }}>
+                                {campaign.insights_4d ? `${getSpend(campaign.insights_4d).toFixed(2)}€` : '-'}
                               </td>
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#22c55e", textAlign: "right", fontWeight: "600" }}>
                                 {campaign.insights ? getResults(campaign.insights, campaign.objective) : '-'}
@@ -1207,12 +1212,12 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Statut</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Optimisation</th>
                             <th onClick={() => handleSort('budget')} style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Budget{renderSortArrow('budget')}</th>
-                            <th onClick={() => handleSort('spend')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses{renderSortArrow('spend')}</th>
+                            <th onClick={() => handleSort('spend')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses 7j{renderSortArrow('spend')}</th>
+                            <th onClick={() => handleSort('spend_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses 4j{renderSortArrow('spend_4d')}</th>
                             <th onClick={() => handleSort('results')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Résultats{renderSortArrow('results')}</th>
                             <th onClick={() => handleSort('cpa')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPA{renderSortArrow('cpa')}</th>
-                            <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS{renderSortArrow('roas')}</th>
+                            <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas')}</th>
                             <th onClick={() => handleSort('roas_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 4j{renderSortArrow('roas_4d')}</th>
-                            <th onClick={() => handleSort('roas_7d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas_7d')}</th>
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Recommandation</th>
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Actions</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
@@ -1376,12 +1381,12 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                             <th onClick={() => handleSort('name')} style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Nom{renderSortArrow('name')}</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Statut</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Creative</th>
-                            <th onClick={() => handleSort('spend')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses{renderSortArrow('spend')}</th>
+                            <th onClick={() => handleSort('spend')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses 7j{renderSortArrow('spend')}</th>
+                            <th onClick={() => handleSort('spend_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses 4j{renderSortArrow('spend_4d')}</th>
                             <th onClick={() => handleSort('results')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Résultats{renderSortArrow('results')}</th>
                             <th onClick={() => handleSort('cpa')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPA{renderSortArrow('cpa')}</th>
-                            <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS{renderSortArrow('roas')}</th>
+                            <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas')}</th>
                             <th onClick={() => handleSort('roas_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 4j{renderSortArrow('roas_4d')}</th>
-                            <th onClick={() => handleSort('roas_7d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas_7d')}</th>
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Recommandation</th>
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Actions</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
