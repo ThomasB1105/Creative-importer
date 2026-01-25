@@ -17,6 +17,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
   // Filter states
   const [currentView, setCurrentView] = useState("campaigns"); // "campaigns" | "adsets" | "ads"
   const [statusFilter, setStatusFilter] = useState("all"); // "all" | "ACTIVE" | "PAUSED"
+  const [dateFilter, setDateFilter] = useState("last_7d"); // "today" | "last_3d" | "last_7d" | "last_30d"
 
   // Load ad accounts on mount
   useEffect(() => {
@@ -48,31 +49,45 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
         ads: 'id,name,status,adset_id,campaign_id,creative{id,name},created_time,updated_time'
       };
 
-      // Load campaigns
+      const insightFields = 'spend,actions,action_values,cost_per_action_type,purchase_roas';
+
+      // Load campaigns with insights
       const campaignsResponse = await fetch(
-        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/campaigns?fields=${fields.campaigns}&limit=100&access_token=${accessToken}`
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/campaigns?fields=${fields.campaigns},insights.date_preset(${dateFilter}){${insightFields}}&limit=100&access_token=${accessToken}`
       );
       const campaignsData = await campaignsResponse.json();
       if (campaignsData.data) {
-        setCampaigns(campaignsData.data);
+        const campaignsWithMetrics = campaignsData.data.map(campaign => ({
+          ...campaign,
+          insights: campaign.insights?.data?.[0] || null
+        }));
+        setCampaigns(campaignsWithMetrics);
       }
 
-      // Load adsets
+      // Load adsets with insights
       const adsetsResponse = await fetch(
-        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/adsets?fields=${fields.adsets}&limit=100&access_token=${accessToken}`
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/adsets?fields=${fields.adsets},insights.date_preset(${dateFilter}){${insightFields}}&limit=100&access_token=${accessToken}`
       );
       const adsetsData = await adsetsResponse.json();
       if (adsetsData.data) {
-        setAdsets(adsetsData.data);
+        const adsetsWithMetrics = adsetsData.data.map(adset => ({
+          ...adset,
+          insights: adset.insights?.data?.[0] || null
+        }));
+        setAdsets(adsetsWithMetrics);
       }
 
-      // Load ads
+      // Load ads with insights
       const adsResponse = await fetch(
-        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/ads?fields=${fields.ads}&limit=100&access_token=${accessToken}`
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/ads?fields=${fields.ads},insights.date_preset(${dateFilter}){${insightFields}}&limit=100&access_token=${accessToken}`
       );
       const adsData = await adsResponse.json();
       if (adsData.data) {
-        setAds(adsData.data);
+        const adsWithMetrics = adsData.data.map(ad => ({
+          ...ad,
+          insights: ad.insights?.data?.[0] || null
+        }));
+        setAds(adsWithMetrics);
       }
 
       console.log('✅ Media Buyer data loaded:', {
@@ -85,13 +100,73 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
     } finally {
       setIsLoadingData(false);
     }
-  }, [selectedAccount, accessToken]);
+  }, [selectedAccount, accessToken, dateFilter]);
 
   useEffect(() => {
     if (selectedAccount) {
       loadData();
     }
   }, [selectedAccount, loadData]);
+
+  // Helper functions to extract metrics from insights
+  const getSpend = (insights) => {
+    if (!insights || !insights.spend) return 0;
+    return parseFloat(insights.spend);
+  };
+
+  const getResults = (insights, objective) => {
+    if (!insights || !insights.actions) return 0;
+
+    // Map objectives to action types
+    const actionTypeMap = {
+      'OUTCOME_SALES': 'purchase',
+      'OUTCOME_LEADS': 'lead',
+      'LINK_CLICKS': 'link_click',
+      'OUTCOME_TRAFFIC': 'landing_page_view',
+      'POST_ENGAGEMENT': 'post_engagement',
+    };
+
+    const actionType = actionTypeMap[objective] || 'purchase';
+    const action = insights.actions?.find(a => a.action_type === actionType);
+    return action ? parseInt(action.value) : 0;
+  };
+
+  const getCPA = (insights, objective) => {
+    if (!insights || !insights.cost_per_action_type) return 0;
+
+    const actionTypeMap = {
+      'OUTCOME_SALES': 'purchase',
+      'OUTCOME_LEADS': 'lead',
+      'LINK_CLICKS': 'link_click',
+      'OUTCOME_TRAFFIC': 'landing_page_view',
+      'POST_ENGAGEMENT': 'post_engagement',
+    };
+
+    const actionType = actionTypeMap[objective] || 'purchase';
+    const cpa = insights.cost_per_action_type?.find(c => c.action_type === actionType);
+    return cpa ? parseFloat(cpa.value) : 0;
+  };
+
+  const getROAS = (insights) => {
+    if (!insights) return 0;
+
+    // Try purchase_roas first
+    if (insights.purchase_roas && insights.purchase_roas.length > 0) {
+      return parseFloat(insights.purchase_roas[0].value);
+    }
+
+    // Calculate from action_values if available
+    const spend = parseFloat(insights.spend || 0);
+    if (spend === 0) return 0;
+
+    const purchaseValue = insights.action_values?.find(av => av.action_type === 'purchase');
+    if (purchaseValue) {
+      const revenue = parseFloat(purchaseValue.value);
+      return revenue / spend;
+    }
+
+    return 0;
+  };
 
   // Filter data by status
   const getFilteredCampaigns = () => {
@@ -347,6 +422,75 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
               </button>
             </div>
 
+            {/* Date Filter */}
+            <div style={{ display: "flex", gap: "8px", marginBottom: "16px", alignItems: "center" }}>
+              <span style={{ fontSize: "12px", color: "#71717a", marginRight: "8px" }}>📅 Période :</span>
+              <button
+                onClick={() => setDateFilter("today")}
+                style={{
+                  padding: "8px 16px",
+                  background: dateFilter === "today" ? "rgba(99,102,241,0.3)" : "rgba(30,41,59,0.4)",
+                  border: dateFilter === "today" ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(71,85,105,0.3)",
+                  borderRadius: "6px",
+                  color: dateFilter === "today" ? "#a5b4fc" : "#71717a",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+              >
+                1 jour
+              </button>
+              <button
+                onClick={() => setDateFilter("last_3d")}
+                style={{
+                  padding: "8px 16px",
+                  background: dateFilter === "last_3d" ? "rgba(99,102,241,0.3)" : "rgba(30,41,59,0.4)",
+                  border: dateFilter === "last_3d" ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(71,85,105,0.3)",
+                  borderRadius: "6px",
+                  color: dateFilter === "last_3d" ? "#a5b4fc" : "#71717a",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+              >
+                3 jours
+              </button>
+              <button
+                onClick={() => setDateFilter("last_7d")}
+                style={{
+                  padding: "8px 16px",
+                  background: dateFilter === "last_7d" ? "rgba(99,102,241,0.3)" : "rgba(30,41,59,0.4)",
+                  border: dateFilter === "last_7d" ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(71,85,105,0.3)",
+                  borderRadius: "6px",
+                  color: dateFilter === "last_7d" ? "#a5b4fc" : "#71717a",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+              >
+                7 jours
+              </button>
+              <button
+                onClick={() => setDateFilter("last_30d")}
+                style={{
+                  padding: "8px 16px",
+                  background: dateFilter === "last_30d" ? "rgba(99,102,241,0.3)" : "rgba(30,41,59,0.4)",
+                  border: dateFilter === "last_30d" ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(71,85,105,0.3)",
+                  borderRadius: "6px",
+                  color: dateFilter === "last_30d" ? "#a5b4fc" : "#71717a",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+              >
+                30 jours
+              </button>
+            </div>
+
             {/* Status Filters */}
             <div style={{ display: "flex", gap: "8px", marginBottom: "24px" }}>
               <button
@@ -423,6 +567,10 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Statut</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Objectif</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Budget</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Dépenses</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Résultats</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>CPA</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
                           </tr>
                         </thead>
@@ -460,12 +608,24 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               <td style={{ padding: "16px 24px", fontSize: "12px", color: "#71717a" }}>
                                 {campaign.daily_budget ? `${(campaign.daily_budget / 100).toFixed(2)}€/j` : campaign.lifetime_budget ? `${(campaign.lifetime_budget / 100).toFixed(2)}€ total` : 'N/A'}
                               </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#e4e4e7", textAlign: "right", fontWeight: "600" }}>
+                                {campaign.insights ? `${getSpend(campaign.insights).toFixed(2)}€` : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#22c55e", textAlign: "right", fontWeight: "600" }}>
+                                {campaign.insights ? getResults(campaign.insights, campaign.objective) : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#a78bfa", textAlign: "right", fontWeight: "600" }}>
+                                {campaign.insights && getCPA(campaign.insights, campaign.objective) > 0 ? `${getCPA(campaign.insights, campaign.objective).toFixed(2)}€` : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                {campaign.insights && getROAS(campaign.insights) > 0 ? `${getROAS(campaign.insights).toFixed(2)}x` : '-'}
+                              </td>
                               <td style={{ padding: "16px 24px", fontSize: "11px", color: "#52525b", fontFamily: "monospace" }}>{campaign.id}</td>
                             </tr>
                           ))}
                           {getFilteredCampaigns().length === 0 && (
                             <tr>
-                              <td colSpan="5" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
+                              <td colSpan="9" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
                                 Aucune campagne trouvée
                               </td>
                             </tr>
@@ -492,6 +652,10 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Statut</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Optimisation</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Budget</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Dépenses</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Résultats</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>CPA</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
                           </tr>
                         </thead>
@@ -529,12 +693,24 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               <td style={{ padding: "16px 24px", fontSize: "12px", color: "#71717a" }}>
                                 {adset.daily_budget ? `${(adset.daily_budget / 100).toFixed(2)}€/j` : adset.lifetime_budget ? `${(adset.lifetime_budget / 100).toFixed(2)}€ total` : 'N/A'}
                               </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#e4e4e7", textAlign: "right", fontWeight: "600" }}>
+                                {adset.insights ? `${getSpend(adset.insights).toFixed(2)}€` : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#22c55e", textAlign: "right", fontWeight: "600" }}>
+                                {adset.insights ? getResults(adset.insights, campaigns.find(c => c.id === adset.campaign_id)?.objective) : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#a78bfa", textAlign: "right", fontWeight: "600" }}>
+                                {adset.insights && getCPA(adset.insights, campaigns.find(c => c.id === adset.campaign_id)?.objective) > 0 ? `${getCPA(adset.insights, campaigns.find(c => c.id === adset.campaign_id)?.objective).toFixed(2)}€` : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                {adset.insights && getROAS(adset.insights) > 0 ? `${getROAS(adset.insights).toFixed(2)}x` : '-'}
+                              </td>
                               <td style={{ padding: "16px 24px", fontSize: "11px", color: "#52525b", fontFamily: "monospace" }}>{adset.id}</td>
                             </tr>
                           ))}
                           {getFilteredAdsets().length === 0 && (
                             <tr>
-                              <td colSpan="5" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
+                              <td colSpan="9" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
                                 Aucun adset trouvé
                               </td>
                             </tr>
@@ -560,6 +736,10 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Nom</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Statut</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Creative</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Dépenses</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Résultats</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>CPA</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
                           </tr>
                         </thead>
@@ -594,15 +774,27 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                                 </span>
                               </td>
                               <td style={{ padding: "16px 24px", fontSize: "12px", color: "#71717a" }}>{ad.creative?.name || ad.creative?.id || 'N/A'}</td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#e4e4e7", textAlign: "right", fontWeight: "600" }}>
+                                {ad.insights ? `${getSpend(ad.insights).toFixed(2)}€` : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#22c55e", textAlign: "right", fontWeight: "600" }}>
+                                {ad.insights ? getResults(ad.insights, campaigns.find(c => c.id === ad.campaign_id)?.objective) : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#a78bfa", textAlign: "right", fontWeight: "600" }}>
+                                {ad.insights && getCPA(ad.insights, campaigns.find(c => c.id === ad.campaign_id)?.objective) > 0 ? `${getCPA(ad.insights, campaigns.find(c => c.id === ad.campaign_id)?.objective).toFixed(2)}€` : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                {ad.insights && getROAS(ad.insights) > 0 ? `${getROAS(ad.insights).toFixed(2)}x` : '-'}
+                              </td>
                               <td style={{ padding: "16px 24px", fontSize: "11px", color: "#52525b", fontFamily: "monospace" }}>{ad.id}</td>
                             </tr>
                           ))}
                           {getFilteredAds().length === 0 && (
                             <tr>
-                              <td colSpan="4" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
+                              <td colSpan="8" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
                                 Aucune publicité trouvée
                               </td>
-                            </tr>
+            </tr>
                           )}
                         </tbody>
                       </table>
