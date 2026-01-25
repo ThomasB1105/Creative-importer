@@ -19,6 +19,13 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
   const [statusFilter, setStatusFilter] = useState("all"); // "all" | "ACTIVE" | "PAUSED"
   const [dateFilter, setDateFilter] = useState("last_7d"); // "today" | "last_3d" | "last_7d" | "last_30d"
 
+  // Optimization mode states
+  const [optimizationMode, setOptimizationMode] = useState("manual"); // "manual" | "auto"
+  const [roasBreakeven, setRoasBreakeven] = useState(1.5);
+  const [roasTarget, setRoasTarget] = useState(3.0);
+  const [maxDailyBudget, setMaxDailyBudget] = useState(1000);
+  const [showOptimizationPanel, setShowOptimizationPanel] = useState(false);
+
   // Load ad accounts on mount
   useEffect(() => {
     const loadAccounts = async () => {
@@ -51,41 +58,58 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
 
       const insightFields = 'spend,actions,action_values,cost_per_action_type,purchase_roas';
 
-      // Load campaigns with insights
+      // Calculate date ranges for 4 and 7 days
+      const today = new Date();
+      const fourDaysAgo = new Date(today);
+      fourDaysAgo.setDate(today.getDate() - 3); // 4 days including today
+      const sevenDaysAgo = new Date(today);
+      sevenDaysAgo.setDate(today.getDate() - 6); // 7 days including today
+
+      const formatDate = (date) => date.toISOString().split('T')[0];
+      const timeRange4d = `{"since":"${formatDate(fourDaysAgo)}","until":"${formatDate(today)}"}`;
+      const timeRange7d = `{"since":"${formatDate(sevenDaysAgo)}","until":"${formatDate(today)}"}`;
+
+      // Load campaigns with insights (main period + 4d + 7d)
       const campaignsResponse = await fetch(
-        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/campaigns?fields=${fields.campaigns},insights.date_preset(${dateFilter}){${insightFields}}&limit=100&access_token=${accessToken}`
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/campaigns?fields=${fields.campaigns},insights.date_preset(${dateFilter}){${insightFields}},insights_4d.time_range(${timeRange4d}){${insightFields}},insights_7d.time_range(${timeRange7d}){${insightFields}}&limit=100&access_token=${accessToken}`
       );
       const campaignsData = await campaignsResponse.json();
       if (campaignsData.data) {
         const campaignsWithMetrics = campaignsData.data.map(campaign => ({
           ...campaign,
-          insights: campaign.insights?.data?.[0] || null
+          insights: campaign.insights?.data?.[0] || null,
+          insights_4d: campaign.insights_4d?.data?.[0] || null,
+          insights_7d: campaign.insights_7d?.data?.[0] || null
         }));
         setCampaigns(campaignsWithMetrics);
       }
 
-      // Load adsets with insights
+      // Load adsets with insights (main period + 4d + 7d)
       const adsetsResponse = await fetch(
-        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/adsets?fields=${fields.adsets},insights.date_preset(${dateFilter}){${insightFields}}&limit=100&access_token=${accessToken}`
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/adsets?fields=${fields.adsets},insights.date_preset(${dateFilter}){${insightFields}},insights_4d.time_range(${timeRange4d}){${insightFields}},insights_7d.time_range(${timeRange7d}){${insightFields}}&limit=100&access_token=${accessToken}`
       );
       const adsetsData = await adsetsResponse.json();
       if (adsetsData.data) {
         const adsetsWithMetrics = adsetsData.data.map(adset => ({
           ...adset,
-          insights: adset.insights?.data?.[0] || null
+          insights: adset.insights?.data?.[0] || null,
+          insights_4d: adset.insights_4d?.data?.[0] || null,
+          insights_7d: adset.insights_7d?.data?.[0] || null
         }));
         setAdsets(adsetsWithMetrics);
       }
 
-      // Load ads with insights
+      // Load ads with insights (main period + 4d + 7d)
       const adsResponse = await fetch(
-        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/ads?fields=${fields.ads},insights.date_preset(${dateFilter}){${insightFields}}&limit=100&access_token=${accessToken}`
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/ads?fields=${fields.ads},insights.date_preset(${dateFilter}){${insightFields}},insights_4d.time_range(${timeRange4d}){${insightFields}},insights_7d.time_range(${timeRange7d}){${insightFields}}&limit=100&access_token=${accessToken}`
       );
       const adsData = await adsResponse.json();
       if (adsData.data) {
         const adsWithMetrics = adsData.data.map(ad => ({
           ...ad,
-          insights: ad.insights?.data?.[0] || null
+          insights: ad.insights?.data?.[0] || null,
+          insights_4d: ad.insights_4d?.data?.[0] || null,
+          insights_7d: ad.insights_7d?.data?.[0] || null
         }));
         setAds(adsWithMetrics);
       }
@@ -166,6 +190,66 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
     }
 
     return 0;
+  };
+
+  // Optimization functions
+  const getRecommendation = (insights_4d) => {
+    const roas4d = getROAS(insights_4d);
+
+    if (roas4d === 0) return { action: 'none', reason: 'Pas de données ROAS' };
+
+    if (roas4d < roasBreakeven) {
+      return { action: 'descale', reason: `ROAS 4j (${roas4d.toFixed(2)}) < Breakeven (${roasBreakeven})`, color: '#ef4444' };
+    } else if (roas4d >= roasBreakeven && roas4d < roasTarget) {
+      return { action: 'hold', reason: `ROAS 4j entre Breakeven et Target`, color: '#f59e0b' };
+    } else {
+      return { action: 'scale', reason: `ROAS 4j (${roas4d.toFixed(2)}) > Target (${roasTarget})`, color: '#22c55e' };
+    }
+  };
+
+  const updateBudget = async (itemType, itemId, currentBudget, action) => {
+    try {
+      let newBudget = currentBudget;
+
+      if (action === 'scale') {
+        newBudget = Math.min(currentBudget * 1.1, maxDailyBudget * 100); // +10%, max cap
+      } else if (action === 'descale') {
+        newBudget = currentBudget * 0.9; // -10%
+      } else if (action === 'max') {
+        newBudget = maxDailyBudget * 100;
+      }
+
+      newBudget = Math.round(newBudget);
+
+      // Update via Meta API
+      const endpoint = itemType === 'campaign' ? 'campaigns' : 'adsets';
+      const response = await fetch(
+        `https://graph.facebook.com/${META_APP.apiVersion}/${itemId}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            daily_budget: newBudget,
+            access_token: accessToken
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to update budget');
+      }
+
+      console.log(`✅ Budget updated for ${itemType} ${itemId}: ${currentBudget/100}€ → ${newBudget/100}€`);
+
+      // Reload data to reflect changes
+      await loadData();
+
+      return { success: true, newBudget };
+    } catch (error) {
+      console.error('❌ Error updating budget:', error);
+      return { success: false, error: error.message };
+    }
   };
 
   // Filter data by status
@@ -543,6 +627,163 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
               </button>
             </div>
 
+            {/* Optimization Panel */}
+            <div style={{ marginBottom: "24px" }}>
+              <button
+                onClick={() => setShowOptimizationPanel(!showOptimizationPanel)}
+                style={{
+                  width: "100%",
+                  padding: "12px 16px",
+                  background: showOptimizationPanel ? "rgba(99,102,241,0.2)" : "rgba(30,41,59,0.4)",
+                  border: showOptimizationPanel ? "1px solid rgba(99,102,241,0.4)" : "1px solid rgba(71,85,105,0.3)",
+                  borderRadius: "8px",
+                  color: "#a5b4fc",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  transition: "all 0.2s",
+                }}
+              >
+                <span>⚡ Mode Optimisation</span>
+                <span>{showOptimizationPanel ? "▼" : "▶"}</span>
+              </button>
+
+              {showOptimizationPanel && (
+                <div style={{ ...box, marginTop: "12px", padding: "20px" }}>
+                  {/* Mode Toggle */}
+                  <div style={{ marginBottom: "20px" }}>
+                    <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
+                      🤖 Mode
+                    </label>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        onClick={() => setOptimizationMode("manual")}
+                        style={{
+                          padding: "8px 16px",
+                          background: optimizationMode === "manual" ? "rgba(99,102,241,0.3)" : "rgba(30,41,59,0.4)",
+                          border: optimizationMode === "manual" ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(71,85,105,0.3)",
+                          borderRadius: "6px",
+                          color: optimizationMode === "manual" ? "#a5b4fc" : "#71717a",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        ✋ Manuel
+                      </button>
+                      <button
+                        onClick={() => setOptimizationMode("auto")}
+                        style={{
+                          padding: "8px 16px",
+                          background: optimizationMode === "auto" ? "rgba(34,197,94,0.3)" : "rgba(30,41,59,0.4)",
+                          border: optimizationMode === "auto" ? "1px solid rgba(34,197,94,0.5)" : "1px solid rgba(71,85,105,0.3)",
+                          borderRadius: "6px",
+                          color: optimizationMode === "auto" ? "#22c55e" : "#71717a",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        🤖 Automatique
+                      </button>
+                    </div>
+                    {optimizationMode === "auto" && (
+                      <p style={{ fontSize: "11px", color: "#f59e0b", marginTop: "8px", marginBottom: 0 }}>
+                        ⚠️ Les budgets seront ajustés automatiquement selon les recommandations
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Configuration Inputs */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "20px" }}>
+                    <div>
+                      <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
+                        📉 ROAS Breakeven
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={roasBreakeven}
+                        onChange={(e) => setRoasBreakeven(parseFloat(e.target.value))}
+                        style={{
+                          width: "100%",
+                          padding: "10px 12px",
+                          background: "rgba(30,41,59,0.5)",
+                          border: "1px solid rgba(71,85,105,0.3)",
+                          borderRadius: "8px",
+                          color: "#e4e4e7",
+                          fontSize: "13px",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
+                        🎯 ROAS Target
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={roasTarget}
+                        onChange={(e) => setRoasTarget(parseFloat(e.target.value))}
+                        style={{
+                          width: "100%",
+                          padding: "10px 12px",
+                          background: "rgba(30,41,59,0.5)",
+                          border: "1px solid rgba(71,85,105,0.3)",
+                          borderRadius: "8px",
+                          color: "#e4e4e7",
+                          fontSize: "13px",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
+                        💰 Budget Max (€/jour)
+                      </label>
+                      <input
+                        type="number"
+                        step="10"
+                        value={maxDailyBudget}
+                        onChange={(e) => setMaxDailyBudget(parseFloat(e.target.value))}
+                        style={{
+                          width: "100%",
+                          padding: "10px 12px",
+                          background: "rgba(30,41,59,0.5)",
+                          border: "1px solid rgba(71,85,105,0.3)",
+                          borderRadius: "8px",
+                          color: "#e4e4e7",
+                          fontSize: "13px",
+                          outline: "none",
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Legend */}
+                  <div style={{ padding: "12px", background: "rgba(30,41,59,0.3)", borderRadius: "8px", fontSize: "11px", color: "#71717a" }}>
+                    <div style={{ marginBottom: "4px" }}>
+                      <span style={{ color: "#ef4444" }}>🔻 Descale (-10%)</span>: ROAS 4j &lt; Breakeven
+                    </div>
+                    <div style={{ marginBottom: "4px" }}>
+                      <span style={{ color: "#f59e0b" }}>⏸️ Hold</span>: Breakeven ≤ ROAS 4j &lt; Target
+                    </div>
+                    <div>
+                      <span style={{ color: "#22c55e" }}>🚀 Scale (+10%)</span>: ROAS 4j ≥ Target
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Data Tables */}
             {isLoadingData ? (
               <div style={{ ...box, textAlign: "center", padding: "60px" }}>
@@ -571,6 +812,10 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                             <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Résultats</th>
                             <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>CPA</th>
                             <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS 4j</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS 7j</th>
+                            <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Recommandation</th>
+                            <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Actions</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
                           </tr>
                         </thead>
@@ -620,12 +865,93 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
                                 {campaign.insights && getROAS(campaign.insights) > 0 ? `${getROAS(campaign.insights).toFixed(2)}x` : '-'}
                               </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                {campaign.insights_4d && getROAS(campaign.insights_4d) > 0 ? `${getROAS(campaign.insights_4d).toFixed(2)}x` : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                {campaign.insights_7d && getROAS(campaign.insights_7d) > 0 ? `${getROAS(campaign.insights_7d).toFixed(2)}x` : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", textAlign: "center" }}>
+                                {(() => {
+                                  const rec = getRecommendation(campaign.insights_4d);
+                                  if (rec.action === 'none') return <span style={{ fontSize: "11px", color: "#71717a" }}>-</span>;
+                                  return (
+                                    <div style={{ fontSize: "11px", color: rec.color, fontWeight: "600" }}>
+                                      {rec.action === 'scale' && '🚀 Scale'}
+                                      {rec.action === 'descale' && '🔻 Descale'}
+                                      {rec.action === 'hold' && '⏸️ Hold'}
+                                    </div>
+                                  );
+                                })()}
+                              </td>
+                              <td style={{ padding: "16px 24px" }}>
+                                <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
+                                  {campaign.daily_budget && (
+                                    <>
+                                      <button
+                                        onClick={() => updateBudget('campaign', campaign.id, campaign.daily_budget, 'scale')}
+                                        disabled={optimizationMode === 'auto'}
+                                        style={{
+                                          padding: "4px 8px",
+                                          background: optimizationMode === 'auto' ? "rgba(71,85,105,0.2)" : "rgba(34,197,94,0.2)",
+                                          border: "1px solid rgba(34,197,94,0.3)",
+                                          borderRadius: "4px",
+                                          color: optimizationMode === 'auto' ? "#71717a" : "#22c55e",
+                                          fontSize: "10px",
+                                          fontWeight: "600",
+                                          cursor: optimizationMode === 'auto' ? "not-allowed" : "pointer",
+                                          transition: "all 0.2s",
+                                        }}
+                                        title="Scale +10%"
+                                      >
+                                        +10%
+                                      </button>
+                                      <button
+                                        onClick={() => updateBudget('campaign', campaign.id, campaign.daily_budget, 'descale')}
+                                        disabled={optimizationMode === 'auto'}
+                                        style={{
+                                          padding: "4px 8px",
+                                          background: optimizationMode === 'auto' ? "rgba(71,85,105,0.2)" : "rgba(239,68,68,0.2)",
+                                          border: "1px solid rgba(239,68,68,0.3)",
+                                          borderRadius: "4px",
+                                          color: optimizationMode === 'auto' ? "#71717a" : "#ef4444",
+                                          fontSize: "10px",
+                                          fontWeight: "600",
+                                          cursor: optimizationMode === 'auto' ? "not-allowed" : "pointer",
+                                          transition: "all 0.2s",
+                                        }}
+                                        title="Descale -10%"
+                                      >
+                                        -10%
+                                      </button>
+                                      <button
+                                        onClick={() => updateBudget('campaign', campaign.id, campaign.daily_budget, 'max')}
+                                        disabled={optimizationMode === 'auto'}
+                                        style={{
+                                          padding: "4px 8px",
+                                          background: optimizationMode === 'auto' ? "rgba(71,85,105,0.2)" : "rgba(99,102,241,0.2)",
+                                          border: "1px solid rgba(99,102,241,0.3)",
+                                          borderRadius: "4px",
+                                          color: optimizationMode === 'auto' ? "#71717a" : "#a5b4fc",
+                                          fontSize: "10px",
+                                          fontWeight: "600",
+                                          cursor: optimizationMode === 'auto' ? "not-allowed" : "pointer",
+                                          transition: "all 0.2s",
+                                        }}
+                                        title="Set to max budget"
+                                      >
+                                        MAX
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
                               <td style={{ padding: "16px 24px", fontSize: "11px", color: "#52525b", fontFamily: "monospace" }}>{campaign.id}</td>
                             </tr>
                           ))}
                           {getFilteredCampaigns().length === 0 && (
                             <tr>
-                              <td colSpan="9" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
+                              <td colSpan="13" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
                                 Aucune campagne trouvée
                               </td>
                             </tr>
@@ -656,6 +982,10 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                             <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Résultats</th>
                             <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>CPA</th>
                             <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS 4j</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS 7j</th>
+                            <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Recommandation</th>
+                            <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Actions</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
                           </tr>
                         </thead>
@@ -705,12 +1035,93 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
                                 {adset.insights && getROAS(adset.insights) > 0 ? `${getROAS(adset.insights).toFixed(2)}x` : '-'}
                               </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                {adset.insights_4d && getROAS(adset.insights_4d) > 0 ? `${getROAS(adset.insights_4d).toFixed(2)}x` : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                {adset.insights_7d && getROAS(adset.insights_7d) > 0 ? `${getROAS(adset.insights_7d).toFixed(2)}x` : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", textAlign: "center" }}>
+                                {(() => {
+                                  const rec = getRecommendation(adset.insights_4d);
+                                  if (rec.action === 'none') return <span style={{ fontSize: "11px", color: "#71717a" }}>-</span>;
+                                  return (
+                                    <div style={{ fontSize: "11px", color: rec.color, fontWeight: "600" }}>
+                                      {rec.action === 'scale' && '🚀 Scale'}
+                                      {rec.action === 'descale' && '🔻 Descale'}
+                                      {rec.action === 'hold' && '⏸️ Hold'}
+                                    </div>
+                                  );
+                                })()}
+                              </td>
+                              <td style={{ padding: "16px 24px" }}>
+                                <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
+                                  {adset.daily_budget && (
+                                    <>
+                                      <button
+                                        onClick={() => updateBudget('adset', adset.id, adset.daily_budget, 'scale')}
+                                        disabled={optimizationMode === 'auto'}
+                                        style={{
+                                          padding: "4px 8px",
+                                          background: optimizationMode === 'auto' ? "rgba(71,85,105,0.2)" : "rgba(34,197,94,0.2)",
+                                          border: "1px solid rgba(34,197,94,0.3)",
+                                          borderRadius: "4px",
+                                          color: optimizationMode === 'auto' ? "#71717a" : "#22c55e",
+                                          fontSize: "10px",
+                                          fontWeight: "600",
+                                          cursor: optimizationMode === 'auto' ? "not-allowed" : "pointer",
+                                          transition: "all 0.2s",
+                                        }}
+                                        title="Scale +10%"
+                                      >
+                                        +10%
+                                      </button>
+                                      <button
+                                        onClick={() => updateBudget('adset', adset.id, adset.daily_budget, 'descale')}
+                                        disabled={optimizationMode === 'auto'}
+                                        style={{
+                                          padding: "4px 8px",
+                                          background: optimizationMode === 'auto' ? "rgba(71,85,105,0.2)" : "rgba(239,68,68,0.2)",
+                                          border: "1px solid rgba(239,68,68,0.3)",
+                                          borderRadius: "4px",
+                                          color: optimizationMode === 'auto' ? "#71717a" : "#ef4444",
+                                          fontSize: "10px",
+                                          fontWeight: "600",
+                                          cursor: optimizationMode === 'auto' ? "not-allowed" : "pointer",
+                                          transition: "all 0.2s",
+                                        }}
+                                        title="Descale -10%"
+                                      >
+                                        -10%
+                                      </button>
+                                      <button
+                                        onClick={() => updateBudget('adset', adset.id, adset.daily_budget, 'max')}
+                                        disabled={optimizationMode === 'auto'}
+                                        style={{
+                                          padding: "4px 8px",
+                                          background: optimizationMode === 'auto' ? "rgba(71,85,105,0.2)" : "rgba(99,102,241,0.2)",
+                                          border: "1px solid rgba(99,102,241,0.3)",
+                                          borderRadius: "4px",
+                                          color: optimizationMode === 'auto' ? "#71717a" : "#a5b4fc",
+                                          fontSize: "10px",
+                                          fontWeight: "600",
+                                          cursor: optimizationMode === 'auto' ? "not-allowed" : "pointer",
+                                          transition: "all 0.2s",
+                                        }}
+                                        title="Set to max budget"
+                                      >
+                                        MAX
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
                               <td style={{ padding: "16px 24px", fontSize: "11px", color: "#52525b", fontFamily: "monospace" }}>{adset.id}</td>
                             </tr>
                           ))}
                           {getFilteredAdsets().length === 0 && (
                             <tr>
-                              <td colSpan="9" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
+                              <td colSpan="13" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
                                 Aucun adset trouvé
                               </td>
                             </tr>
@@ -740,6 +1151,9 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                             <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Résultats</th>
                             <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>CPA</th>
                             <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS 4j</th>
+                            <th style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ROAS 7j</th>
+                            <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Recommandation</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
                           </tr>
                         </thead>
@@ -786,12 +1200,31 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
                                 {ad.insights && getROAS(ad.insights) > 0 ? `${getROAS(ad.insights).toFixed(2)}x` : '-'}
                               </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                {ad.insights_4d && getROAS(ad.insights_4d) > 0 ? `${getROAS(ad.insights_4d).toFixed(2)}x` : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                {ad.insights_7d && getROAS(ad.insights_7d) > 0 ? `${getROAS(ad.insights_7d).toFixed(2)}x` : '-'}
+                              </td>
+                              <td style={{ padding: "16px 24px", textAlign: "center" }}>
+                                {(() => {
+                                  const rec = getRecommendation(ad.insights_4d);
+                                  if (rec.action === 'none') return <span style={{ fontSize: "11px", color: "#71717a" }}>-</span>;
+                                  return (
+                                    <div style={{ fontSize: "11px", color: rec.color, fontWeight: "600" }}>
+                                      {rec.action === 'scale' && '🚀 Scale'}
+                                      {rec.action === 'descale' && '🔻 Descale'}
+                                      {rec.action === 'hold' && '⏸️ Hold'}
+                                    </div>
+                                  );
+                                })()}
+                              </td>
                               <td style={{ padding: "16px 24px", fontSize: "11px", color: "#52525b", fontFamily: "monospace" }}>{ad.id}</td>
                             </tr>
                           ))}
                           {getFilteredAds().length === 0 && (
                             <tr>
-                              <td colSpan="8" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
+                              <td colSpan="11" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
                                 Aucune publicité trouvée
                               </td>
             </tr>
