@@ -25,6 +25,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
   const [roasTarget, setRoasTarget] = useState(3.0);
   const [maxDailyBudget, setMaxDailyBudget] = useState(1000);
   const [showOptimizationPanel, setShowOptimizationPanel] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
 
   // Load ad accounts on mount
   useEffect(() => {
@@ -303,6 +304,84 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
     } catch (error) {
       console.error('❌ Error updating budget:', error);
       return { success: false, error: error.message };
+    }
+  };
+
+  const pauseItem = async (itemType, itemId) => {
+    try {
+      const response = await fetch(
+        `https://graph.facebook.com/${META_APP.apiVersion}/${itemId}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: 'PAUSED',
+            access_token: accessToken
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to pause item');
+      }
+
+      console.log(`✅ ${itemType} ${itemId} paused`);
+
+      // Reload data to reflect changes
+      await loadData();
+
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Error pausing item:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const runAutoOptimization = async () => {
+    if (isOptimizing) return;
+
+    setIsOptimizing(true);
+    try {
+      console.log('🤖 Starting automatic optimization...');
+
+      // Optimize campaigns
+      for (const campaign of campaigns) {
+        if (!campaign.daily_budget || campaign.status !== 'ACTIVE') continue;
+
+        const rec = getRecommendation(campaign.insights_4d);
+
+        if (rec.action === 'scale') {
+          console.log(`🚀 Scaling campaign ${campaign.name}`);
+          await updateBudget('campaign', campaign.id, campaign.daily_budget, 'scale');
+        } else if (rec.action === 'descale') {
+          console.log(`🔻 Descaling campaign ${campaign.name}`);
+          await updateBudget('campaign', campaign.id, campaign.daily_budget, 'descale');
+        }
+      }
+
+      // Optimize adsets
+      for (const adset of adsets) {
+        if (!adset.daily_budget || adset.status !== 'ACTIVE') continue;
+
+        const rec = getRecommendation(adset.insights_4d);
+
+        if (rec.action === 'scale') {
+          console.log(`🚀 Scaling adset ${adset.name}`);
+          await updateBudget('adset', adset.id, adset.daily_budget, 'scale');
+        } else if (rec.action === 'descale') {
+          console.log(`🔻 Descaling adset ${adset.name}`);
+          await updateBudget('adset', adset.id, adset.daily_budget, 'descale');
+        }
+      }
+
+      console.log('✅ Automatic optimization completed');
+      alert('✅ Optimisation automatique terminée !');
+    } catch (error) {
+      console.error('❌ Error during auto optimization:', error);
+      alert('❌ Erreur lors de l\'optimisation automatique');
+    } finally {
+      setIsOptimizing(false);
     }
   };
 
@@ -747,9 +826,29 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                       </button>
                     </div>
                     {optimizationMode === "auto" && (
-                      <p style={{ fontSize: "11px", color: "#f59e0b", marginTop: "8px", marginBottom: 0 }}>
-                        ⚠️ Les budgets seront ajustés automatiquement selon les recommandations
-                      </p>
+                      <div style={{ marginTop: "12px" }}>
+                        <button
+                          onClick={runAutoOptimization}
+                          disabled={isOptimizing}
+                          style={{
+                            width: "100%",
+                            padding: "12px 16px",
+                            background: isOptimizing ? "rgba(71,85,105,0.2)" : "rgba(34,197,94,0.3)",
+                            border: "1px solid rgba(34,197,94,0.5)",
+                            borderRadius: "8px",
+                            color: isOptimizing ? "#71717a" : "#22c55e",
+                            fontSize: "13px",
+                            fontWeight: "600",
+                            cursor: isOptimizing ? "not-allowed" : "pointer",
+                            transition: "all 0.2s",
+                          }}
+                        >
+                          {isOptimizing ? "⏳ Optimisation en cours..." : "🚀 Lancer l'optimisation automatique"}
+                        </button>
+                        <p style={{ fontSize: "11px", color: "#f59e0b", marginTop: "8px", marginBottom: 0 }}>
+                          ⚠️ Les budgets seront ajustés selon les recommandations
+                        </p>
+                      </div>
                     )}
                   </div>
 
@@ -996,6 +1095,24 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                                       >
                                         MAX
                                       </button>
+                                      <button
+                                        onClick={() => pauseItem('campaign', campaign.id)}
+                                        disabled={optimizationMode === 'auto' || campaign.status !== 'ACTIVE'}
+                                        style={{
+                                          padding: "4px 8px",
+                                          background: optimizationMode === 'auto' || campaign.status !== 'ACTIVE' ? "rgba(71,85,105,0.2)" : "rgba(251,191,36,0.2)",
+                                          border: "1px solid rgba(251,191,36,0.3)",
+                                          borderRadius: "4px",
+                                          color: optimizationMode === 'auto' || campaign.status !== 'ACTIVE' ? "#71717a" : "#fbbf24",
+                                          fontSize: "10px",
+                                          fontWeight: "600",
+                                          cursor: optimizationMode === 'auto' || campaign.status !== 'ACTIVE' ? "not-allowed" : "pointer",
+                                          transition: "all 0.2s",
+                                        }}
+                                        title="Pause campaign"
+                                      >
+                                        CUT
+                                      </button>
                                     </>
                                   )}
                                 </div>
@@ -1165,6 +1282,24 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                                         title="Set to max budget"
                                       >
                                         MAX
+                                      </button>
+                                      <button
+                                        onClick={() => pauseItem('adset', adset.id)}
+                                        disabled={optimizationMode === 'auto' || adset.status !== 'ACTIVE'}
+                                        style={{
+                                          padding: "4px 8px",
+                                          background: optimizationMode === 'auto' || adset.status !== 'ACTIVE' ? "rgba(71,85,105,0.2)" : "rgba(251,191,36,0.2)",
+                                          border: "1px solid rgba(251,191,36,0.3)",
+                                          borderRadius: "4px",
+                                          color: optimizationMode === 'auto' || adset.status !== 'ACTIVE' ? "#71717a" : "#fbbf24",
+                                          fontSize: "10px",
+                                          fontWeight: "600",
+                                          cursor: optimizationMode === 'auto' || adset.status !== 'ACTIVE' ? "not-allowed" : "pointer",
+                                          transition: "all 0.2s",
+                                        }}
+                                        title="Pause adset"
+                                      >
+                                        CUT
                                       </button>
                                     </>
                                   )}
