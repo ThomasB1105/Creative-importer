@@ -424,9 +424,9 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
       for (const campaign of campaigns) {
         if (!campaign.daily_budget || campaign.status !== 'ACTIVE') continue;
 
-        const rec = getRecommendation(campaign.insights_4d);
+        const rec = getRecommendation(campaign, campaign.insights_4d, campaign.insights_7d);
 
-        if (rec.action === 'scale') {
+        if (rec.action === 'scale' || rec.action === 'scale_jump') {
           console.log(`🚀 Scaling campaign ${campaign.name}`);
           await updateBudget('campaign', campaign.id, campaign.daily_budget, 'scale');
         } else if (rec.action === 'descale') {
@@ -439,9 +439,9 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
       for (const adset of adsets) {
         if (!adset.daily_budget || adset.status !== 'ACTIVE') continue;
 
-        const rec = getRecommendation(adset.insights_4d);
+        const rec = getRecommendation(adset, adset.insights_4d, adset.insights_7d);
 
-        if (rec.action === 'scale') {
+        if (rec.action === 'scale' || rec.action === 'scale_jump') {
           console.log(`🚀 Scaling adset ${adset.name}`);
           await updateBudget('adset', adset.id, adset.daily_budget, 'scale');
         } else if (rec.action === 'descale') {
@@ -491,6 +491,10 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
         case 'spend':
           aVal = getSpend(a.insights);
           bVal = getSpend(b.insights);
+          break;
+        case 'spend_4d':
+          aVal = getSpend(a.insights_4d);
+          bVal = getSpend(b.insights_4d);
           break;
         case 'results':
           const objectiveA = type === 'campaign' ? a.objective : campaigns.find(c => c.id === a.campaign_id)?.objective;
@@ -1102,18 +1106,17 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
                                 {campaign.insights_4d && getROAS(campaign.insights_4d) > 0 ? `${getROAS(campaign.insights_4d).toFixed(2)}x` : '-'}
                               </td>
-                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
-                                {campaign.insights_7d && getROAS(campaign.insights_7d) > 0 ? `${getROAS(campaign.insights_7d).toFixed(2)}x` : '-'}
-                              </td>
                               <td style={{ padding: "16px 24px", textAlign: "center" }}>
                                 {(() => {
-                                  const rec = getRecommendation(campaign.insights_4d);
-                                  if (rec.action === 'none') return <span style={{ fontSize: "11px", color: "#71717a" }}>-</span>;
+                                  const rec = getRecommendation(campaign, campaign.insights_4d, campaign.insights_7d);
+                                  if (rec.action === 'none' || rec.action === 'wait') return <span style={{ fontSize: "11px", color: rec.color }}>{rec.reason}</span>;
                                   return (
-                                    <div style={{ fontSize: "11px", color: rec.color, fontWeight: "600" }}>
+                                    <div style={{ fontSize: "11px", color: rec.color, fontWeight: "600" }} title={rec.reason}>
                                       {rec.action === 'scale' && '🚀 Scale'}
+                                      {rec.action === 'scale_jump' && '🚀🚀 Scale +2'}
                                       {rec.action === 'descale' && '🔻 Descale'}
                                       {rec.action === 'hold' && '⏸️ Hold'}
+                                      {rec.action === 'cut' && '✂️ CUT'}
                                     </div>
                                   );
                                 })()}
@@ -1260,6 +1263,9 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#e4e4e7", textAlign: "right", fontWeight: "600" }}>
                                 {adset.insights ? `${getSpend(adset.insights).toFixed(2)}€` : '-'}
                               </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#e4e4e7", textAlign: "right", fontWeight: "600" }}>
+                                {adset.insights_4d ? `${getSpend(adset.insights_4d).toFixed(2)}€` : '-'}
+                              </td>
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#22c55e", textAlign: "right", fontWeight: "600" }}>
                                 {adset.insights ? getResults(adset.insights, campaigns.find(c => c.id === adset.campaign_id)?.objective) : '-'}
                               </td>
@@ -1272,18 +1278,17 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
                                 {adset.insights_4d && getROAS(adset.insights_4d) > 0 ? `${getROAS(adset.insights_4d).toFixed(2)}x` : '-'}
                               </td>
-                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
-                                {adset.insights_7d && getROAS(adset.insights_7d) > 0 ? `${getROAS(adset.insights_7d).toFixed(2)}x` : '-'}
-                              </td>
                               <td style={{ padding: "16px 24px", textAlign: "center" }}>
                                 {(() => {
-                                  const rec = getRecommendation(adset.insights_4d);
-                                  if (rec.action === 'none') return <span style={{ fontSize: "11px", color: "#71717a" }}>-</span>;
+                                  const rec = getRecommendation(adset, adset.insights_4d, adset.insights_7d);
+                                  if (rec.action === 'none' || rec.action === 'wait') return <span style={{ fontSize: "11px", color: rec.color }}>{rec.reason}</span>;
                                   return (
-                                    <div style={{ fontSize: "11px", color: rec.color, fontWeight: "600" }}>
+                                    <div style={{ fontSize: "11px", color: rec.color, fontWeight: "600" }} title={rec.reason}>
                                       {rec.action === 'scale' && '🚀 Scale'}
+                                      {rec.action === 'scale_jump' && '🚀🚀 Scale +2'}
                                       {rec.action === 'descale' && '🔻 Descale'}
                                       {rec.action === 'hold' && '⏸️ Hold'}
+                                      {rec.action === 'cut' && '✂️ CUT'}
                                     </div>
                                   );
                                 })()}
@@ -1426,6 +1431,9 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#e4e4e7", textAlign: "right", fontWeight: "600" }}>
                                 {ad.insights ? `${getSpend(ad.insights).toFixed(2)}€` : '-'}
                               </td>
+                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#e4e4e7", textAlign: "right", fontWeight: "600" }}>
+                                {ad.insights_4d ? `${getSpend(ad.insights_4d).toFixed(2)}€` : '-'}
+                              </td>
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#22c55e", textAlign: "right", fontWeight: "600" }}>
                                 {ad.insights ? getResults(ad.insights, campaigns.find(c => c.id === ad.campaign_id)?.objective) : '-'}
                               </td>
@@ -1438,18 +1446,17 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
                                 {ad.insights_4d && getROAS(ad.insights_4d) > 0 ? `${getROAS(ad.insights_4d).toFixed(2)}x` : '-'}
                               </td>
-                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
-                                {ad.insights_7d && getROAS(ad.insights_7d) > 0 ? `${getROAS(ad.insights_7d).toFixed(2)}x` : '-'}
-                              </td>
                               <td style={{ padding: "16px 24px", textAlign: "center" }}>
                                 {(() => {
-                                  const rec = getRecommendation(ad.insights_4d);
-                                  if (rec.action === 'none') return <span style={{ fontSize: "11px", color: "#71717a" }}>-</span>;
+                                  const rec = getRecommendation(ad, ad.insights_4d, ad.insights_7d);
+                                  if (rec.action === 'none' || rec.action === 'wait') return <span style={{ fontSize: "11px", color: rec.color }}>{rec.reason}</span>;
                                   return (
-                                    <div style={{ fontSize: "11px", color: rec.color, fontWeight: "600" }}>
+                                    <div style={{ fontSize: "11px", color: rec.color, fontWeight: "600" }} title={rec.reason}>
                                       {rec.action === 'scale' && '🚀 Scale'}
+                                      {rec.action === 'scale_jump' && '🚀🚀 Scale +2'}
                                       {rec.action === 'descale' && '🔻 Descale'}
                                       {rec.action === 'hold' && '⏸️ Hold'}
+                                      {rec.action === 'cut' && '✂️ CUT'}
                                     </div>
                                   );
                                 })()}
