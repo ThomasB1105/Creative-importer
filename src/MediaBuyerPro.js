@@ -69,48 +69,102 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
       const timeRange4d = `{"since":"${formatDate(fourDaysAgo)}","until":"${formatDate(today)}"}`;
       const timeRange7d = `{"since":"${formatDate(sevenDaysAgo)}","until":"${formatDate(today)}"}`;
 
-      // Load campaigns with insights (main period + 4d + 7d)
+      // Load campaigns with insights (main period)
       const campaignsResponse = await fetch(
-        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/campaigns?fields=${fields.campaigns},insights.date_preset(${dateFilter}){${insightFields}},insights_4d.time_range(${timeRange4d}){${insightFields}},insights_7d.time_range(${timeRange7d}){${insightFields}}&limit=100&access_token=${accessToken}`
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/campaigns?fields=${fields.campaigns},insights.date_preset(${dateFilter}){${insightFields}}&limit=100&access_token=${accessToken}`
       );
       const campaignsData = await campaignsResponse.json();
+
+      // Load campaigns insights for 4 days
+      const campaigns4dResponse = await fetch(
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/campaigns?fields=id,insights.time_range(${timeRange4d}){${insightFields}}&limit=100&access_token=${accessToken}`
+      );
+      const campaigns4dData = await campaigns4dResponse.json();
+
+      // Load campaigns insights for 7 days
+      const campaigns7dResponse = await fetch(
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/campaigns?fields=id,insights.time_range(${timeRange7d}){${insightFields}}&limit=100&access_token=${accessToken}`
+      );
+      const campaigns7dData = await campaigns7dResponse.json();
+
+      // Merge campaign data
       if (campaignsData.data) {
-        const campaignsWithMetrics = campaignsData.data.map(campaign => ({
-          ...campaign,
-          insights: campaign.insights?.data?.[0] || null,
-          insights_4d: campaign.insights_4d?.data?.[0] || null,
-          insights_7d: campaign.insights_7d?.data?.[0] || null
-        }));
+        const campaignsWithMetrics = campaignsData.data.map(campaign => {
+          const campaign4d = campaigns4dData.data?.find(c => c.id === campaign.id);
+          const campaign7d = campaigns7dData.data?.find(c => c.id === campaign.id);
+          return {
+            ...campaign,
+            insights: campaign.insights?.data?.[0] || null,
+            insights_4d: campaign4d?.insights?.data?.[0] || null,
+            insights_7d: campaign7d?.insights?.data?.[0] || null
+          };
+        });
         setCampaigns(campaignsWithMetrics);
       }
 
-      // Load adsets with insights (main period + 4d + 7d)
+      // Load adsets with insights (main period)
       const adsetsResponse = await fetch(
-        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/adsets?fields=${fields.adsets},insights.date_preset(${dateFilter}){${insightFields}},insights_4d.time_range(${timeRange4d}){${insightFields}},insights_7d.time_range(${timeRange7d}){${insightFields}}&limit=100&access_token=${accessToken}`
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/adsets?fields=${fields.adsets},insights.date_preset(${dateFilter}){${insightFields}}&limit=100&access_token=${accessToken}`
       );
       const adsetsData = await adsetsResponse.json();
+
+      // Load adsets insights for 4 days
+      const adsets4dResponse = await fetch(
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/adsets?fields=id,insights.time_range(${timeRange4d}){${insightFields}}&limit=100&access_token=${accessToken}`
+      );
+      const adsets4dData = await adsets4dResponse.json();
+
+      // Load adsets insights for 7 days
+      const adsets7dResponse = await fetch(
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/adsets?fields=id,insights.time_range(${timeRange7d}){${insightFields}}&limit=100&access_token=${accessToken}`
+      );
+      const adsets7dData = await adsets7dResponse.json();
+
+      // Merge adset data
       if (adsetsData.data) {
-        const adsetsWithMetrics = adsetsData.data.map(adset => ({
-          ...adset,
-          insights: adset.insights?.data?.[0] || null,
-          insights_4d: adset.insights_4d?.data?.[0] || null,
-          insights_7d: adset.insights_7d?.data?.[0] || null
-        }));
+        const adsetsWithMetrics = adsetsData.data.map(adset => {
+          const adset4d = adsets4dData.data?.find(a => a.id === adset.id);
+          const adset7d = adsets7dData.data?.find(a => a.id === adset.id);
+          return {
+            ...adset,
+            insights: adset.insights?.data?.[0] || null,
+            insights_4d: adset4d?.insights?.data?.[0] || null,
+            insights_7d: adset7d?.insights?.data?.[0] || null
+          };
+        });
         setAdsets(adsetsWithMetrics);
       }
 
-      // Load ads with insights (main period + 4d + 7d)
+      // Load ads with insights (main period)
       const adsResponse = await fetch(
-        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/ads?fields=${fields.ads},insights.date_preset(${dateFilter}){${insightFields}},insights_4d.time_range(${timeRange4d}){${insightFields}},insights_7d.time_range(${timeRange7d}){${insightFields}}&limit=100&access_token=${accessToken}`
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/ads?fields=${fields.ads},insights.date_preset(${dateFilter}){${insightFields}}&limit=100&access_token=${accessToken}`
       );
       const adsData = await adsResponse.json();
+
+      // Load ads insights for 4 days
+      const ads4dResponse = await fetch(
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/ads?fields=id,insights.time_range(${timeRange4d}){${insightFields}}&limit=100&access_token=${accessToken}`
+      );
+      const ads4dData = await ads4dResponse.json();
+
+      // Load ads insights for 7 days
+      const ads7dResponse = await fetch(
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/ads?fields=id,insights.time_range(${timeRange7d}){${insightFields}}&limit=100&access_token=${accessToken}`
+      );
+      const ads7dData = await ads7dResponse.json();
+
+      // Merge ad data
       if (adsData.data) {
-        const adsWithMetrics = adsData.data.map(ad => ({
-          ...ad,
-          insights: ad.insights?.data?.[0] || null,
-          insights_4d: ad.insights_4d?.data?.[0] || null,
-          insights_7d: ad.insights_7d?.data?.[0] || null
-        }));
+        const adsWithMetrics = adsData.data.map(ad => {
+          const ad4d = ads4dData.data?.find(a => a.id === ad.id);
+          const ad7d = ads7dData.data?.find(a => a.id === ad.id);
+          return {
+            ...ad,
+            insights: ad.insights?.data?.[0] || null,
+            insights_4d: ad4d?.insights?.data?.[0] || null,
+            insights_7d: ad7d?.insights?.data?.[0] || null
+          };
+        });
         setAds(adsWithMetrics);
       }
 
