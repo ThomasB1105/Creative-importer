@@ -30,6 +30,18 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
   const [showOptimizationPanel, setShowOptimizationPanel] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
 
+  // Action cooldown - Track recent actions (24h cooldown)
+  const [actionCooldowns, setActionCooldowns] = useState(() => {
+    // Load from localStorage on init
+    const stored = localStorage.getItem('mediaBuyerActionCooldowns');
+    return stored ? JSON.parse(stored) : {};
+  });
+
+  // Save cooldowns to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('mediaBuyerActionCooldowns', JSON.stringify(actionCooldowns));
+  }, [actionCooldowns]);
+
   // SOP ABO - Paliers de scaling
   const SCALING_TIERS = [30, 50, 70, 90, 120, 150, 210, 270, 330, 390, 450, 550, 650, 750];
 
@@ -289,6 +301,40 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
     return spend4d * 0.75;
   };
 
+  // Action cooldown functions (24h cooldown)
+  const COOLDOWN_HOURS = 24;
+
+  const isOnCooldown = (itemId) => {
+    if (!actionCooldowns[itemId]) return false;
+    const lastActionTime = actionCooldowns[itemId];
+    const now = Date.now();
+    const hoursPassed = (now - lastActionTime) / (1000 * 60 * 60);
+    return hoursPassed < COOLDOWN_HOURS;
+  };
+
+  const getRemainingCooldown = (itemId) => {
+    if (!actionCooldowns[itemId]) return 0;
+    const lastActionTime = actionCooldowns[itemId];
+    const now = Date.now();
+    const hoursPassed = (now - lastActionTime) / (1000 * 60 * 60);
+    const remaining = COOLDOWN_HOURS - hoursPassed;
+    return remaining > 0 ? remaining : 0;
+  };
+
+  const recordAction = (itemId) => {
+    setActionCooldowns(prev => ({
+      ...prev,
+      [itemId]: Date.now()
+    }));
+  };
+
+  const formatCooldownTime = (hours) => {
+    if (hours >= 1) {
+      return `${Math.floor(hours)}h${Math.floor((hours % 1) * 60)}m`;
+    }
+    return `${Math.floor(hours * 60)}m`;
+  };
+
   // Optimization functions based on SOP ABO
   const getRecommendation = (item, insights_4d, insights_7d, itemType, parentCampaign = null) => {
     const budget = (item.daily_budget || 0) / 100;
@@ -358,6 +404,13 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
   };
 
   const updateBudget = async (itemType, itemId, currentBudget, action) => {
+    // Check cooldown
+    if (isOnCooldown(itemId)) {
+      const remaining = getRemainingCooldown(itemId);
+      alert(`⏳ Action déjà prise sur cet élément. Prochaine action possible dans ${formatCooldownTime(remaining)}`);
+      return { success: false, error: 'Cooldown actif' };
+    }
+
     try {
       let newBudget = currentBudget;
 
@@ -400,6 +453,9 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
 
       console.log(`✅ Budget updated for ${itemType} ${itemId}: ${currentBudget/100}€ → ${newBudget/100}€`);
 
+      // Record action for cooldown
+      recordAction(itemId);
+
       // Reload data to reflect changes
       await loadData();
 
@@ -411,6 +467,13 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
   };
 
   const pauseItem = async (itemType, itemId) => {
+    // Check cooldown
+    if (isOnCooldown(itemId)) {
+      const remaining = getRemainingCooldown(itemId);
+      alert(`⏳ Action déjà prise sur cet élément. Prochaine action possible dans ${formatCooldownTime(remaining)}`);
+      return { success: false, error: 'Cooldown actif' };
+    }
+
     try {
       const response = await fetch(
         `https://graph.facebook.com/${META_APP.apiVersion}/${itemId}`,
@@ -430,6 +493,9 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
       }
 
       console.log(`✅ ${itemType} ${itemId} paused`);
+
+      // Record action for cooldown
+      recordAction(itemId);
 
       // Reload data to reflect changes
       await loadData();
@@ -1163,66 +1229,82 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                                 })()}
                               </td>
                               <td style={{ padding: "16px 24px" }}>
-                                <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
-                                  {campaign.daily_budget && (
-                                    <>
-                                      <button
-                                        onClick={() => updateBudget('campaign', campaign.id, campaign.daily_budget, 'scale')}
-                                        disabled={optimizationMode === 'auto'}
-                                        style={{
-                                          padding: "4px 8px",
-                                          background: optimizationMode === 'auto' ? "rgba(71,85,105,0.2)" : "rgba(34,197,94,0.2)",
-                                          border: "1px solid rgba(34,197,94,0.3)",
-                                          borderRadius: "4px",
-                                          color: optimizationMode === 'auto' ? "#71717a" : "#22c55e",
-                                          fontSize: "10px",
-                                          fontWeight: "600",
-                                          cursor: optimizationMode === 'auto' ? "not-allowed" : "pointer",
-                                          transition: "all 0.2s",
-                                        }}
-                                        title="Scale +10%"
-                                      >
-                                        +10%
-                                      </button>
-                                      <button
-                                        onClick={() => updateBudget('campaign', campaign.id, campaign.daily_budget, 'descale')}
-                                        disabled={optimizationMode === 'auto'}
-                                        style={{
-                                          padding: "4px 8px",
-                                          background: optimizationMode === 'auto' ? "rgba(71,85,105,0.2)" : "rgba(239,68,68,0.2)",
-                                          border: "1px solid rgba(239,68,68,0.3)",
-                                          borderRadius: "4px",
-                                          color: optimizationMode === 'auto' ? "#71717a" : "#ef4444",
-                                          fontSize: "10px",
-                                          fontWeight: "600",
-                                          cursor: optimizationMode === 'auto' ? "not-allowed" : "pointer",
-                                          transition: "all 0.2s",
-                                        }}
-                                        title="Descale -10%"
-                                      >
-                                        -10%
-                                      </button>
-                                      <button
-                                        onClick={() => pauseItem('campaign', campaign.id)}
-                                        disabled={optimizationMode === 'auto' || campaign.status !== 'ACTIVE'}
-                                        style={{
-                                          padding: "4px 8px",
-                                          background: optimizationMode === 'auto' || campaign.status !== 'ACTIVE' ? "rgba(71,85,105,0.2)" : "rgba(251,191,36,0.2)",
-                                          border: "1px solid rgba(251,191,36,0.3)",
-                                          borderRadius: "4px",
-                                          color: optimizationMode === 'auto' || campaign.status !== 'ACTIVE' ? "#71717a" : "#fbbf24",
-                                          fontSize: "10px",
-                                          fontWeight: "600",
-                                          cursor: optimizationMode === 'auto' || campaign.status !== 'ACTIVE' ? "not-allowed" : "pointer",
-                                          transition: "all 0.2s",
-                                        }}
-                                        title="Pause campaign"
-                                      >
-                                        CUT
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
+                                {(() => {
+                                  const onCooldown = isOnCooldown(campaign.id);
+                                  const remaining = onCooldown ? getRemainingCooldown(campaign.id) : 0;
+                                  const isDisabled = optimizationMode === 'auto' || onCooldown;
+
+                                  if (onCooldown) {
+                                    return (
+                                      <div style={{ fontSize: "10px", color: "#71717a", textAlign: "center" }} title={`Prochaine action dans ${formatCooldownTime(remaining)}`}>
+                                        ⏳ {formatCooldownTime(remaining)}
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
+                                      {campaign.daily_budget && (
+                                        <>
+                                          <button
+                                            onClick={() => updateBudget('campaign', campaign.id, campaign.daily_budget, 'scale')}
+                                            disabled={isDisabled}
+                                            style={{
+                                              padding: "4px 8px",
+                                              background: isDisabled ? "rgba(71,85,105,0.2)" : "rgba(34,197,94,0.2)",
+                                              border: "1px solid rgba(34,197,94,0.3)",
+                                              borderRadius: "4px",
+                                              color: isDisabled ? "#71717a" : "#22c55e",
+                                              fontSize: "10px",
+                                              fontWeight: "600",
+                                              cursor: isDisabled ? "not-allowed" : "pointer",
+                                              transition: "all 0.2s",
+                                            }}
+                                            title="Scale +10%"
+                                          >
+                                            +10%
+                                          </button>
+                                          <button
+                                            onClick={() => updateBudget('campaign', campaign.id, campaign.daily_budget, 'descale')}
+                                            disabled={isDisabled}
+                                            style={{
+                                              padding: "4px 8px",
+                                              background: isDisabled ? "rgba(71,85,105,0.2)" : "rgba(239,68,68,0.2)",
+                                              border: "1px solid rgba(239,68,68,0.3)",
+                                              borderRadius: "4px",
+                                              color: isDisabled ? "#71717a" : "#ef4444",
+                                              fontSize: "10px",
+                                              fontWeight: "600",
+                                              cursor: isDisabled ? "not-allowed" : "pointer",
+                                              transition: "all 0.2s",
+                                            }}
+                                            title="Descale -10%"
+                                          >
+                                            -10%
+                                          </button>
+                                          <button
+                                            onClick={() => pauseItem('campaign', campaign.id)}
+                                            disabled={isDisabled || campaign.status !== 'ACTIVE'}
+                                            style={{
+                                              padding: "4px 8px",
+                                              background: isDisabled || campaign.status !== 'ACTIVE' ? "rgba(71,85,105,0.2)" : "rgba(251,191,36,0.2)",
+                                              border: "1px solid rgba(251,191,36,0.3)",
+                                              borderRadius: "4px",
+                                              color: isDisabled || campaign.status !== 'ACTIVE' ? "#71717a" : "#fbbf24",
+                                              fontSize: "10px",
+                                              fontWeight: "600",
+                                              cursor: isDisabled || campaign.status !== 'ACTIVE' ? "not-allowed" : "pointer",
+                                              transition: "all 0.2s",
+                                            }}
+                                            title="Pause campaign"
+                                          >
+                                            CUT
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </td>
                               <td style={{ padding: "16px 24px", fontSize: "11px", color: "#52525b", fontFamily: "monospace" }}>{campaign.id}</td>
                             </tr>
@@ -1336,66 +1418,82 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                                 })()}
                               </td>
                               <td style={{ padding: "16px 24px" }}>
-                                <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
-                                  {adset.daily_budget && (
-                                    <>
-                                      <button
-                                        onClick={() => updateBudget('adset', adset.id, adset.daily_budget, 'scale')}
-                                        disabled={optimizationMode === 'auto'}
-                                        style={{
-                                          padding: "4px 8px",
-                                          background: optimizationMode === 'auto' ? "rgba(71,85,105,0.2)" : "rgba(34,197,94,0.2)",
-                                          border: "1px solid rgba(34,197,94,0.3)",
-                                          borderRadius: "4px",
-                                          color: optimizationMode === 'auto' ? "#71717a" : "#22c55e",
-                                          fontSize: "10px",
-                                          fontWeight: "600",
-                                          cursor: optimizationMode === 'auto' ? "not-allowed" : "pointer",
-                                          transition: "all 0.2s",
-                                        }}
-                                        title="Scale +10%"
-                                      >
-                                        +10%
-                                      </button>
-                                      <button
-                                        onClick={() => updateBudget('adset', adset.id, adset.daily_budget, 'descale')}
-                                        disabled={optimizationMode === 'auto'}
-                                        style={{
-                                          padding: "4px 8px",
-                                          background: optimizationMode === 'auto' ? "rgba(71,85,105,0.2)" : "rgba(239,68,68,0.2)",
-                                          border: "1px solid rgba(239,68,68,0.3)",
-                                          borderRadius: "4px",
-                                          color: optimizationMode === 'auto' ? "#71717a" : "#ef4444",
-                                          fontSize: "10px",
-                                          fontWeight: "600",
-                                          cursor: optimizationMode === 'auto' ? "not-allowed" : "pointer",
-                                          transition: "all 0.2s",
-                                        }}
-                                        title="Descale -10%"
-                                      >
-                                        -10%
-                                      </button>
-                                      <button
-                                        onClick={() => pauseItem('adset', adset.id)}
-                                        disabled={optimizationMode === 'auto' || adset.status !== 'ACTIVE'}
-                                        style={{
-                                          padding: "4px 8px",
-                                          background: optimizationMode === 'auto' || adset.status !== 'ACTIVE' ? "rgba(71,85,105,0.2)" : "rgba(251,191,36,0.2)",
-                                          border: "1px solid rgba(251,191,36,0.3)",
-                                          borderRadius: "4px",
-                                          color: optimizationMode === 'auto' || adset.status !== 'ACTIVE' ? "#71717a" : "#fbbf24",
-                                          fontSize: "10px",
-                                          fontWeight: "600",
-                                          cursor: optimizationMode === 'auto' || adset.status !== 'ACTIVE' ? "not-allowed" : "pointer",
-                                          transition: "all 0.2s",
-                                        }}
-                                        title="Pause adset"
-                                      >
-                                        CUT
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
+                                {(() => {
+                                  const onCooldown = isOnCooldown(adset.id);
+                                  const remaining = onCooldown ? getRemainingCooldown(adset.id) : 0;
+                                  const isDisabled = optimizationMode === 'auto' || onCooldown;
+
+                                  if (onCooldown) {
+                                    return (
+                                      <div style={{ fontSize: "10px", color: "#71717a", textAlign: "center" }} title={`Prochaine action dans ${formatCooldownTime(remaining)}`}>
+                                        ⏳ {formatCooldownTime(remaining)}
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
+                                      {adset.daily_budget && (
+                                        <>
+                                          <button
+                                            onClick={() => updateBudget('adset', adset.id, adset.daily_budget, 'scale')}
+                                            disabled={isDisabled}
+                                            style={{
+                                              padding: "4px 8px",
+                                              background: isDisabled ? "rgba(71,85,105,0.2)" : "rgba(34,197,94,0.2)",
+                                              border: "1px solid rgba(34,197,94,0.3)",
+                                              borderRadius: "4px",
+                                              color: isDisabled ? "#71717a" : "#22c55e",
+                                              fontSize: "10px",
+                                              fontWeight: "600",
+                                              cursor: isDisabled ? "not-allowed" : "pointer",
+                                              transition: "all 0.2s",
+                                            }}
+                                            title="Scale +10%"
+                                          >
+                                            +10%
+                                          </button>
+                                          <button
+                                            onClick={() => updateBudget('adset', adset.id, adset.daily_budget, 'descale')}
+                                            disabled={isDisabled}
+                                            style={{
+                                              padding: "4px 8px",
+                                              background: isDisabled ? "rgba(71,85,105,0.2)" : "rgba(239,68,68,0.2)",
+                                              border: "1px solid rgba(239,68,68,0.3)",
+                                              borderRadius: "4px",
+                                              color: isDisabled ? "#71717a" : "#ef4444",
+                                              fontSize: "10px",
+                                              fontWeight: "600",
+                                              cursor: isDisabled ? "not-allowed" : "pointer",
+                                              transition: "all 0.2s",
+                                            }}
+                                            title="Descale -10%"
+                                          >
+                                            -10%
+                                          </button>
+                                          <button
+                                            onClick={() => pauseItem('adset', adset.id)}
+                                            disabled={isDisabled || adset.status !== 'ACTIVE'}
+                                            style={{
+                                              padding: "4px 8px",
+                                              background: isDisabled || adset.status !== 'ACTIVE' ? "rgba(71,85,105,0.2)" : "rgba(251,191,36,0.2)",
+                                              border: "1px solid rgba(251,191,36,0.3)",
+                                              borderRadius: "4px",
+                                              color: isDisabled || adset.status !== 'ACTIVE' ? "#71717a" : "#fbbf24",
+                                              fontSize: "10px",
+                                              fontWeight: "600",
+                                              cursor: isDisabled || adset.status !== 'ACTIVE' ? "not-allowed" : "pointer",
+                                              transition: "all 0.2s",
+                                            }}
+                                            title="Pause adset"
+                                          >
+                                            CUT
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </td>
                               <td style={{ padding: "16px 24px", fontSize: "11px", color: "#52525b", fontFamily: "monospace" }}>{adset.id}</td>
                             </tr>
@@ -1492,26 +1590,42 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                                 <span style={{ fontSize: "11px", color: "#71717a" }}>-</span>
                               </td>
                               <td style={{ padding: "16px 24px" }}>
-                                <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
-                                  <button
-                                    onClick={() => pauseItem('ad', ad.id)}
-                                    disabled={optimizationMode === 'auto' || ad.status !== 'ACTIVE'}
-                                    style={{
-                                      padding: "4px 8px",
-                                      background: optimizationMode === 'auto' || ad.status !== 'ACTIVE' ? "rgba(71,85,105,0.2)" : "rgba(251,191,36,0.2)",
-                                      border: "1px solid rgba(251,191,36,0.3)",
-                                      borderRadius: "4px",
-                                      color: optimizationMode === 'auto' || ad.status !== 'ACTIVE' ? "#71717a" : "#fbbf24",
-                                      fontSize: "10px",
-                                      fontWeight: "600",
-                                      cursor: optimizationMode === 'auto' || ad.status !== 'ACTIVE' ? "not-allowed" : "pointer",
-                                      transition: "all 0.2s",
-                                    }}
-                                    title="Pause ad"
-                                  >
-                                    CUT
-                                  </button>
-                                </div>
+                                {(() => {
+                                  const onCooldown = isOnCooldown(ad.id);
+                                  const remaining = onCooldown ? getRemainingCooldown(ad.id) : 0;
+                                  const isDisabled = optimizationMode === 'auto' || onCooldown;
+
+                                  if (onCooldown) {
+                                    return (
+                                      <div style={{ fontSize: "10px", color: "#71717a", textAlign: "center" }} title={`Prochaine action dans ${formatCooldownTime(remaining)}`}>
+                                        ⏳ {formatCooldownTime(remaining)}
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
+                                      <button
+                                        onClick={() => pauseItem('ad', ad.id)}
+                                        disabled={isDisabled || ad.status !== 'ACTIVE'}
+                                        style={{
+                                          padding: "4px 8px",
+                                          background: isDisabled || ad.status !== 'ACTIVE' ? "rgba(71,85,105,0.2)" : "rgba(251,191,36,0.2)",
+                                          border: "1px solid rgba(251,191,36,0.3)",
+                                          borderRadius: "4px",
+                                          color: isDisabled || ad.status !== 'ACTIVE' ? "#71717a" : "#fbbf24",
+                                          fontSize: "10px",
+                                          fontWeight: "600",
+                                          cursor: isDisabled || ad.status !== 'ACTIVE' ? "not-allowed" : "pointer",
+                                          transition: "all 0.2s",
+                                        }}
+                                        title="Pause ad"
+                                      >
+                                        CUT
+                                      </button>
+                                    </div>
+                                  );
+                                })()}
                               </td>
                               <td style={{ padding: "16px 24px", fontSize: "11px", color: "#52525b", fontFamily: "monospace" }}>{ad.id}</td>
                             </tr>
