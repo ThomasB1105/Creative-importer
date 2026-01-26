@@ -24,11 +24,18 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
 
   // Optimization mode states
   const [optimizationMode, setOptimizationMode] = useState("manual"); // "manual" | "auto"
-  const [roasBreakeven, setRoasBreakeven] = useState(1.5);
-  const [roasTarget, setRoasTarget] = useState(3.0);
+  const [accountType, setAccountType] = useState("ecommerce"); // "ecommerce" | "leadgen"
+  const [roasBreakeven, setRoasBreakeven] = useState(1.5); // Pour e-commerce
+  const [roasTarget, setRoasTarget] = useState(3.0); // Pour e-commerce
+  const [cplMax, setCplMax] = useState(15); // Pour leadgen (€)
+  const [cplTarget, setCplTarget] = useState(8); // Pour leadgen (€)
   const [maxDailyBudget, setMaxDailyBudget] = useState(1000);
   const [showOptimizationPanel, setShowOptimizationPanel] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
+
+  // Actions summary for auto optimization
+  const [showActionsSummary, setShowActionsSummary] = useState(false);
+  const [plannedActions, setPlannedActions] = useState([]);
 
   // Action cooldown - Track recent actions (24h cooldown)
   const [actionCooldowns, setActionCooldowns] = useState(() => {
@@ -77,14 +84,17 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
 
       const insightFields = 'spend,actions,action_values,cost_per_action_type,purchase_roas';
 
-      // Calculate date ranges for 4 and 7 days
+      // Calculate date ranges for 1, 4 and 7 days
       const today = new Date();
+      const oneDayAgo = new Date(today);
+      oneDayAgo.setDate(today.getDate() - 0); // 1 day (today only)
       const fourDaysAgo = new Date(today);
       fourDaysAgo.setDate(today.getDate() - 3); // 4 days including today
       const sevenDaysAgo = new Date(today);
       sevenDaysAgo.setDate(today.getDate() - 6); // 7 days including today
 
       const formatDate = (date) => date.toISOString().split('T')[0];
+      const timeRange1d = `{"since":"${formatDate(today)}","until":"${formatDate(today)}"}`;
       const timeRange4d = `{"since":"${formatDate(fourDaysAgo)}","until":"${formatDate(today)}"}`;
       const timeRange7d = `{"since":"${formatDate(sevenDaysAgo)}","until":"${formatDate(today)}"}`;
 
@@ -106,14 +116,22 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
       );
       const campaigns7dData = await campaigns7dResponse.json();
 
+      // Load campaigns insights for 1 day (for leadgen)
+      const campaigns1dResponse = await fetch(
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/campaigns?fields=id,insights.time_range(${timeRange1d}){${insightFields}}&limit=100&access_token=${accessToken}`
+      );
+      const campaigns1dData = await campaigns1dResponse.json();
+
       // Merge campaign data
       if (campaignsData.data) {
         const campaignsWithMetrics = campaignsData.data.map(campaign => {
+          const campaign1d = campaigns1dData.data?.find(c => c.id === campaign.id);
           const campaign4d = campaigns4dData.data?.find(c => c.id === campaign.id);
           const campaign7d = campaigns7dData.data?.find(c => c.id === campaign.id);
           return {
             ...campaign,
             insights: campaign.insights?.data?.[0] || null,
+            insights_1d: campaign1d?.insights?.data?.[0] || null,
             insights_4d: campaign4d?.insights?.data?.[0] || null,
             insights_7d: campaign7d?.insights?.data?.[0] || null
           };
@@ -139,14 +157,22 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
       );
       const adsets7dData = await adsets7dResponse.json();
 
+      // Load adsets insights for 1 day (for leadgen)
+      const adsets1dResponse = await fetch(
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/adsets?fields=id,insights.time_range(${timeRange1d}){${insightFields}}&limit=100&access_token=${accessToken}`
+      );
+      const adsets1dData = await adsets1dResponse.json();
+
       // Merge adset data
       if (adsetsData.data) {
         const adsetsWithMetrics = adsetsData.data.map(adset => {
+          const adset1d = adsets1dData.data?.find(a => a.id === adset.id);
           const adset4d = adsets4dData.data?.find(a => a.id === adset.id);
           const adset7d = adsets7dData.data?.find(a => a.id === adset.id);
           return {
             ...adset,
             insights: adset.insights?.data?.[0] || null,
+            insights_1d: adset1d?.insights?.data?.[0] || null,
             insights_4d: adset4d?.insights?.data?.[0] || null,
             insights_7d: adset7d?.insights?.data?.[0] || null
           };
@@ -172,14 +198,22 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
       );
       const ads7dData = await ads7dResponse.json();
 
+      // Load ads insights for 1 day (for leadgen)
+      const ads1dResponse = await fetch(
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAccount.id}/ads?fields=id,insights.time_range(${timeRange1d}){${insightFields}}&limit=100&access_token=${accessToken}`
+      );
+      const ads1dData = await ads1dResponse.json();
+
       // Merge ad data
       if (adsData.data) {
         const adsWithMetrics = adsData.data.map(ad => {
+          const ad1d = ads1dData.data?.find(a => a.id === ad.id);
           const ad4d = ads4dData.data?.find(a => a.id === ad.id);
           const ad7d = ads7dData.data?.find(a => a.id === ad.id);
           return {
             ...ad,
             insights: ad.insights?.data?.[0] || null,
+            insights_1d: ad1d?.insights?.data?.[0] || null,
             insights_4d: ad4d?.insights?.data?.[0] || null,
             insights_7d: ad7d?.insights?.data?.[0] || null
           };
@@ -263,6 +297,23 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
     }
 
     return 0;
+  };
+
+  // Get CPL (Cost Per Lead) from insights
+  const getCPL = (insights) => {
+    if (!insights) return 0;
+
+    const spend = parseFloat(insights.spend || 0);
+    if (spend === 0) return 0;
+
+    // Get leads count
+    const leadsAction = insights.actions?.find(a => a.action_type === 'lead');
+    if (!leadsAction) return 0;
+
+    const leads = parseInt(leadsAction.value);
+    if (leads === 0) return 0;
+
+    return spend / leads;
   };
 
   // Get ATC (Add to Cart) count from insights
@@ -355,49 +406,95 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
       }
     }
 
-    const roas4d = getROAS(insights_4d);
-    const roas7d = getROAS(insights_7d);
     const spend4d = getSpend(insights_4d);
     const spend7d = getSpend(insights_7d);
-    const atc4d = getATC(insights_4d);
 
     // ATTENTION : On ne touche pas au budget tant qu'il n'y a pas minimum 90€ de dépenses
     if (spend4d < 90) {
       return { action: 'wait', reason: `Attendre 90€ de dépenses (actuellement ${spend4d.toFixed(2)}€)`, color: '#71717a' };
     }
 
-    // Critères d'ajustement après testing
-    // Budget à 30 € et ROAS < ROAS BE → On cut
-    if (budget <= 30 && roas4d < roasBreakeven) {
-      return { action: 'cut', reason: `Budget à 30€ et ROAS 4j (${roas4d.toFixed(2)}) < Breakeven`, color: '#ef4444' };
-    }
+    // Different logic for E-commerce (ROAS) vs Leadgen (CPL)
+    if (accountType === 'leadgen') {
+      // SOP pour Leadgen - optimisé au CPL
+      const cpl4d = getCPL(insights_4d);
+      const cpl7d = getCPL(insights_7d);
 
-    // Budget à 30 € et ROAS entre ROAS BE et ROAS target → On laisse tourner
-    if (budget <= 30 && roas4d >= roasBreakeven && roas4d < roasTarget) {
-      return { action: 'hold', reason: `Budget à 30€, ROAS entre Breakeven et Target`, color: '#f59e0b' };
-    }
-
-    // ROAS ≤ ROAS BE → On descale
-    if (roas4d <= roasBreakeven) {
-      return { action: 'descale', reason: `ROAS 4j (${roas4d.toFixed(2)}) ≤ Breakeven (${roasBreakeven})`, color: '#ef4444' };
-    }
-
-    // ROAS dans la range ROAS target → Ne pas ajuster le budget
-    if (roas4d >= roasTarget && roas4d < roasTarget + 0.10) {
-      return { action: 'hold', reason: `ROAS 4j (${roas4d.toFixed(2)}) dans la range Target`, color: '#22c55e' };
-    }
-
-    // ROAS > ROAS target de 0,10 point → On scale
-    if (roas4d >= roasTarget + 0.10) {
-      if (roas4d > 4) {
-        return { action: 'scale_jump', reason: `ROAS 4j (${roas4d.toFixed(2)}) > 4 → Sauter un palier`, color: '#10b981' };
+      if (cpl4d === 0) {
+        return { action: 'none', reason: 'Pas de leads', color: '#71717a' };
       }
-      return { action: 'scale', reason: `ROAS 4j (${roas4d.toFixed(2)}) > Target + 0.10`, color: '#22c55e' };
-    }
 
-    // ROAS > ROAS BE → On laisse tourner
-    if (roas4d > roasBreakeven) {
-      return { action: 'hold', reason: `ROAS 4j (${roas4d.toFixed(2)}) > Breakeven`, color: '#22c55e' };
+      // Budget à 30 € et CPL > CPL Max → On cut
+      if (budget <= 30 && cpl4d > cplMax) {
+        return { action: 'cut', reason: `Budget à 30€ et CPL 4j (${cpl4d.toFixed(2)}€) > CPL Max`, color: '#ef4444' };
+      }
+
+      // Budget à 30 € et CPL entre CPL Max et CPL Target → On laisse tourner
+      if (budget <= 30 && cpl4d <= cplMax && cpl4d > cplTarget) {
+        return { action: 'hold', reason: `Budget à 30€, CPL entre Target et Max`, color: '#f59e0b' };
+      }
+
+      // CPL > CPL Max → On descale
+      if (cpl4d > cplMax) {
+        return { action: 'descale', reason: `CPL 4j (${cpl4d.toFixed(2)}€) > CPL Max (${cplMax}€)`, color: '#ef4444' };
+      }
+
+      // CPL dans la range CPL target (±1€) → Ne pas ajuster le budget
+      if (cpl4d <= cplTarget + 1 && cpl4d >= cplTarget - 1) {
+        return { action: 'hold', reason: `CPL 4j (${cpl4d.toFixed(2)}€) dans la range Target`, color: '#22c55e' };
+      }
+
+      // CPL < CPL target - 1€ → On scale
+      if (cpl4d < cplTarget - 1) {
+        if (cpl4d < cplTarget / 2) {
+          return { action: 'scale_jump', reason: `CPL 4j (${cpl4d.toFixed(2)}€) très bon → Sauter un palier`, color: '#10b981' };
+        }
+        return { action: 'scale', reason: `CPL 4j (${cpl4d.toFixed(2)}€) < Target - 1€`, color: '#22c55e' };
+      }
+
+      // CPL < CPL Max → On laisse tourner
+      if (cpl4d < cplMax) {
+        return { action: 'hold', reason: `CPL 4j (${cpl4d.toFixed(2)}€) < CPL Max`, color: '#22c55e' };
+      }
+
+    } else {
+      // SOP pour E-commerce - optimisé au ROAS
+      const roas4d = getROAS(insights_4d);
+      const roas7d = getROAS(insights_7d);
+      const atc4d = getATC(insights_4d);
+
+      // Budget à 30 € et ROAS < ROAS BE → On cut
+      if (budget <= 30 && roas4d < roasBreakeven) {
+        return { action: 'cut', reason: `Budget à 30€ et ROAS 4j (${roas4d.toFixed(2)}) < Breakeven`, color: '#ef4444' };
+      }
+
+      // Budget à 30 € et ROAS entre ROAS BE et ROAS target → On laisse tourner
+      if (budget <= 30 && roas4d >= roasBreakeven && roas4d < roasTarget) {
+        return { action: 'hold', reason: `Budget à 30€, ROAS entre Breakeven et Target`, color: '#f59e0b' };
+      }
+
+      // ROAS ≤ ROAS BE → On descale
+      if (roas4d <= roasBreakeven) {
+        return { action: 'descale', reason: `ROAS 4j (${roas4d.toFixed(2)}) ≤ Breakeven (${roasBreakeven})`, color: '#ef4444' };
+      }
+
+      // ROAS dans la range ROAS target → Ne pas ajuster le budget
+      if (roas4d >= roasTarget && roas4d < roasTarget + 0.10) {
+        return { action: 'hold', reason: `ROAS 4j (${roas4d.toFixed(2)}) dans la range Target`, color: '#22c55e' };
+      }
+
+      // ROAS > ROAS target de 0,10 point → On scale
+      if (roas4d >= roasTarget + 0.10) {
+        if (roas4d > 4) {
+          return { action: 'scale_jump', reason: `ROAS 4j (${roas4d.toFixed(2)}) > 4 → Sauter un palier`, color: '#10b981' };
+        }
+        return { action: 'scale', reason: `ROAS 4j (${roas4d.toFixed(2)}) > Target + 0.10`, color: '#22c55e' };
+      }
+
+      // ROAS > ROAS BE → On laisse tourner
+      if (roas4d > roasBreakeven) {
+        return { action: 'hold', reason: `ROAS 4j (${roas4d.toFixed(2)}) > Breakeven`, color: '#22c55e' };
+      }
     }
 
     return { action: 'none', reason: 'Pas de données suffisantes', color: '#71717a' };
@@ -507,44 +604,110 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
     }
   };
 
-  const runAutoOptimization = async () => {
-    if (isOptimizing) return;
+  // Prepare actions summary for auto optimization
+  const prepareActionsSummary = () => {
+    const actions = [];
 
+    // Check campaigns
+    for (const campaign of campaigns) {
+      if (!campaign.daily_budget || campaign.status !== 'ACTIVE') continue;
+      if (isOnCooldown(campaign.id)) continue; // Skip if on cooldown
+
+      const rec = getRecommendation(campaign, campaign.insights_4d, campaign.insights_7d, 'campaign');
+
+      if (rec.action === 'scale' || rec.action === 'scale_jump' || rec.action === 'descale') {
+        const currentBudget = campaign.daily_budget / 100;
+        let newBudget = currentBudget;
+
+        if (rec.action === 'scale') {
+          const nextTier = getNextTier(campaign.daily_budget);
+          newBudget = Math.min(nextTier, maxDailyBudget);
+        } else if (rec.action === 'scale_jump') {
+          const nextTier = getNextTier(campaign.daily_budget);
+          const tierIndex = SCALING_TIERS.indexOf(nextTier);
+          const jumpTier = tierIndex < SCALING_TIERS.length - 1 ? SCALING_TIERS[tierIndex + 1] : nextTier + 100;
+          newBudget = Math.min(jumpTier, maxDailyBudget);
+        } else if (rec.action === 'descale') {
+          const prevTier = getPrevTier(campaign.daily_budget);
+          newBudget = prevTier;
+        }
+
+        actions.push({
+          type: 'campaign',
+          id: campaign.id,
+          name: campaign.name,
+          action: rec.action,
+          reason: rec.reason,
+          currentBudget,
+          newBudget,
+          change: newBudget - currentBudget
+        });
+      }
+    }
+
+    // Check adsets
+    for (const adset of adsets) {
+      if (!adset.daily_budget || adset.status !== 'ACTIVE') continue;
+      if (isOnCooldown(adset.id)) continue; // Skip if on cooldown
+
+      const parentCampaign = campaigns.find(c => c.id === adset.campaign_id);
+      const rec = getRecommendation(adset, adset.insights_4d, adset.insights_7d, 'adset', parentCampaign);
+
+      if (rec.action === 'scale' || rec.action === 'scale_jump' || rec.action === 'descale') {
+        const currentBudget = adset.daily_budget / 100;
+        let newBudget = currentBudget;
+
+        if (rec.action === 'scale') {
+          const nextTier = getNextTier(adset.daily_budget);
+          newBudget = Math.min(nextTier, maxDailyBudget);
+        } else if (rec.action === 'scale_jump') {
+          const nextTier = getNextTier(adset.daily_budget);
+          const tierIndex = SCALING_TIERS.indexOf(nextTier);
+          const jumpTier = tierIndex < SCALING_TIERS.length - 1 ? SCALING_TIERS[tierIndex + 1] : nextTier + 100;
+          newBudget = Math.min(jumpTier, maxDailyBudget);
+        } else if (rec.action === 'descale') {
+          const prevTier = getPrevTier(adset.daily_budget);
+          newBudget = prevTier;
+        }
+
+        actions.push({
+          type: 'adset',
+          id: adset.id,
+          name: adset.name,
+          action: rec.action,
+          reason: rec.reason,
+          currentBudget,
+          newBudget,
+          change: newBudget - currentBudget
+        });
+      }
+    }
+
+    setPlannedActions(actions);
+    setShowActionsSummary(true);
+  };
+
+  const executeAutoOptimization = async () => {
     setIsOptimizing(true);
+    setShowActionsSummary(false);
+
     try {
       console.log('🤖 Starting automatic optimization...');
 
-      // Optimize campaigns
-      for (const campaign of campaigns) {
-        if (!campaign.daily_budget || campaign.status !== 'ACTIVE') continue;
+      for (const action of plannedActions) {
+        const { type, id, name, action: actionType } = action;
+        const currentBudget = action.currentBudget * 100; // Convert back to cents
 
-        const rec = getRecommendation(campaign, campaign.insights_4d, campaign.insights_7d, 'campaign');
-
-        if (rec.action === 'scale' || rec.action === 'scale_jump') {
-          console.log(`🚀 Scaling campaign ${campaign.name}`);
-          await updateBudget('campaign', campaign.id, campaign.daily_budget, 'scale');
-        } else if (rec.action === 'descale') {
-          console.log(`🔻 Descaling campaign ${campaign.name}`);
-          await updateBudget('campaign', campaign.id, campaign.daily_budget, 'descale');
+        if (actionType === 'scale' || actionType === 'scale_jump') {
+          console.log(`🚀 Scaling ${type} ${name}`);
+          await updateBudget(type, id, currentBudget, actionType);
+        } else if (actionType === 'descale') {
+          console.log(`🔻 Descaling ${type} ${name}`);
+          await updateBudget(type, id, currentBudget, 'descale');
         }
       }
 
-      // Optimize adsets
-      for (const adset of adsets) {
-        if (!adset.daily_budget || adset.status !== 'ACTIVE') continue;
-
-        const parentCampaign = campaigns.find(c => c.id === adset.campaign_id);
-        const rec = getRecommendation(adset, adset.insights_4d, adset.insights_7d, 'adset', parentCampaign);
-
-        if (rec.action === 'scale' || rec.action === 'scale_jump') {
-          console.log(`🚀 Scaling adset ${adset.name}`);
-          await updateBudget('adset', adset.id, adset.daily_budget, 'scale');
-        } else if (rec.action === 'descale') {
-          console.log(`🔻 Descaling adset ${adset.name}`);
-          await updateBudget('adset', adset.id, adset.daily_budget, 'descale');
-        }
-      }
-
+      setPlannedActions([]);
       console.log('✅ Automatic optimization completed');
       alert('✅ Optimisation automatique terminée !');
     } catch (error) {
@@ -553,6 +716,11 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
     } finally {
       setIsOptimizing(false);
     }
+  };
+
+  const runAutoOptimization = () => {
+    if (isOptimizing) return;
+    prepareActionsSummary();
   };
 
   // Filter data by status
@@ -975,6 +1143,47 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
 
               {showOptimizationPanel && (
                 <div style={{ ...box, marginTop: "12px", padding: "20px" }}>
+                  {/* Account Type Toggle */}
+                  <div style={{ marginBottom: "20px" }}>
+                    <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
+                      🏪 Type de compte
+                    </label>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        onClick={() => setAccountType("ecommerce")}
+                        style={{
+                          padding: "8px 16px",
+                          background: accountType === "ecommerce" ? "rgba(99,102,241,0.3)" : "rgba(30,41,59,0.4)",
+                          border: accountType === "ecommerce" ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(71,85,105,0.3)",
+                          borderRadius: "6px",
+                          color: accountType === "ecommerce" ? "#a5b4fc" : "#71717a",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        🛒 E-commerce
+                      </button>
+                      <button
+                        onClick={() => setAccountType("leadgen")}
+                        style={{
+                          padding: "8px 16px",
+                          background: accountType === "leadgen" ? "rgba(99,102,241,0.3)" : "rgba(30,41,59,0.4)",
+                          border: accountType === "leadgen" ? "1px solid rgba(99,102,241,0.5)" : "1px solid rgba(71,85,105,0.3)",
+                          borderRadius: "6px",
+                          color: accountType === "leadgen" ? "#a5b4fc" : "#71717a",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        📋 Leadgen
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Mode Toggle */}
                   <div style={{ marginBottom: "20px" }}>
                     <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
@@ -1043,49 +1252,99 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
 
                   {/* Configuration Inputs */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "20px" }}>
-                    <div>
-                      <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
-                        📉 ROAS Breakeven
-                      </label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={roasBreakeven}
-                        onChange={(e) => setRoasBreakeven(parseFloat(e.target.value))}
-                        style={{
-                          width: "100%",
-                          padding: "10px 12px",
-                          background: "rgba(30,41,59,0.5)",
-                          border: "1px solid rgba(71,85,105,0.3)",
-                          borderRadius: "8px",
-                          color: "#e4e4e7",
-                          fontSize: "13px",
-                          outline: "none",
-                        }}
-                      />
-                    </div>
+                    {accountType === 'ecommerce' ? (
+                      <>
+                        <div>
+                          <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
+                            📉 ROAS Breakeven
+                          </label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={roasBreakeven}
+                            onChange={(e) => setRoasBreakeven(parseFloat(e.target.value))}
+                            style={{
+                              width: "100%",
+                              padding: "10px 12px",
+                              background: "rgba(30,41,59,0.5)",
+                              border: "1px solid rgba(71,85,105,0.3)",
+                              borderRadius: "8px",
+                              color: "#e4e4e7",
+                              fontSize: "13px",
+                              outline: "none",
+                            }}
+                          />
+                        </div>
 
-                    <div>
-                      <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
-                        🎯 ROAS Target
-                      </label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={roasTarget}
-                        onChange={(e) => setRoasTarget(parseFloat(e.target.value))}
-                        style={{
-                          width: "100%",
-                          padding: "10px 12px",
-                          background: "rgba(30,41,59,0.5)",
-                          border: "1px solid rgba(71,85,105,0.3)",
-                          borderRadius: "8px",
-                          color: "#e4e4e7",
-                          fontSize: "13px",
-                          outline: "none",
-                        }}
-                      />
-                    </div>
+                        <div>
+                          <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
+                            🎯 ROAS Target
+                          </label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={roasTarget}
+                            onChange={(e) => setRoasTarget(parseFloat(e.target.value))}
+                            style={{
+                              width: "100%",
+                              padding: "10px 12px",
+                              background: "rgba(30,41,59,0.5)",
+                              border: "1px solid rgba(71,85,105,0.3)",
+                              borderRadius: "8px",
+                              color: "#e4e4e7",
+                              fontSize: "13px",
+                              outline: "none",
+                            }}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
+                            📉 CPL Max (€)
+                          </label>
+                          <input
+                            type="number"
+                            step="1"
+                            value={cplMax}
+                            onChange={(e) => setCplMax(parseFloat(e.target.value))}
+                            style={{
+                              width: "100%",
+                              padding: "10px 12px",
+                              background: "rgba(30,41,59,0.5)",
+                              border: "1px solid rgba(71,85,105,0.3)",
+                              borderRadius: "8px",
+                              color: "#e4e4e7",
+                              fontSize: "13px",
+                              outline: "none",
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
+                            🎯 CPL Target (€)
+                          </label>
+                          <input
+                            type="number"
+                            step="1"
+                            value={cplTarget}
+                            onChange={(e) => setCplTarget(parseFloat(e.target.value))}
+                            style={{
+                              width: "100%",
+                              padding: "10px 12px",
+                              background: "rgba(30,41,59,0.5)",
+                              border: "1px solid rgba(71,85,105,0.3)",
+                              borderRadius: "8px",
+                              color: "#e4e4e7",
+                              fontSize: "13px",
+                              outline: "none",
+                            }}
+                          />
+                        </div>
+                      </>
+                    )}
 
                     <div>
                       <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
@@ -1154,8 +1413,18 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                             <th onClick={() => handleSort('spend_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses 4j{renderSortArrow('spend_4d')}</th>
                             <th onClick={() => handleSort('results')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Résultats{renderSortArrow('results')}</th>
                             <th onClick={() => handleSort('cpa')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPA{renderSortArrow('cpa')}</th>
-                            <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas')}</th>
-                            <th onClick={() => handleSort('roas_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 4j{renderSortArrow('roas_4d')}</th>
+                            {accountType === 'leadgen' ? (
+                              <>
+                                <th onClick={() => handleSort('cpl_1d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPL 1j{renderSortArrow('cpl_1d')}</th>
+                                <th onClick={() => handleSort('cpl_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPL 4j{renderSortArrow('cpl_4d')}</th>
+                                <th onClick={() => handleSort('cpl_7d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPL 7j{renderSortArrow('cpl_7d')}</th>
+                              </>
+                            ) : (
+                              <>
+                                <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas')}</th>
+                                <th onClick={() => handleSort('roas_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 4j{renderSortArrow('roas_4d')}</th>
+                              </>
+                            )}
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Recommandation</th>
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Actions</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
@@ -1342,8 +1611,18 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                             <th onClick={() => handleSort('spend_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses 4j{renderSortArrow('spend_4d')}</th>
                             <th onClick={() => handleSort('results')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Résultats{renderSortArrow('results')}</th>
                             <th onClick={() => handleSort('cpa')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPA{renderSortArrow('cpa')}</th>
-                            <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas')}</th>
-                            <th onClick={() => handleSort('roas_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 4j{renderSortArrow('roas_4d')}</th>
+                            {accountType === 'leadgen' ? (
+                              <>
+                                <th onClick={() => handleSort('cpl_1d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPL 1j{renderSortArrow('cpl_1d')}</th>
+                                <th onClick={() => handleSort('cpl_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPL 4j{renderSortArrow('cpl_4d')}</th>
+                                <th onClick={() => handleSort('cpl_7d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPL 7j{renderSortArrow('cpl_7d')}</th>
+                              </>
+                            ) : (
+                              <>
+                                <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas')}</th>
+                                <th onClick={() => handleSort('roas_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 4j{renderSortArrow('roas_4d')}</th>
+                              </>
+                            )}
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Recommandation</th>
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Actions</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
@@ -1530,8 +1809,18 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                             <th onClick={() => handleSort('spend_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Dépenses 4j{renderSortArrow('spend_4d')}</th>
                             <th onClick={() => handleSort('results')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>Résultats{renderSortArrow('results')}</th>
                             <th onClick={() => handleSort('cpa')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPA{renderSortArrow('cpa')}</th>
-                            <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas')}</th>
-                            <th onClick={() => handleSort('roas_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 4j{renderSortArrow('roas_4d')}</th>
+                            {accountType === 'leadgen' ? (
+                              <>
+                                <th onClick={() => handleSort('cpl_1d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPL 1j{renderSortArrow('cpl_1d')}</th>
+                                <th onClick={() => handleSort('cpl_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPL 4j{renderSortArrow('cpl_4d')}</th>
+                                <th onClick={() => handleSort('cpl_7d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>CPL 7j{renderSortArrow('cpl_7d')}</th>
+                              </>
+                            ) : (
+                              <>
+                                <th onClick={() => handleSort('roas')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 7j{renderSortArrow('roas')}</th>
+                                <th onClick={() => handleSort('roas_4d')} style={{ padding: "12px 24px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", cursor: "pointer", userSelect: "none" }}>ROAS 4j{renderSortArrow('roas_4d')}</th>
+                              </>
+                            )}
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Recommandation</th>
                             <th style={{ padding: "12px 24px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>Actions</th>
                             <th style={{ padding: "12px 24px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>ID</th>
