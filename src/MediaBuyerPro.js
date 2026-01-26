@@ -278,16 +278,44 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
     return 30; // Minimum tier
   };
 
+  // Get spend for 3 days (today included)
+  const getSpend3d = (item) => {
+    // We need to calculate 3 days from insights_4d data
+    // For now, we'll use a proportion: spend_3d ≈ spend_4d * (3/4)
+    // A more accurate way would be to fetch specific 3-day insights
+    if (!item.insights_4d) return 0;
+    const spend4d = getSpend(item.insights_4d);
+    // Rough estimate: 3 days is about 75% of 4 days
+    return spend4d * 0.75;
+  };
+
   // Optimization functions based on SOP ABO
-  const getRecommendation = (item, insights_4d, insights_7d) => {
+  const getRecommendation = (item, insights_4d, insights_7d, itemType, parentCampaign = null) => {
+    const budget = (item.daily_budget || 0) / 100;
+
+    // Check if recommendations should be shown based on budget type
+    if (itemType === 'campaign') {
+      // Pour les campagnes : recommandations seulement si CBO (campagne a un budget)
+      if (!item.daily_budget) {
+        return { action: 'none', reason: 'ABO - Pas de budget campagne', color: '#71717a' };
+      }
+    } else if (itemType === 'adset') {
+      // Pour les adsets : recommandations seulement si ABO (adset a un budget ET campagne n'a PAS de budget)
+      if (!item.daily_budget) {
+        return { action: 'none', reason: 'Pas de budget adset', color: '#71717a' };
+      }
+      if (parentCampaign && parentCampaign.daily_budget) {
+        return { action: 'none', reason: 'CBO - Budget au niveau campagne', color: '#71717a' };
+      }
+    }
+
     const roas4d = getROAS(insights_4d);
     const roas7d = getROAS(insights_7d);
     const spend4d = getSpend(insights_4d);
     const spend7d = getSpend(insights_7d);
     const atc4d = getATC(insights_4d);
-    const budget = (item.daily_budget || 0) / 100;
 
-    // ATTENTION : On ne touche pas au budget d'un ADSET tant qu'il n'y a pas minimum 90€ de dépenses
+    // ATTENTION : On ne touche pas au budget tant qu'il n'y a pas minimum 90€ de dépenses
     if (spend4d < 90) {
       return { action: 'wait', reason: `Attendre 90€ de dépenses (actuellement ${spend4d.toFixed(2)}€)`, color: '#71717a' };
     }
@@ -424,7 +452,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
       for (const campaign of campaigns) {
         if (!campaign.daily_budget || campaign.status !== 'ACTIVE') continue;
 
-        const rec = getRecommendation(campaign, campaign.insights_4d, campaign.insights_7d);
+        const rec = getRecommendation(campaign, campaign.insights_4d, campaign.insights_7d, 'campaign');
 
         if (rec.action === 'scale' || rec.action === 'scale_jump') {
           console.log(`🚀 Scaling campaign ${campaign.name}`);
@@ -439,7 +467,8 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
       for (const adset of adsets) {
         if (!adset.daily_budget || adset.status !== 'ACTIVE') continue;
 
-        const rec = getRecommendation(adset, adset.insights_4d, adset.insights_7d);
+        const parentCampaign = campaigns.find(c => c.id === adset.campaign_id);
+        const rec = getRecommendation(adset, adset.insights_4d, adset.insights_7d, 'adset', parentCampaign);
 
         if (rec.action === 'scale' || rec.action === 'scale_jump') {
           console.log(`🚀 Scaling adset ${adset.name}`);
@@ -463,11 +492,23 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
   // Filter data by status
   const getFilteredCampaigns = () => {
     let filtered = statusFilter === "all" ? campaigns : campaigns.filter(c => c.status === statusFilter);
+
+    // Si filtre ACTIVE, masquer les campagnes sans spend sur 3 jours
+    if (statusFilter === "ACTIVE") {
+      filtered = filtered.filter(c => getSpend3d(c) > 0);
+    }
+
     return sortData(filtered, 'campaign');
   };
 
   const getFilteredAdsets = () => {
     let filtered = statusFilter === "all" ? adsets : adsets.filter(a => a.status === statusFilter);
+
+    // Si filtre ACTIVE, masquer les adsets sans spend sur 3 jours
+    if (statusFilter === "ACTIVE") {
+      filtered = filtered.filter(a => getSpend3d(a) > 0);
+    }
+
     return sortData(filtered, 'adset');
   };
 
@@ -1108,7 +1149,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               </td>
                               <td style={{ padding: "16px 24px", textAlign: "center" }}>
                                 {(() => {
-                                  const rec = getRecommendation(campaign, campaign.insights_4d, campaign.insights_7d);
+                                  const rec = getRecommendation(campaign, campaign.insights_4d, campaign.insights_7d, 'campaign');
                                   if (rec.action === 'none' || rec.action === 'wait') return <span style={{ fontSize: "11px", color: rec.color }}>{rec.reason}</span>;
                                   return (
                                     <div style={{ fontSize: "11px", color: rec.color, fontWeight: "600" }} title={rec.reason}>
@@ -1280,7 +1321,8 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               </td>
                               <td style={{ padding: "16px 24px", textAlign: "center" }}>
                                 {(() => {
-                                  const rec = getRecommendation(adset, adset.insights_4d, adset.insights_7d);
+                                  const parentCampaign = campaigns.find(c => c.id === adset.campaign_id);
+                                  const rec = getRecommendation(adset, adset.insights_4d, adset.insights_7d, 'adset', parentCampaign);
                                   if (rec.action === 'none' || rec.action === 'wait') return <span style={{ fontSize: "11px", color: rec.color }}>{rec.reason}</span>;
                                   return (
                                     <div style={{ fontSize: "11px", color: rec.color, fontWeight: "600" }} title={rec.reason}>
@@ -1447,19 +1489,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                                 {ad.insights_4d && getROAS(ad.insights_4d) > 0 ? `${getROAS(ad.insights_4d).toFixed(2)}x` : '-'}
                               </td>
                               <td style={{ padding: "16px 24px", textAlign: "center" }}>
-                                {(() => {
-                                  const rec = getRecommendation(ad, ad.insights_4d, ad.insights_7d);
-                                  if (rec.action === 'none' || rec.action === 'wait') return <span style={{ fontSize: "11px", color: rec.color }}>{rec.reason}</span>;
-                                  return (
-                                    <div style={{ fontSize: "11px", color: rec.color, fontWeight: "600" }} title={rec.reason}>
-                                      {rec.action === 'scale' && '🚀 Scale'}
-                                      {rec.action === 'scale_jump' && '🚀🚀 Scale +2'}
-                                      {rec.action === 'descale' && '🔻 Descale'}
-                                      {rec.action === 'hold' && '⏸️ Hold'}
-                                      {rec.action === 'cut' && '✂️ CUT'}
-                                    </div>
-                                  );
-                                })()}
+                                <span style={{ fontSize: "11px", color: "#71717a" }}>-</span>
                               </td>
                               <td style={{ padding: "16px 24px" }}>
                                 <div style={{ display: "flex", gap: "4px", justifyContent: "center" }}>
