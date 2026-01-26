@@ -795,6 +795,18 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
           aVal = getROAS(a.insights_7d);
           bVal = getROAS(b.insights_7d);
           break;
+        case 'cpl_1d':
+          aVal = getCPL(a.insights_1d);
+          bVal = getCPL(b.insights_1d);
+          break;
+        case 'cpl_4d':
+          aVal = getCPL(a.insights_4d);
+          bVal = getCPL(b.insights_4d);
+          break;
+        case 'cpl_7d':
+          aVal = getCPL(a.insights_7d);
+          bVal = getCPL(b.insights_7d);
+          break;
         case 'budget':
           aVal = a.daily_budget || 0;
           bVal = b.daily_budget || 0;
@@ -1476,12 +1488,28 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#a78bfa", textAlign: "right", fontWeight: "600" }}>
                                 {campaign.insights && getCPA(campaign.insights, campaign.objective) > 0 ? `${getCPA(campaign.insights, campaign.objective).toFixed(2)}€` : '-'}
                               </td>
-                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
-                                {campaign.insights && getROAS(campaign.insights) > 0 ? `${getROAS(campaign.insights).toFixed(2)}x` : '-'}
-                              </td>
-                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
-                                {campaign.insights_4d && getROAS(campaign.insights_4d) > 0 ? `${getROAS(campaign.insights_4d).toFixed(2)}x` : '-'}
-                              </td>
+                              {accountType === 'leadgen' ? (
+                                <>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {campaign.insights_1d && getCPL(campaign.insights_1d) > 0 ? `${getCPL(campaign.insights_1d).toFixed(2)}€` : '-'}
+                                  </td>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {campaign.insights_4d && getCPL(campaign.insights_4d) > 0 ? `${getCPL(campaign.insights_4d).toFixed(2)}€` : '-'}
+                                  </td>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {campaign.insights_7d && getCPL(campaign.insights_7d) > 0 ? `${getCPL(campaign.insights_7d).toFixed(2)}€` : '-'}
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {campaign.insights && getROAS(campaign.insights) > 0 ? `${getROAS(campaign.insights).toFixed(2)}x` : '-'}
+                                  </td>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {campaign.insights_4d && getROAS(campaign.insights_4d) > 0 ? `${getROAS(campaign.insights_4d).toFixed(2)}x` : '-'}
+                                  </td>
+                                </>
+                              )}
                               <td style={{ padding: "16px 24px", textAlign: "center" }}>
                                 {(() => {
                                   const rec = getRecommendation(campaign, campaign.insights_4d, campaign.insights_7d, 'campaign');
@@ -1580,7 +1608,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                           ))}
                           {getFilteredCampaigns().length === 0 && (
                             <tr>
-                              <td colSpan="13" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
+                              <td colSpan={accountType === 'leadgen' ? "14" : "13"} style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
                                 Aucune campagne trouvée
                               </td>
                             </tr>
@@ -1674,12 +1702,28 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#a78bfa", textAlign: "right", fontWeight: "600" }}>
                                 {adset.insights && getCPA(adset.insights, campaigns.find(c => c.id === adset.campaign_id)?.objective) > 0 ? `${getCPA(adset.insights, campaigns.find(c => c.id === adset.campaign_id)?.objective).toFixed(2)}€` : '-'}
                               </td>
-                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
-                                {adset.insights && getROAS(adset.insights) > 0 ? `${getROAS(adset.insights).toFixed(2)}x` : '-'}
-                              </td>
-                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
-                                {adset.insights_4d && getROAS(adset.insights_4d) > 0 ? `${getROAS(adset.insights_4d).toFixed(2)}x` : '-'}
-                              </td>
+                              {accountType === 'leadgen' ? (
+                                <>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {adset.insights_1d && getCPL(adset.insights_1d) > 0 ? `${getCPL(adset.insights_1d).toFixed(2)}€` : '-'}
+                                  </td>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {adset.insights_4d && getCPL(adset.insights_4d) > 0 ? `${getCPL(adset.insights_4d).toFixed(2)}€` : '-'}
+                                  </td>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {adset.insights_7d && getCPL(adset.insights_7d) > 0 ? `${getCPL(adset.insights_7d).toFixed(2)}€` : '-'}
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {adset.insights && getROAS(adset.insights) > 0 ? `${getROAS(adset.insights).toFixed(2)}x` : '-'}
+                                  </td>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {adset.insights_4d && getROAS(adset.insights_4d) > 0 ? `${getROAS(adset.insights_4d).toFixed(2)}x` : '-'}
+                                  </td>
+                                </>
+                              )}
                               <td style={{ padding: "16px 24px", textAlign: "center" }}>
                                 {(() => {
                                   const parentCampaign = campaigns.find(c => c.id === adset.campaign_id);
@@ -1779,7 +1823,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                           ))}
                           {getFilteredAdsets().length === 0 && (
                             <tr>
-                              <td colSpan="13" style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
+                              <td colSpan={accountType === 'leadgen' ? "14" : "13"} style={{ padding: "40px", textAlign: "center", fontSize: "13px", color: "#71717a" }}>
                                 Aucun adset trouvé
                               </td>
                             </tr>
@@ -1869,12 +1913,28 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
                               <td style={{ padding: "16px 24px", fontSize: "13px", color: "#a78bfa", textAlign: "right", fontWeight: "600" }}>
                                 {ad.insights && getCPA(ad.insights, campaigns.find(c => c.id === ad.campaign_id)?.objective) > 0 ? `${getCPA(ad.insights, campaigns.find(c => c.id === ad.campaign_id)?.objective).toFixed(2)}€` : '-'}
                               </td>
-                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
-                                {ad.insights && getROAS(ad.insights) > 0 ? `${getROAS(ad.insights).toFixed(2)}x` : '-'}
-                              </td>
-                              <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
-                                {ad.insights_4d && getROAS(ad.insights_4d) > 0 ? `${getROAS(ad.insights_4d).toFixed(2)}x` : '-'}
-                              </td>
+                              {accountType === 'leadgen' ? (
+                                <>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {ad.insights_1d && getCPL(ad.insights_1d) > 0 ? `${getCPL(ad.insights_1d).toFixed(2)}€` : '-'}
+                                  </td>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {ad.insights_4d && getCPL(ad.insights_4d) > 0 ? `${getCPL(ad.insights_4d).toFixed(2)}€` : '-'}
+                                  </td>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {ad.insights_7d && getCPL(ad.insights_7d) > 0 ? `${getCPL(ad.insights_7d).toFixed(2)}€` : '-'}
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {ad.insights && getROAS(ad.insights) > 0 ? `${getROAS(ad.insights).toFixed(2)}x` : '-'}
+                                  </td>
+                                  <td style={{ padding: "16px 24px", fontSize: "13px", color: "#fbbf24", textAlign: "right", fontWeight: "600" }}>
+                                    {ad.insights_4d && getROAS(ad.insights_4d) > 0 ? `${getROAS(ad.insights_4d).toFixed(2)}x` : '-'}
+                                  </td>
+                                </>
+                              )}
                               <td style={{ padding: "16px 24px", textAlign: "center" }}>
                                 <span style={{ fontSize: "11px", color: "#71717a" }}>-</span>
                               </td>
@@ -1936,6 +1996,247 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack }) {
           </div>
         )}
       </main>
+
+      {/* Actions Summary Modal */}
+      {showActionsSummary && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(0,0,0,0.7)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+          padding: "20px"
+        }}>
+          <div style={{
+            background: "linear-gradient(135deg,#1a1a2e,#16213e)",
+            border: "1px solid rgba(99,102,241,0.3)",
+            borderRadius: "12px",
+            maxWidth: "800px",
+            maxHeight: "80vh",
+            width: "100%",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column"
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: "20px 24px",
+              borderBottom: "1px solid rgba(71,85,105,0.3)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between"
+            }}>
+              <h3 style={{ margin: 0, color: "#a5b4fc", fontSize: "18px", fontWeight: "600" }}>
+                📋 Récapitulatif des actions prévues
+              </h3>
+              <button
+                onClick={() => setShowActionsSummary(false)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#71717a",
+                  fontSize: "24px",
+                  cursor: "pointer",
+                  padding: "0",
+                  lineHeight: "1"
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
+              {plannedActions.length === 0 ? (
+                <p style={{ color: "#71717a", textAlign: "center", margin: "40px 0" }}>
+                  Aucune action recommandée pour le moment
+                </p>
+              ) : (
+                <>
+                  <div style={{ marginBottom: "20px" }}>
+                    <div style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3, 1fr)",
+                      gap: "12px",
+                      marginBottom: "20px"
+                    }}>
+                      <div style={{
+                        background: "rgba(34,197,94,0.1)",
+                        border: "1px solid rgba(34,197,94,0.3)",
+                        borderRadius: "8px",
+                        padding: "12px",
+                        textAlign: "center"
+                      }}>
+                        <div style={{ fontSize: "11px", color: "#71717a", marginBottom: "4px" }}>
+                          Budget actuel total
+                        </div>
+                        <div style={{ fontSize: "20px", color: "#22c55e", fontWeight: "600" }}>
+                          {plannedActions.reduce((sum, a) => sum + a.currentBudget, 0).toFixed(0)}€/j
+                        </div>
+                      </div>
+                      <div style={{
+                        background: "rgba(99,102,241,0.1)",
+                        border: "1px solid rgba(99,102,241,0.3)",
+                        borderRadius: "8px",
+                        padding: "12px",
+                        textAlign: "center"
+                      }}>
+                        <div style={{ fontSize: "11px", color: "#71717a", marginBottom: "4px" }}>
+                          Budget prévu total
+                        </div>
+                        <div style={{ fontSize: "20px", color: "#a5b4fc", fontWeight: "600" }}>
+                          {plannedActions.reduce((sum, a) => sum + a.newBudget, 0).toFixed(0)}€/j
+                        </div>
+                      </div>
+                      <div style={{
+                        background: "rgba(251,191,36,0.1)",
+                        border: "1px solid rgba(251,191,36,0.3)",
+                        borderRadius: "8px",
+                        padding: "12px",
+                        textAlign: "center"
+                      }}>
+                        <div style={{ fontSize: "11px", color: "#71717a", marginBottom: "4px" }}>
+                          Changement total
+                        </div>
+                        <div style={{
+                          fontSize: "20px",
+                          color: plannedActions.reduce((sum, a) => sum + a.change, 0) >= 0 ? "#22c55e" : "#ef4444",
+                          fontWeight: "600"
+                        }}>
+                          {plannedActions.reduce((sum, a) => sum + a.change, 0) >= 0 ? '+' : ''}
+                          {plannedActions.reduce((sum, a) => sum + a.change, 0).toFixed(0)}€/j
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: "rgba(30,41,59,0.4)",
+                    border: "1px solid rgba(71,85,105,0.3)",
+                    borderRadius: "8px",
+                    overflow: "hidden"
+                  }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ background: "rgba(30,41,59,0.6)" }}>
+                          <th style={{ padding: "12px", textAlign: "left", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>
+                            Élément
+                          </th>
+                          <th style={{ padding: "12px", textAlign: "center", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>
+                            Action
+                          </th>
+                          <th style={{ padding: "12px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>
+                            Budget actuel
+                          </th>
+                          <th style={{ padding: "12px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>
+                            Nouveau budget
+                          </th>
+                          <th style={{ padding: "12px", textAlign: "right", fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase" }}>
+                            Changement
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {plannedActions.map((action, index) => (
+                          <tr key={index} style={{ borderTop: "1px solid rgba(71,85,105,0.2)" }}>
+                            <td style={{ padding: "12px" }}>
+                              <div style={{ fontSize: "12px", color: "#e4e4e7", fontWeight: "600" }}>
+                                {action.name}
+                              </div>
+                              <div style={{ fontSize: "10px", color: "#71717a", marginTop: "2px" }}>
+                                {action.type === 'campaign' ? '📊 Campagne' : '🎯 Adset'}
+                              </div>
+                            </td>
+                            <td style={{ padding: "12px", textAlign: "center" }}>
+                              <span style={{
+                                padding: "4px 8px",
+                                borderRadius: "4px",
+                                fontSize: "11px",
+                                fontWeight: "600",
+                                background: action.action === 'scale' || action.action === 'scale_jump' ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)",
+                                color: action.action === 'scale' || action.action === 'scale_jump' ? "#22c55e" : "#ef4444"
+                              }}>
+                                {action.action === 'scale' && '🚀 Scale'}
+                                {action.action === 'scale_jump' && '🚀🚀 Scale +2'}
+                                {action.action === 'descale' && '🔻 Descale'}
+                              </span>
+                            </td>
+                            <td style={{ padding: "12px", textAlign: "right", fontSize: "13px", color: "#e4e4e7", fontWeight: "600" }}>
+                              {action.currentBudget.toFixed(0)}€/j
+                            </td>
+                            <td style={{ padding: "12px", textAlign: "right", fontSize: "13px", color: "#a5b4fc", fontWeight: "600" }}>
+                              {action.newBudget.toFixed(0)}€/j
+                            </td>
+                            <td style={{
+                              padding: "12px",
+                              textAlign: "right",
+                              fontSize: "13px",
+                              fontWeight: "600",
+                              color: action.change >= 0 ? "#22c55e" : "#ef4444"
+                            }}>
+                              {action.change >= 0 ? '+' : ''}{action.change.toFixed(0)}€/j
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            {plannedActions.length > 0 && (
+              <div style={{
+                padding: "20px 24px",
+                borderTop: "1px solid rgba(71,85,105,0.3)",
+                display: "flex",
+                gap: "12px",
+                justifyContent: "flex-end"
+              }}>
+                <button
+                  onClick={() => setShowActionsSummary(false)}
+                  style={{
+                    padding: "10px 20px",
+                    background: "rgba(71,85,105,0.2)",
+                    border: "1px solid rgba(71,85,105,0.3)",
+                    borderRadius: "8px",
+                    color: "#71717a",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={executeAutoOptimization}
+                  disabled={isOptimizing}
+                  style={{
+                    padding: "10px 20px",
+                    background: isOptimizing ? "rgba(71,85,105,0.2)" : "rgba(34,197,94,0.3)",
+                    border: "1px solid rgba(34,197,94,0.5)",
+                    borderRadius: "8px",
+                    color: isOptimizing ? "#71717a" : "#22c55e",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    cursor: isOptimizing ? "not-allowed" : "pointer",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  {isOptimizing ? "⏳ Optimisation en cours..." : "✅ Valider et exécuter"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
