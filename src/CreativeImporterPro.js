@@ -2566,51 +2566,54 @@ export default function App() {
                     ))}
                   </div>
                 </div>
-                <div style={box}>
-                  <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
-                    🎯 Objectif
-                  </p>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(3,1fr)",
-                      gap: "8px",
-                    }}
-                  >
-                    {Object.entries(OBJECTIVES).map(([k, o]) => (
-                      <button
-                        key={k}
-                        onClick={() => {
-                          setObjective(k);
-                          setOptimizationEvent(OPTIMIZATION_EVENTS[k][0].id);
-                        }}
-                        style={{
-                          padding: "10px",
-                          borderRadius: "8px",
-                          border:
-                            objective === k
-                              ? "2px solid #6366f1"
-                              : "1px solid rgba(255,255,255,0.1)",
-                          background:
-                            objective === k
-                              ? "rgba(99,102,241,0.2)"
-                              : "transparent",
-                          color: "#fff",
-                          cursor: "pointer",
-                          textAlign: "center",
-                        }}
-                      >
-                        <span style={{ fontSize: "18px", display: "block" }}>
-                          {o.icon}
-                        </span>
-                        <span style={{ fontSize: "10px" }}>{o.name}</span>
-                      </button>
-                    ))}
+                {/* Only show Objective if creating new campaign */}
+                {!(budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) && (
+                  <div style={box}>
+                    <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
+                      🎯 Objectif
+                    </p>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3,1fr)",
+                        gap: "8px",
+                      }}
+                    >
+                      {Object.entries(OBJECTIVES).map(([k, o]) => (
+                        <button
+                          key={k}
+                          onClick={() => {
+                            setObjective(k);
+                            setOptimizationEvent(OPTIMIZATION_EVENTS[k][0].id);
+                          }}
+                          style={{
+                            padding: "10px",
+                            borderRadius: "8px",
+                            border:
+                              objective === k
+                                ? "2px solid #6366f1"
+                                : "1px solid rgba(255,255,255,0.1)",
+                            background:
+                              objective === k
+                                ? "rgba(99,102,241,0.2)"
+                                : "transparent",
+                            color: "#fff",
+                            cursor: "pointer",
+                            textAlign: "center",
+                          }}
+                        >
+                          <span style={{ fontSize: "18px", display: "block" }}>
+                            {o.icon}
+                          </span>
+                          <span style={{ fontSize: "10px" }}>{o.name}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {/* Événement d'optimisation (seulement pour conversions) */}
-                {objective === "conversions" && (
+                {/* Événement d'optimisation (seulement pour conversions et si nouvelle campagne) */}
+                {!(budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) && objective === "conversions" && (
                   <div style={box}>
                     <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
                       🎯 Événement de conversion
@@ -2696,65 +2699,67 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Bid Strategy Selector */}
-                <div style={box}>
-                  <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
-                    💰 Stratégie d'enchère
-                  </p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    <button
-                      onClick={() => setBidStrategy("LOWEST_COST_WITHOUT_CAP")}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: "8px",
-                        border: bidStrategy === "LOWEST_COST_WITHOUT_CAP" ? "2px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
-                        background: bidStrategy === "LOWEST_COST_WITHOUT_CAP" ? "rgba(99,102,241,0.2)" : "transparent",
-                        color: "#fff",
-                        cursor: "pointer",
-                        textAlign: "left",
-                      }}
-                    >
-                      <div style={{ fontSize: "11px", fontWeight: "600" }}>Volume le plus élevé</div>
-                      <div style={{ fontSize: "9px", color: "#71717a", marginTop: "2px" }}>
-                        Obtenir les meilleurs résultats pour le budget
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => setBidStrategy("LOWEST_COST_WITH_BID_CAP")}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: "8px",
-                        border: bidStrategy === "LOWEST_COST_WITH_BID_CAP" ? "2px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
-                        background: bidStrategy === "LOWEST_COST_WITH_BID_CAP" ? "rgba(99,102,241,0.2)" : "transparent",
-                        color: "#fff",
-                        cursor: "pointer",
-                        textAlign: "left",
-                      }}
-                    >
-                      <div style={{ fontSize: "11px", fontWeight: "600" }}>Limite d'enchères</div>
-                      <div style={{ fontSize: "9px", color: "#71717a", marginTop: "2px" }}>
-                        Contrôler le coût de chaque résultat
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => setBidStrategy("COST_CAP")}
-                      style={{
-                        padding: "10px 12px",
-                        borderRadius: "8px",
-                        border: bidStrategy === "COST_CAP" ? "2px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
-                        background: bidStrategy === "COST_CAP" ? "rgba(99,102,241,0.2)" : "transparent",
-                        color: "#fff",
-                        cursor: "pointer",
-                        textAlign: "left",
-                      }}
-                    >
-                      <div style={{ fontSize: "11px", fontWeight: "600" }}>Objectif de coût</div>
-                      <div style={{ fontSize: "9px", color: "#71717a", marginTop: "2px" }}>
-                        Maintenir un coût moyen par résultat
-                      </div>
-                    </button>
+                {/* Bid Strategy Selector - Only show if creating new campaign */}
+                {!(budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) && (
+                  <div style={box}>
+                    <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
+                      💰 Stratégie d'enchère
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <button
+                        onClick={() => setBidStrategy("LOWEST_COST_WITHOUT_CAP")}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: "8px",
+                          border: bidStrategy === "LOWEST_COST_WITHOUT_CAP" ? "2px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
+                          background: bidStrategy === "LOWEST_COST_WITHOUT_CAP" ? "rgba(99,102,241,0.2)" : "transparent",
+                          color: "#fff",
+                          cursor: "pointer",
+                          textAlign: "left",
+                        }}
+                      >
+                        <div style={{ fontSize: "11px", fontWeight: "600" }}>Volume le plus élevé</div>
+                        <div style={{ fontSize: "9px", color: "#71717a", marginTop: "2px" }}>
+                          Obtenir les meilleurs résultats pour le budget
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setBidStrategy("LOWEST_COST_WITH_BID_CAP")}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: "8px",
+                          border: bidStrategy === "LOWEST_COST_WITH_BID_CAP" ? "2px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
+                          background: bidStrategy === "LOWEST_COST_WITH_BID_CAP" ? "rgba(99,102,241,0.2)" : "transparent",
+                          color: "#fff",
+                          cursor: "pointer",
+                          textAlign: "left",
+                        }}
+                      >
+                        <div style={{ fontSize: "11px", fontWeight: "600" }}>Limite d'enchères</div>
+                        <div style={{ fontSize: "9px", color: "#71717a", marginTop: "2px" }}>
+                          Contrôler le coût de chaque résultat
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setBidStrategy("COST_CAP")}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: "8px",
+                          border: bidStrategy === "COST_CAP" ? "2px solid #6366f1" : "1px solid rgba(255,255,255,0.1)",
+                          background: bidStrategy === "COST_CAP" ? "rgba(99,102,241,0.2)" : "transparent",
+                          color: "#fff",
+                          cursor: "pointer",
+                          textAlign: "left",
+                        }}
+                      >
+                        <div style={{ fontSize: "11px", fontWeight: "600" }}>Objectif de coût</div>
+                        <div style={{ fontSize: "9px", color: "#71717a", marginTop: "2px" }}>
+                          Maintenir un coût moyen par résultat
+                        </div>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
               <div
                 style={{
@@ -2974,17 +2979,20 @@ export default function App() {
                         style={{ ...inp, marginTop: "4px" }}
                       />
                     </div>
-                    <div>
-                      <span style={{ fontSize: "11px", color: "#71717a" }}>
-                        Nom de campagne
-                      </span>
-                      <input
-                        value={campaignName}
-                        onChange={(e) => setCampaignName(e.target.value)}
-                        placeholder="Ex: prospection"
-                        style={{ ...inp, marginTop: "4px" }}
-                      />
-                    </div>
+                    {/* Only show campaign name if creating new campaign */}
+                    {!(budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) && (
+                      <div>
+                        <span style={{ fontSize: "11px", color: "#71717a" }}>
+                          Nom de campagne
+                        </span>
+                        <input
+                          value={campaignName}
+                          onChange={(e) => setCampaignName(e.target.value)}
+                          placeholder="Ex: prospection"
+                          style={{ ...inp, marginTop: "4px" }}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Preview de la nomenclature */}
@@ -3000,18 +3008,25 @@ export default function App() {
                       📋 Aperçu de la structure
                     </div>
                     <div style={{ fontSize: "11px", lineHeight: "1.6" }}>
-                      <div style={{ marginBottom: "4px" }}>
-                        <span style={{ color: "#71717a" }}>Campagne:</span>{" "}
-                        <span style={{ color: "#6366f1", fontWeight: "500" }}>
-                          {nomenclature.campaign}
-                        </span>
-                      </div>
-                      <div style={{ marginBottom: "4px" }}>
-                        <span style={{ color: "#71717a" }}>Adset:</span>{" "}
-                        <span style={{ color: "#22c55e", fontWeight: "500" }}>
-                          {nomenclature.adset}
-                        </span>
-                      </div>
+                      {/* Show campaign name only if creating new campaign */}
+                      {!(budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) && (
+                        <div style={{ marginBottom: "4px" }}>
+                          <span style={{ color: "#71717a" }}>Campagne:</span>{" "}
+                          <span style={{ color: "#6366f1", fontWeight: "500" }}>
+                            {nomenclature.campaign}
+                          </span>
+                        </div>
+                      )}
+                      {/* Show adset name only if creating new adset */}
+                      {!(budgetType === "cbo" && cboMode === "existing_adset") && (
+                        <div style={{ marginBottom: "4px" }}>
+                          <span style={{ color: "#71717a" }}>Adset:</span>{" "}
+                          <span style={{ color: "#22c55e", fontWeight: "500" }}>
+                            {nomenclature.adset}
+                          </span>
+                        </div>
+                      )}
+                      {/* Always show ad name */}
                       <div>
                         <span style={{ color: "#71717a" }}>Ad (exemple):</span>{" "}
                         <span style={{ color: "#f59e0b", fontWeight: "500" }}>
