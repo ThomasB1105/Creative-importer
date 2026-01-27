@@ -972,6 +972,8 @@ export default function App() {
       const uploadedHashes = await Promise.all(
         uploadedFiles.map(async (file) => {
           try {
+            console.log(`📤 Uploading ${file.type}: ${file.name} (${(file.file.size / 1024 / 1024).toFixed(2)} MB)`);
+
             const formData = new FormData();
             formData.append("source", file.file);
             formData.append("access_token", accessToken);
@@ -985,16 +987,28 @@ export default function App() {
               body: formData,
             });
 
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error(`❌ Upload response not OK for ${file.name}:`, response.status, errorText);
+              throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`);
+            }
+
             const data = await response.json();
-            if (data.error) throw new Error(data.error.message);
+            if (data.error) {
+              console.error(`❌ Meta API error for ${file.name}:`, data.error);
+              throw new Error(data.error.message);
+            }
+
+            const hash = file.type === "video" ? data.id : data.images[Object.keys(data.images)[0]].hash;
+            console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
 
             return {
               fileId: file.id,
-              hash: file.type === "video" ? data.id : data.images[Object.keys(data.images)[0]].hash,
+              hash: hash,
               type: file.type,
             };
           } catch (err) {
-            console.error(`Error uploading ${file.name}:`, err);
+            console.error(`❌ Error uploading ${file.name}:`, err);
             results.errors.push(`Upload failed for ${file.name}: ${err.message}`);
             return null;
           }
@@ -1160,36 +1174,56 @@ export default function App() {
         const creativeData = new FormData();
         creativeData.append("name", adName);
 
-        // Build link_data step-by-step
-        const linkData = {
-          link: destinationUrl.trim(),
-          message: filteredTexts[i % filteredTexts.length],
-        };
+        // Build object_story_spec differently for video vs image
+        let objectStorySpec;
 
-        // Add headline only if available
-        if (filteredHeadlines.length > 0) {
-          linkData.name = filteredHeadlines[i % filteredHeadlines.length];
-        }
-
-        // Add media (image or video)
         if (hashData.type === "video") {
-          linkData.video_id = hashData.hash;
-        } else {
-          linkData.image_hash = hashData.hash;
-        }
+          // For videos, use video_data
+          const videoData = {
+            video_id: hashData.hash,
+            title: filteredHeadlines.length > 0 ? filteredHeadlines[i % filteredHeadlines.length] : adName,
+            message: filteredTexts[i % filteredTexts.length],
+          };
 
-        // Add call_to_action only if not NO_BUTTON
-        if (callToAction !== "NO_BUTTON") {
-          linkData.call_to_action = {
-            type: callToAction,
+          // Add call_to_action only if not NO_BUTTON
+          if (callToAction !== "NO_BUTTON" && destinationUrl.trim()) {
+            videoData.call_to_action = {
+              type: callToAction,
+              value: {
+                link: destinationUrl.trim(),
+              },
+            };
+          }
+
+          objectStorySpec = {
+            page_id: selectedPage.id,
+            video_data: videoData,
+          };
+        } else {
+          // For images, use link_data
+          const linkData = {
+            link: destinationUrl.trim(),
+            message: filteredTexts[i % filteredTexts.length],
+            image_hash: hashData.hash,
+          };
+
+          // Add headline only if available
+          if (filteredHeadlines.length > 0) {
+            linkData.name = filteredHeadlines[i % filteredHeadlines.length];
+          }
+
+          // Add call_to_action only if not NO_BUTTON
+          if (callToAction !== "NO_BUTTON") {
+            linkData.call_to_action = {
+              type: callToAction,
+            };
+          }
+
+          objectStorySpec = {
+            page_id: selectedPage.id,
+            link_data: linkData,
           };
         }
-
-        // Build object_story_spec
-        const objectStorySpec = {
-          page_id: selectedPage.id,
-          link_data: linkData,
-        };
 
         // Only add instagram_actor_id if available
         if (instagramAccount?.id) {
