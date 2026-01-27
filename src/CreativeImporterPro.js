@@ -1178,21 +1178,15 @@ export default function App() {
         let objectStorySpec;
 
         if (hashData.type === "video") {
-          // For videos, use video_data
+          // For videos, use simpler video_data structure without call_to_action
           const videoData = {
             video_id: hashData.hash,
-            title: filteredHeadlines.length > 0 ? filteredHeadlines[i % filteredHeadlines.length] : adName,
             message: filteredTexts[i % filteredTexts.length],
           };
 
-          // Add call_to_action only if not NO_BUTTON
-          if (callToAction !== "NO_BUTTON" && destinationUrl.trim()) {
-            videoData.call_to_action = {
-              type: callToAction,
-              value: {
-                link: destinationUrl.trim(),
-              },
-            };
+          // Add title if headline available
+          if (filteredHeadlines.length > 0) {
+            videoData.title = filteredHeadlines[i % filteredHeadlines.length];
           }
 
           objectStorySpec = {
