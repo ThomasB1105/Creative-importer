@@ -948,6 +948,47 @@ export default function App() {
     );
   }
 
+  // Extract first frame from video file as thumbnail
+  const extractVideoThumbnail = async (videoFile) => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      video.preload = 'metadata';
+      video.muted = true;
+      video.playsInline = true;
+
+      video.onloadeddata = () => {
+        // Set canvas size to video dimensions
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        // Draw first frame
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Convert to blob
+        canvas.toBlob((blob) => {
+          if (blob) {
+            // Create a File object from the blob
+            const thumbnailFile = new File([blob], `${videoFile.name}_thumb.jpg`, { type: 'image/jpeg' });
+            resolve(thumbnailFile);
+          } else {
+            reject(new Error('Failed to create thumbnail blob'));
+          }
+        }, 'image/jpeg', 0.9);
+      };
+
+      video.onerror = () => {
+        reject(new Error('Failed to load video'));
+      };
+
+      // Load the video
+      video.src = URL.createObjectURL(videoFile);
+      video.currentTime = 0.1; // Seek to 0.1 second to ensure we get a frame
+    });
+  };
+
   // Create campaign on Meta
   const createCampaignOnMeta = async () => {
     setIsCreating(true);
@@ -991,6 +1032,50 @@ export default function App() {
             [file.id]: { progress: 10, status: 'uploading' }
           }));
 
+          let thumbnailHash = null;
+
+          // For videos, extract and upload thumbnail first
+          if (file.type === "video") {
+            try {
+              console.log(`🎬 Extracting thumbnail from ${file.name}...`);
+              const thumbnailFile = await extractVideoThumbnail(file.file);
+              console.log(`✅ Thumbnail extracted: ${(thumbnailFile.size / 1024).toFixed(2)} KB`);
+
+              // Upload thumbnail
+              const thumbFormData = new FormData();
+              thumbFormData.append("source", thumbnailFile);
+              thumbFormData.append("access_token", accessToken);
+
+              const thumbResponse = await fetch(
+                `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`,
+                { method: "POST", body: thumbFormData }
+              );
+
+              if (!thumbResponse.ok) {
+                const errorText = await thumbResponse.text();
+                console.error(`❌ Thumbnail upload failed for ${file.name}:`, thumbResponse.status, errorText);
+              } else {
+                const thumbData = await thumbResponse.json();
+                if (thumbData.error) {
+                  console.error(`❌ Thumbnail API error for ${file.name}:`, thumbData.error);
+                } else {
+                  thumbnailHash = thumbData.images[Object.keys(thumbData.images)[0]].hash;
+                  console.log(`✅ Thumbnail uploaded, hash: ${thumbnailHash}`);
+                }
+              }
+
+              // Update progress after thumbnail
+              setUploadProgress(prev => ({
+                ...prev,
+                [file.id]: { progress: 30, status: 'uploading' }
+              }));
+            } catch (thumbErr) {
+              console.error(`⚠️ Failed to extract/upload thumbnail for ${file.name}:`, thumbErr);
+              // Continue without thumbnail - will use link_data fallback
+            }
+          }
+
+          // Upload main file (image or video)
           const formData = new FormData();
           formData.append("source", file.file);
           formData.append("access_token", accessToken);
@@ -1029,6 +1114,7 @@ export default function App() {
             fileId: file.id,
             hash: hash,
             type: file.type,
+            thumbnailHash: thumbnailHash, // Store thumbnail hash for videos
           });
 
           // Small delay between uploads to avoid rate limiting
@@ -1217,37 +1303,57 @@ export default function App() {
         const creativeData = new FormData();
         creativeData.append("name", adName);
 
-        // Build object_story_spec using link_data for both images and videos
+        // Build object_story_spec - use video_data with thumbnail for videos, link_data for images
         let objectStorySpec;
 
-        const linkData = {
-          link: destinationUrl.trim(),
-          message: filteredTexts[i % filteredTexts.length],
-        };
+        if (hashData.type === "video" && hashData.thumbnailHash) {
+          // For videos with thumbnail, use video_data
+          const videoData = {
+            video_id: hashData.hash,
+            image_hash: hashData.thumbnailHash, // Thumbnail from first frame
+            message: filteredTexts[i % filteredTexts.length],
+          };
 
-        // For videos, use video_id instead of image_hash
-        if (hashData.type === "video") {
-          linkData.video_id = hashData.hash;
+          // Add title if headline available
+          if (filteredHeadlines.length > 0) {
+            videoData.title = filteredHeadlines[i % filteredHeadlines.length];
+          }
+
+          objectStorySpec = {
+            page_id: selectedPage.id,
+            video_data: videoData,
+          };
         } else {
-          linkData.image_hash = hashData.hash;
-        }
+          // For images or videos without thumbnail, use link_data
+          const linkData = {
+            link: destinationUrl.trim(),
+            message: filteredTexts[i % filteredTexts.length],
+          };
 
-        // Add headline only if available
-        if (filteredHeadlines.length > 0) {
-          linkData.name = filteredHeadlines[i % filteredHeadlines.length];
-        }
+          // For videos, use video_id instead of image_hash
+          if (hashData.type === "video") {
+            linkData.video_id = hashData.hash;
+          } else {
+            linkData.image_hash = hashData.hash;
+          }
 
-        // Add call_to_action only if not NO_BUTTON
-        if (callToAction !== "NO_BUTTON") {
-          linkData.call_to_action = {
-            type: callToAction,
+          // Add headline only if available
+          if (filteredHeadlines.length > 0) {
+            linkData.name = filteredHeadlines[i % filteredHeadlines.length];
+          }
+
+          // Add call_to_action only if not NO_BUTTON
+          if (callToAction !== "NO_BUTTON") {
+            linkData.call_to_action = {
+              type: callToAction,
+            };
+          }
+
+          objectStorySpec = {
+            page_id: selectedPage.id,
+            link_data: linkData,
           };
         }
-
-        objectStorySpec = {
-          page_id: selectedPage.id,
-          link_data: linkData,
-        };
 
         // Only add instagram_actor_id if available
         if (instagramAccount?.id) {
