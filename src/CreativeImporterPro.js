@@ -1217,50 +1217,37 @@ export default function App() {
         const creativeData = new FormData();
         creativeData.append("name", adName);
 
-        // Build object_story_spec differently for video vs image
+        // Build object_story_spec using link_data for both images and videos
         let objectStorySpec;
 
+        const linkData = {
+          link: destinationUrl.trim(),
+          message: filteredTexts[i % filteredTexts.length],
+        };
+
+        // For videos, use video_id instead of image_hash
         if (hashData.type === "video") {
-          // For videos, use simpler video_data structure without call_to_action
-          const videoData = {
-            video_id: hashData.hash,
-            message: filteredTexts[i % filteredTexts.length],
-          };
-
-          // Add title if headline available
-          if (filteredHeadlines.length > 0) {
-            videoData.title = filteredHeadlines[i % filteredHeadlines.length];
-          }
-
-          objectStorySpec = {
-            page_id: selectedPage.id,
-            video_data: videoData,
-          };
+          linkData.video_id = hashData.hash;
         } else {
-          // For images, use link_data
-          const linkData = {
-            link: destinationUrl.trim(),
-            message: filteredTexts[i % filteredTexts.length],
-            image_hash: hashData.hash,
-          };
+          linkData.image_hash = hashData.hash;
+        }
 
-          // Add headline only if available
-          if (filteredHeadlines.length > 0) {
-            linkData.name = filteredHeadlines[i % filteredHeadlines.length];
-          }
+        // Add headline only if available
+        if (filteredHeadlines.length > 0) {
+          linkData.name = filteredHeadlines[i % filteredHeadlines.length];
+        }
 
-          // Add call_to_action only if not NO_BUTTON
-          if (callToAction !== "NO_BUTTON") {
-            linkData.call_to_action = {
-              type: callToAction,
-            };
-          }
-
-          objectStorySpec = {
-            page_id: selectedPage.id,
-            link_data: linkData,
+        // Add call_to_action only if not NO_BUTTON
+        if (callToAction !== "NO_BUTTON") {
+          linkData.call_to_action = {
+            type: callToAction,
           };
         }
+
+        objectStorySpec = {
+          page_id: selectedPage.id,
+          link_data: linkData,
+        };
 
         // Only add instagram_actor_id if available
         if (instagramAccount?.id) {
