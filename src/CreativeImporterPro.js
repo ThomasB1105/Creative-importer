@@ -713,20 +713,24 @@ export default function App() {
   }, [budgetType, aboMode, cboMode, groupedFiles, uploadedFiles]);
 
   const box = {
-    background: "rgba(255,255,255,0.02)",
-    borderRadius: "12px",
-    padding: "20px",
-    border: "1px solid rgba(255,255,255,0.08)",
+    background: "rgba(17,7,38,0.6)",
+    backdropFilter: "blur(20px)",
+    borderRadius: "16px",
+    padding: "24px",
+    border: "1px solid rgba(168,85,247,0.2)",
+    boxShadow: "0 8px 32px rgba(168,85,247,0.1), inset 0 1px 0 rgba(255,255,255,0.05)",
   };
   const btn1 = {
     padding: "14px 28px",
-    borderRadius: "10px",
-    border: "none",
-    background: "linear-gradient(135deg,#6366f1,#8b5cf6)",
+    borderRadius: "12px",
+    border: "1px solid rgba(168,85,247,0.3)",
+    background: "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)",
     color: "#fff",
     fontSize: "13px",
     fontWeight: "600",
     cursor: "pointer",
+    boxShadow: "0 4px 24px rgba(168,85,247,0.4), 0 0 0 1px rgba(255,255,255,0.1) inset",
+    transition: "all 0.3s ease",
   };
   const btn2 = {
     padding: "14px 24px",
@@ -739,12 +743,14 @@ export default function App() {
   };
   const inp = {
     width: "100%",
-    padding: "10px",
-    borderRadius: "8px",
-    border: "1px solid rgba(255,255,255,0.1)",
-    background: "rgba(0,0,0,0.3)",
+    padding: "12px",
+    borderRadius: "10px",
+    border: "1px solid rgba(168,85,247,0.15)",
+    background: "rgba(17,7,38,0.5)",
     color: "#fff",
     fontSize: "13px",
+    boxShadow: "inset 0 2px 4px rgba(0,0,0,0.3)",
+    transition: "all 0.3s ease",
   };
   const toggle = (active, color) => ({
     width: "44px",
@@ -821,7 +827,13 @@ export default function App() {
               ⚡
             </div>
             <h1 style={{ fontSize: "28px", margin: "0 0 8px" }}>
-              Creative Importer Pro
+              Creative Importer{" "}
+              <span style={{
+                background: "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}>Pro</span>
             </h1>
             <p style={{ color: "#71717a", margin: 0 }}>
               Importez vos créatives sur Meta Ads en quelques clics
@@ -1360,12 +1372,38 @@ export default function App() {
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(135deg,#0a0a0f,#1a1a2e,#16213e)",
+        background: "linear-gradient(135deg, #0f0817 0%, #1a0b2e 25%, #2d1b4e 50%, #1a0b2e 75%, #0f0817 100%)",
         fontFamily: "system-ui",
         color: "#e4e4e7",
         padding: "24px",
+        position: "relative",
+        overflow: "hidden",
       }}
     >
+      {/* Gradient orbs for background effect */}
+      <div style={{
+        position: "fixed",
+        top: "-20%",
+        right: "-10%",
+        width: "600px",
+        height: "600px",
+        background: "radial-gradient(circle, rgba(168,85,247,0.15) 0%, transparent 70%)",
+        filter: "blur(80px)",
+        pointerEvents: "none",
+        zIndex: 0,
+      }}></div>
+      <div style={{
+        position: "fixed",
+        bottom: "-20%",
+        left: "-10%",
+        width: "600px",
+        height: "600px",
+        background: "radial-gradient(circle, rgba(236,72,153,0.12) 0%, transparent 70%)",
+        filter: "blur(80px)",
+        pointerEvents: "none",
+        zIndex: 0,
+      }}></div>
+      <div style={{ position: "relative", zIndex: 1 }}>
       <header
         style={{
           maxWidth: "1400px",
@@ -1382,19 +1420,26 @@ export default function App() {
             style={{
               width: "48px",
               height: "48px",
-              background: "linear-gradient(135deg,#6366f1,#d946ef)",
-              borderRadius: "12px",
+              background: "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)",
+              borderRadius: "14px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontSize: "24px",
+              boxShadow: "0 8px 24px rgba(168,85,247,0.5), inset 0 1px 0 rgba(255,255,255,0.2)",
             }}
           >
             ⚡
           </div>
           <div>
             <h1 style={{ margin: 0, fontSize: "24px", color: "#fff" }}>
-              Creative Importer Pro
+              Creative Importer{" "}
+              <span style={{
+                background: "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}>Pro</span>
             </h1>
             <p style={{ margin: 0, fontSize: "11px", color: "#71717a" }}>
               Connected to Meta Ads API
@@ -1420,10 +1465,12 @@ export default function App() {
                     cursor: s.n < step ? "pointer" : "default",
                     background:
                       step === s.n
-                        ? "linear-gradient(135deg,#6366f1,#8b5cf6)"
+                        ? "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)"
                         : step > s.n
-                        ? "rgba(139,92,246,0.2)"
+                        ? "rgba(168,85,247,0.2)"
                         : "rgba(255,255,255,0.05)",
+                    border: step === s.n ? "1px solid rgba(168,85,247,0.3)" : "1px solid transparent",
+                    boxShadow: step === s.n ? "0 4px 12px rgba(168,85,247,0.3)" : "none",
                   }}
                 >
                   {step > s.n ? "✓" : s.n} {s.l}
@@ -4322,6 +4369,7 @@ export default function App() {
           </div>
         )}
       </main>
+      </div>
     </div>
   );
 }
