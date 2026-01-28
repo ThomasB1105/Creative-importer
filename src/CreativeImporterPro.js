@@ -1049,35 +1049,55 @@ export default function App() {
                 [file.id]: { progress: 20, status: 'uploading' }
               }));
 
-              // Phase 2: Transfer file
-              const transferData = new FormData();
-              transferData.append("upload_phase", "transfer");
-              transferData.append("upload_session_id", upload_session_id);
-              transferData.append("start_offset", "0");
-              transferData.append("video_file_chunk", file.file);
-              transferData.append("access_token", accessToken);
+              // Phase 2: Transfer file in chunks (3MB each to stay under Vercel's 4.5MB limit)
+              const CHUNK_SIZE = 3 * 1024 * 1024; // 3MB
+              const fileSize = file.file.size;
+              let startOffset = 0;
+              let chunkNum = 0;
+              const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
 
-              const transferResponse = await fetch(
-                `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`)}`,
-                { method: "POST", body: transferData }
-              );
+              console.log(`📦 Uploading in ${totalChunks} chunks of ${CHUNK_SIZE / 1024 / 1024}MB`);
 
-              if (!transferResponse.ok) {
-                throw new Error(`Transfer phase failed: ${transferResponse.status}`);
+              while (startOffset < fileSize) {
+                const endOffset = Math.min(startOffset + CHUNK_SIZE, fileSize);
+                const chunk = file.file.slice(startOffset, endOffset);
+                chunkNum++;
+
+                console.log(`📤 Uploading chunk ${chunkNum}/${totalChunks} (${startOffset}-${endOffset})`);
+
+                const transferData = new FormData();
+                transferData.append("upload_phase", "transfer");
+                transferData.append("upload_session_id", upload_session_id);
+                transferData.append("start_offset", startOffset.toString());
+                transferData.append("video_file_chunk", chunk);
+                transferData.append("access_token", accessToken);
+
+                const transferResponse = await fetch(
+                  `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`)}`,
+                  { method: "POST", body: transferData }
+                );
+
+                if (!transferResponse.ok) {
+                  throw new Error(`Transfer phase failed for chunk ${chunkNum}: ${transferResponse.status}`);
+                }
+
+                const transferResult = await transferResponse.json();
+                if (transferResult.error) {
+                  throw new Error(transferResult.error.message);
+                }
+
+                // Facebook returns the next start_offset
+                startOffset = parseInt(transferResult.start_offset) || endOffset;
+
+                // Update progress: 20% + (chunk progress * 20%)
+                const chunkProgress = 20 + Math.round((chunkNum / totalChunks) * 20);
+                setUploadProgress(prev => ({
+                  ...prev,
+                  [file.id]: { progress: chunkProgress, status: 'uploading' }
+                }));
               }
 
-              const transferResult = await transferResponse.json();
-              if (transferResult.error) {
-                throw new Error(transferResult.error.message);
-              }
-
-              console.log(`📤 Transfer phase completed`);
-
-              // Update progress: 40%
-              setUploadProgress(prev => ({
-                ...prev,
-                [file.id]: { progress: 40, status: 'uploading' }
-              }));
+              console.log(`📤 All chunks uploaded`);
 
               // Phase 3: Finish upload
               const finishData = new FormData();
