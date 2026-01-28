@@ -397,6 +397,7 @@ export default function App() {
   const [isCreating, setIsCreating] = useState(false);
   const [creationError, setCreationError] = useState(null);
   const [creationResult, setCreationResult] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState({}); // Progress per creative {fileId: {progress: 0-100, status: 'uploading'|'creating'|'done'}}
 
   // Check for OAuth callback or saved token on mount
   useEffect(() => {
@@ -969,10 +970,24 @@ export default function App() {
 
       // Step 1: Upload images/videos and get hash IDs
       console.log("📤 Uploading creatives...");
+
+      // Initialize progress for all files
+      const initialProgress = {};
+      uploadedFiles.forEach(file => {
+        initialProgress[file.id] = { progress: 0, status: 'uploading' };
+      });
+      setUploadProgress(initialProgress);
+
       const uploadedHashes = await Promise.all(
         uploadedFiles.map(async (file) => {
           try {
             console.log(`📤 Uploading ${file.type}: ${file.name} (${(file.file.size / 1024 / 1024).toFixed(2)} MB)`);
+
+            // Update progress: starting upload
+            setUploadProgress(prev => ({
+              ...prev,
+              [file.id]: { progress: 10, status: 'uploading' }
+            }));
 
             const formData = new FormData();
             formData.append("source", file.file);
@@ -981,6 +996,12 @@ export default function App() {
             const endpoint = file.type === "video"
               ? `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`
               : `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`;
+
+            // Update progress: uploading
+            setUploadProgress(prev => ({
+              ...prev,
+              [file.id]: { progress: 30, status: 'uploading' }
+            }));
 
             const response = await fetch(endpoint, {
               method: "POST",
@@ -1002,6 +1023,12 @@ export default function App() {
             const hash = file.type === "video" ? data.id : data.images[Object.keys(data.images)[0]].hash;
             console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
 
+            // Update progress: upload complete
+            setUploadProgress(prev => ({
+              ...prev,
+              [file.id]: { progress: 50, status: 'uploaded' }
+            }));
+
             return {
               fileId: file.id,
               hash: hash,
@@ -1010,6 +1037,13 @@ export default function App() {
           } catch (err) {
             console.error(`❌ Error uploading ${file.name}:`, err);
             results.errors.push(`Upload failed for ${file.name}: ${err.message}`);
+
+            // Update progress: error
+            setUploadProgress(prev => ({
+              ...prev,
+              [file.id]: { progress: 0, status: 'error' }
+            }));
+
             return null;
           }
         })
@@ -1030,7 +1064,7 @@ export default function App() {
         const campaignData = new FormData();
         campaignData.append("name", nomenclature.campaign);
         campaignData.append("objective", "OUTCOME_SALES");
-        campaignData.append("status", "PAUSED");
+        campaignData.append("status", "ACTIVE");
         campaignData.append("special_ad_categories", JSON.stringify([]));
 
         // Apply bid strategy
@@ -1109,10 +1143,13 @@ export default function App() {
         const adsetData = new FormData();
         adsetData.append("name", nomenclature.adset);
         adsetData.append("campaign_id", campaignId);
-        adsetData.append("status", "PAUSED");
+        adsetData.append("status", "ACTIVE");
         adsetData.append("billing_event", "IMPRESSIONS");
         adsetData.append("optimization_goal", "OFFSITE_CONVERSIONS");
         // No bid_strategy = "Volume le plus élevé" (obtenir les meilleurs résultats pour le budget)
+
+        // Disable automatic improvements
+        adsetData.append("adset_auto_targeting_enabled", "false");
 
         adsetData.append("promoted_object", JSON.stringify(promotedObject));
         adsetData.append("targeting", JSON.stringify(targeting));
@@ -1169,6 +1206,12 @@ export default function App() {
         const file = uploadedFiles.find(f => f.id === hashData.fileId);
 
         const adName = nomenclature.ad(i + 1, file.format);
+
+        // Update progress: creating creative
+        setUploadProgress(prev => ({
+          ...prev,
+          [file.id]: { progress: 60, status: 'creating' }
+        }));
 
         // Create ad creative
         const creativeData = new FormData();
@@ -1238,15 +1281,28 @@ export default function App() {
         if (creativeResult.error) {
           console.error(`Error creating creative for ${file.name}:`, creativeResult.error);
           results.errors.push(`Creative failed for ${file.name}: ${creativeResult.error.message}`);
+
+          // Update progress: error
+          setUploadProgress(prev => ({
+            ...prev,
+            [file.id]: { progress: 0, status: 'error' }
+          }));
+
           continue;
         }
+
+        // Update progress: creative created, now creating ad
+        setUploadProgress(prev => ({
+          ...prev,
+          [file.id]: { progress: 80, status: 'creating' }
+        }));
 
         // Create ad
         const adData = new FormData();
         adData.append("name", adName);
         adData.append("adset_id", adsetId);
         adData.append("creative", JSON.stringify({ creative_id: creativeResult.id }));
-        adData.append("status", "PAUSED");
+        adData.append("status", "ACTIVE");
         adData.append("access_token", accessToken);
 
         const adResponse = await fetch(
@@ -1258,9 +1314,21 @@ export default function App() {
         if (adResult.error) {
           console.error(`Error creating ad for ${file.name}:`, adResult.error);
           results.errors.push(`Ad failed for ${file.name}: ${adResult.error.message}`);
+
+          // Update progress: error
+          setUploadProgress(prev => ({
+            ...prev,
+            [file.id]: { progress: 0, status: 'error' }
+          }));
         } else {
           results.ads.push({ id: adResult.id, name: adName });
           console.log(`✅ Ad created: ${adResult.id}`);
+
+          // Update progress: complete
+          setUploadProgress(prev => ({
+            ...prev,
+            [file.id]: { progress: 100, status: 'done' }
+          }));
         }
       }
 
@@ -3895,6 +3963,49 @@ export default function App() {
                     fontSize: "11px",
                   }}>
                     ❌ Erreur: {creationError}
+                  </div>
+                )}
+
+                {/* Progress bars for each creative */}
+                {isCreating && Object.keys(uploadProgress).length > 0 && (
+                  <div style={{
+                    marginTop: "12px",
+                    padding: "12px",
+                    background: "rgba(99,102,241,0.1)",
+                    border: "1px solid rgba(99,102,241,0.3)",
+                    borderRadius: "8px",
+                  }}>
+                    <p style={{ fontSize: "11px", color: "#a5b4fc", marginBottom: "12px", fontWeight: "600" }}>
+                      📊 Progression des créatives
+                    </p>
+                    {uploadedFiles.map(file => {
+                      const progress = uploadProgress[file.id] || { progress: 0, status: 'pending' };
+                      const statusEmoji = progress.status === 'uploading' ? '📤' : progress.status === 'creating' ? '🔨' : progress.status === 'done' ? '✅' : progress.status === 'error' ? '❌' : '⏳';
+                      const statusText = progress.status === 'uploading' ? 'Upload...' : progress.status === 'creating' ? 'Création...' : progress.status === 'done' ? 'Terminé' : progress.status === 'error' ? 'Erreur' : 'En attente';
+
+                      return (
+                        <div key={file.id} style={{ marginBottom: "8px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#e4e4e7", marginBottom: "4px" }}>
+                            <span>{statusEmoji} {file.name}</span>
+                            <span>{statusText} ({progress.progress}%)</span>
+                          </div>
+                          <div style={{
+                            width: "100%",
+                            height: "6px",
+                            background: "rgba(0,0,0,0.3)",
+                            borderRadius: "3px",
+                            overflow: "hidden"
+                          }}>
+                            <div style={{
+                              width: `${progress.progress}%`,
+                              height: "100%",
+                              background: progress.status === 'error' ? "#ef4444" : progress.status === 'done' ? "#10b981" : "linear-gradient(90deg, #6366f1, #8b5cf6)",
+                              transition: "width 0.3s ease"
+                            }}></div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
