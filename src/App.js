@@ -436,6 +436,258 @@ export default function App() {
   const [launchProgress, setLaunchProgress] = useState([]);
   const [launchResults, setLaunchResults] = useState(null);
 
+  // Check for OAuth callback or saved token on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      setIsAuthenticating(true);
+
+      // Check URL for OAuth callback
+      const hash = window.location.hash;
+      if (hash && hash.includes("access_token")) {
+        const params = new URLSearchParams(hash.substring(1));
+        const token = params.get("access_token");
+        const expiresIn = parseInt(params.get("expires_in") || "5184000"); // Default 60 days
+
+        if (token) {
+          // Clear the hash from URL
+          window.history.replaceState(null, "", window.location.pathname);
+
+          try {
+            const api = createMetaApi(token);
+            const userData = await api.fetchUser();
+
+            authHelpers.saveToken(token, expiresIn);
+            authHelpers.saveUser(userData);
+
+            setAccessToken(token);
+            setUser(userData);
+          } catch (err) {
+            console.error("Auth error:", err);
+            setAuthError("Erreur lors de la connexion: " + err.message);
+            authHelpers.clearToken();
+          }
+        }
+      } else {
+        // Check for saved token
+        const savedToken = authHelpers.getToken();
+        const savedUser = authHelpers.getUser();
+
+        if (savedToken) {
+          // Verify token is still valid
+          try {
+            const api = createMetaApi(savedToken);
+            const userData = await api.fetchUser();
+            setAccessToken(savedToken);
+            setUser(userData);
+            authHelpers.saveUser(userData);
+          } catch (err) {
+            // Token expired or invalid
+            console.error("Token validation error:", err);
+            authHelpers.clearToken();
+            setAuthError("Session expirée. Veuillez vous reconnecter.");
+          }
+        }
+      }
+
+      setIsAuthenticating(false);
+    };
+
+    checkAuth();
+  }, []);
+
+  // Load data when authenticated
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const api = createMetaApi(accessToken);
+        const [accounts, pagesData] = await Promise.all([
+          api.fetchAdAccounts(),
+          api.fetchPages(),
+        ]);
+        setAdAccounts(accounts.filter((a) => a.account_status === 1));
+        setPages(pagesData);
+      } catch (err) {
+        if (
+          err.message.includes("expired") ||
+          err.message.includes("invalid")
+        ) {
+          handleLogout();
+        } else {
+          setError(err.message);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [accessToken]);
+
+  // Load pixels when ad account selected
+  useEffect(() => {
+    if (!selectedAdAccount || !accessToken) return;
+
+    setIsLoadingPixels(true);
+    setPixels([]);
+    setSelectedPixel(null);
+
+    const api = createMetaApi(accessToken);
+    api
+      .fetchPixels(selectedAdAccount.id)
+      .then((data) => {
+        setPixels(data);
+        if (data.length > 0) setSelectedPixel(data[0]);
+      })
+      .catch(() => {})
+      .finally(() => setIsLoadingPixels(false));
+
+    setIsLoadingCampaigns(true);
+    setExistingCampaigns([]);
+    api
+      .fetchCampaigns(selectedAdAccount.id)
+      .then(setExistingCampaigns)
+      .catch(() => {})
+      .finally(() => setIsLoadingCampaigns(false));
+  }, [selectedAdAccount, accessToken]);
+
+  // Load adsets when campaign selected
+  useEffect(() => {
+    if (!selectedCampaign || !accessToken) return;
+
+    setIsLoadingAdsets(true);
+    setExistingAdsets([]);
+    setSelectedAdset(null);
+
+    const api = createMetaApi(accessToken);
+    api
+      .fetchAdsets(selectedCampaign.id)
+      .then(setExistingAdsets)
+      .catch(() => {})
+      .finally(() => setIsLoadingAdsets(false));
+  }, [selectedCampaign, accessToken]);
+
+  const handleLogin = () => {
+    window.location.href = authHelpers.getOAuthUrl();
+  };
+
+  const handleLogout = () => {
+    authHelpers.clearToken();
+    setAccessToken(null);
+    setUser(null);
+    setAdAccounts([]);
+    setPages([]);
+    setSelectedAdAccount(null);
+    setSelectedPage(null);
+    setStep(0);
+  };
+
+  const filteredAdAccounts = useMemo(() => {
+    if (!adAccountSearch.trim()) return adAccounts;
+    const s = adAccountSearch.toLowerCase();
+    return adAccounts.filter(
+      (a) =>
+        a.name?.toLowerCase().includes(s) ||
+        a.id?.includes(s) ||
+        a.business?.name?.toLowerCase().includes(s)
+    );
+  }, [adAccounts, adAccountSearch]);
+
+  const filteredPages = useMemo(() => {
+    if (!pageSearch.trim()) return pages;
+    const s = pageSearch.toLowerCase();
+    return pages.filter(
+      (p) =>
+        p.name?.toLowerCase().includes(s) ||
+        p.instagram_business_account?.username?.toLowerCase().includes(s)
+    );
+  }, [pages, pageSearch]);
+
+  const instagramAccount = selectedPage?.instagram_business_account || null;
+
+  const processFiles = async (files) => {
+    setIsProcessing(true);
+    const valid = files.filter(
+      (f) => f.type.startsWith("image/") || f.type.startsWith("video/")
+    );
+    const processed = [];
+    for (const file of valid) {
+      const dim = await getMediaDimensions(file);
+      const format = detectFormat(dim.width, dim.height);
+      processed.push({
+        id: Date.now() + "-" + Math.random(),
+        name: file.name,
+        file,
+        type: file.type.startsWith("video/") ? "video" : "static",
+        preview: URL.createObjectURL(file),
+        adName: file.name.replace(/\.[^/.]+$/, ""),
+        width: dim.width,
+        height: dim.height,
+        format,
+        placement: META_PLACEMENTS[format],
+      });
+    }
+    setUploadedFiles((p) => [...p, ...processed]);
+    setIsProcessing(false);
+  };
+
+  const groupedFiles = useMemo(() => {
+    let groups = {};
+    if (groupByFormat) {
+      uploadedFiles.forEach((f) => {
+        let key = f.format;
+        if (splitByMediaType) key += "_" + f.type;
+        if (!groups[key])
+          groups[key] = {
+            format: f.format,
+            type: splitByMediaType ? f.type : "mixed",
+            files: [],
+          };
+        groups[key].files.push(f);
+      });
+    } else {
+      if (splitByMediaType) {
+        uploadedFiles.forEach((f) => {
+          if (!groups[f.type])
+            groups[f.type] = { format: "mixed", type: f.type, files: [] };
+          groups[f.type].files.push(f);
+        });
+      } else {
+        groups["all"] = {
+          format: "mixed",
+          type: "mixed",
+          files: uploadedFiles,
+        };
+      }
+    }
+    return groups;
+  }, [uploadedFiles, groupByFormat, splitByMediaType]);
+
+  const isStep2Valid =
+    primaryTexts.main && headlines.main && destinationUrl?.startsWith("http");
+
+  const structurePreview = useMemo(() => {
+    const numGroups = Object.keys(groupedFiles).length;
+    const numFiles = uploadedFiles.length;
+    if (budgetType === "abo" && aboMode === "1:1:1")
+      return { campaigns: numFiles, adsets: numFiles, ads: numFiles };
+    if (budgetType === "abo" && aboMode === "multi")
+      return { campaigns: 1, adsets: numGroups, ads: numFiles };
+    if (budgetType === "cbo") {
+      if (cboMode === "new" || cboMode === "existing_new_adset")
+        return {
+          campaigns: cboMode === "new" ? 1 : 0,
+          adsets: numGroups,
+          ads: numFiles,
+        };
+      return { campaigns: 0, adsets: 0, ads: numFiles };
+    }
+    return { campaigns: 0, adsets: 0, ads: 0 };
+  }, [budgetType, aboMode, cboMode, groupedFiles, uploadedFiles]);
+
   // CTA mapping for Meta API
   const CTA_MAP = {
     learn_more: "LEARN_MORE",
@@ -746,258 +998,6 @@ export default function App() {
     callToAction, budgetType, cboMode, aboMode, selectedCampaign, selectedAdset,
     groupByFormat, splitByMediaType,
   ]);
-
-  // Check for OAuth callback or saved token on mount
-  useEffect(() => {
-    const checkAuth = async () => {
-      setIsAuthenticating(true);
-
-      // Check URL for OAuth callback
-      const hash = window.location.hash;
-      if (hash && hash.includes("access_token")) {
-        const params = new URLSearchParams(hash.substring(1));
-        const token = params.get("access_token");
-        const expiresIn = parseInt(params.get("expires_in") || "5184000"); // Default 60 days
-
-        if (token) {
-          // Clear the hash from URL
-          window.history.replaceState(null, "", window.location.pathname);
-
-          try {
-            const api = createMetaApi(token);
-            const userData = await api.fetchUser();
-
-            authHelpers.saveToken(token, expiresIn);
-            authHelpers.saveUser(userData);
-
-            setAccessToken(token);
-            setUser(userData);
-          } catch (err) {
-            console.error("Auth error:", err);
-            setAuthError("Erreur lors de la connexion: " + err.message);
-            authHelpers.clearToken();
-          }
-        }
-      } else {
-        // Check for saved token
-        const savedToken = authHelpers.getToken();
-        const savedUser = authHelpers.getUser();
-
-        if (savedToken) {
-          // Verify token is still valid
-          try {
-            const api = createMetaApi(savedToken);
-            const userData = await api.fetchUser();
-            setAccessToken(savedToken);
-            setUser(userData);
-            authHelpers.saveUser(userData);
-          } catch (err) {
-            // Token expired or invalid
-            console.error("Token validation error:", err);
-            authHelpers.clearToken();
-            setAuthError("Session expirée. Veuillez vous reconnecter.");
-          }
-        }
-      }
-
-      setIsAuthenticating(false);
-    };
-
-    checkAuth();
-  }, []);
-
-  // Load data when authenticated
-  useEffect(() => {
-    if (!accessToken) return;
-
-    const loadData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const api = createMetaApi(accessToken);
-        const [accounts, pagesData] = await Promise.all([
-          api.fetchAdAccounts(),
-          api.fetchPages(),
-        ]);
-        setAdAccounts(accounts.filter((a) => a.account_status === 1));
-        setPages(pagesData);
-      } catch (err) {
-        if (
-          err.message.includes("expired") ||
-          err.message.includes("invalid")
-        ) {
-          handleLogout();
-        } else {
-          setError(err.message);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
-  }, [accessToken]);
-
-  // Load pixels when ad account selected
-  useEffect(() => {
-    if (!selectedAdAccount || !accessToken) return;
-
-    setIsLoadingPixels(true);
-    setPixels([]);
-    setSelectedPixel(null);
-
-    const api = createMetaApi(accessToken);
-    api
-      .fetchPixels(selectedAdAccount.id)
-      .then((data) => {
-        setPixels(data);
-        if (data.length > 0) setSelectedPixel(data[0]);
-      })
-      .catch(() => {})
-      .finally(() => setIsLoadingPixels(false));
-
-    setIsLoadingCampaigns(true);
-    setExistingCampaigns([]);
-    api
-      .fetchCampaigns(selectedAdAccount.id)
-      .then(setExistingCampaigns)
-      .catch(() => {})
-      .finally(() => setIsLoadingCampaigns(false));
-  }, [selectedAdAccount, accessToken]);
-
-  // Load adsets when campaign selected
-  useEffect(() => {
-    if (!selectedCampaign || !accessToken) return;
-
-    setIsLoadingAdsets(true);
-    setExistingAdsets([]);
-    setSelectedAdset(null);
-
-    const api = createMetaApi(accessToken);
-    api
-      .fetchAdsets(selectedCampaign.id)
-      .then(setExistingAdsets)
-      .catch(() => {})
-      .finally(() => setIsLoadingAdsets(false));
-  }, [selectedCampaign, accessToken]);
-
-  const handleLogin = () => {
-    window.location.href = authHelpers.getOAuthUrl();
-  };
-
-  const handleLogout = () => {
-    authHelpers.clearToken();
-    setAccessToken(null);
-    setUser(null);
-    setAdAccounts([]);
-    setPages([]);
-    setSelectedAdAccount(null);
-    setSelectedPage(null);
-    setStep(0);
-  };
-
-  const filteredAdAccounts = useMemo(() => {
-    if (!adAccountSearch.trim()) return adAccounts;
-    const s = adAccountSearch.toLowerCase();
-    return adAccounts.filter(
-      (a) =>
-        a.name?.toLowerCase().includes(s) ||
-        a.id?.includes(s) ||
-        a.business?.name?.toLowerCase().includes(s)
-    );
-  }, [adAccounts, adAccountSearch]);
-
-  const filteredPages = useMemo(() => {
-    if (!pageSearch.trim()) return pages;
-    const s = pageSearch.toLowerCase();
-    return pages.filter(
-      (p) =>
-        p.name?.toLowerCase().includes(s) ||
-        p.instagram_business_account?.username?.toLowerCase().includes(s)
-    );
-  }, [pages, pageSearch]);
-
-  const instagramAccount = selectedPage?.instagram_business_account || null;
-
-  const processFiles = async (files) => {
-    setIsProcessing(true);
-    const valid = files.filter(
-      (f) => f.type.startsWith("image/") || f.type.startsWith("video/")
-    );
-    const processed = [];
-    for (const file of valid) {
-      const dim = await getMediaDimensions(file);
-      const format = detectFormat(dim.width, dim.height);
-      processed.push({
-        id: Date.now() + "-" + Math.random(),
-        name: file.name,
-        file,
-        type: file.type.startsWith("video/") ? "video" : "static",
-        preview: URL.createObjectURL(file),
-        adName: file.name.replace(/\.[^/.]+$/, ""),
-        width: dim.width,
-        height: dim.height,
-        format,
-        placement: META_PLACEMENTS[format],
-      });
-    }
-    setUploadedFiles((p) => [...p, ...processed]);
-    setIsProcessing(false);
-  };
-
-  const groupedFiles = useMemo(() => {
-    let groups = {};
-    if (groupByFormat) {
-      uploadedFiles.forEach((f) => {
-        let key = f.format;
-        if (splitByMediaType) key += "_" + f.type;
-        if (!groups[key])
-          groups[key] = {
-            format: f.format,
-            type: splitByMediaType ? f.type : "mixed",
-            files: [],
-          };
-        groups[key].files.push(f);
-      });
-    } else {
-      if (splitByMediaType) {
-        uploadedFiles.forEach((f) => {
-          if (!groups[f.type])
-            groups[f.type] = { format: "mixed", type: f.type, files: [] };
-          groups[f.type].files.push(f);
-        });
-      } else {
-        groups["all"] = {
-          format: "mixed",
-          type: "mixed",
-          files: uploadedFiles,
-        };
-      }
-    }
-    return groups;
-  }, [uploadedFiles, groupByFormat, splitByMediaType]);
-
-  const isStep2Valid =
-    primaryTexts.main && headlines.main && destinationUrl?.startsWith("http");
-
-  const structurePreview = useMemo(() => {
-    const numGroups = Object.keys(groupedFiles).length;
-    const numFiles = uploadedFiles.length;
-    if (budgetType === "abo" && aboMode === "1:1:1")
-      return { campaigns: numFiles, adsets: numFiles, ads: numFiles };
-    if (budgetType === "abo" && aboMode === "multi")
-      return { campaigns: 1, adsets: numGroups, ads: numFiles };
-    if (budgetType === "cbo") {
-      if (cboMode === "new" || cboMode === "existing_new_adset")
-        return {
-          campaigns: cboMode === "new" ? 1 : 0,
-          adsets: numGroups,
-          ads: numFiles,
-        };
-      return { campaigns: 0, adsets: 0, ads: numFiles };
-    }
-    return { campaigns: 0, adsets: 0, ads: 0 };
-  }, [budgetType, aboMode, cboMode, groupedFiles, uploadedFiles]);
 
   const box = {
     background: "rgba(255,255,255,0.02)",
