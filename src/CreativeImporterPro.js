@@ -622,36 +622,15 @@ export default function App() {
   };
 
   const groupedFiles = useMemo(() => {
-    let groups = {};
-    if (groupByFormat) {
-      uploadedFiles.forEach((f) => {
-        let key = f.format;
-        if (splitByMediaType) key += "_" + f.type;
-        if (!groups[key])
-          groups[key] = {
-            format: f.format,
-            type: splitByMediaType ? f.type : "mixed",
-            files: [],
-          };
-        groups[key].files.push(f);
-      });
-    } else {
-      if (splitByMediaType) {
-        uploadedFiles.forEach((f) => {
-          if (!groups[f.type])
-            groups[f.type] = { format: "mixed", type: f.type, files: [] };
-          groups[f.type].files.push(f);
-        });
-      } else {
-        groups["all"] = {
-          format: "mixed",
-          type: "mixed",
-          files: uploadedFiles,
-        };
-      }
-    }
-    return groups;
-  }, [uploadedFiles, groupByFormat, splitByMediaType]);
+    if (uploadedFiles.length === 0) return {};
+    return {
+      all: {
+        format: "mixed",
+        type: "mixed",
+        files: uploadedFiles,
+      },
+    };
+  }, [uploadedFiles]);
 
   // Nomenclature dynamique
   const nomenclature = useMemo(() => {
@@ -967,55 +946,57 @@ export default function App() {
         errors: []
       };
 
-      // Step 1: Upload images/videos and get hash IDs
+      // Step 1: Upload images/videos and get hash IDs (sequentially to avoid API overload)
       console.log("📤 Uploading creatives...");
-      const uploadedHashes = await Promise.all(
-        uploadedFiles.map(async (file) => {
-          try {
-            console.log(`📤 Uploading ${file.type}: ${file.name} (${(file.file.size / 1024 / 1024).toFixed(2)} MB)`);
+      const uploadedHashes = [];
+      for (const file of uploadedFiles) {
+        try {
+          console.log(`📤 Uploading ${file.type}: ${file.name} (${(file.file.size / 1024 / 1024).toFixed(2)} MB)`);
 
-            const formData = new FormData();
+          const formData = new FormData();
+          formData.append("access_token", accessToken);
+
+          let endpoint;
+          if (file.type === "video") {
             formData.append("source", file.file);
-            formData.append("access_token", accessToken);
-
-            const endpoint = file.type === "video"
-              ? `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`
-              : `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`;
-
-            const response = await fetch(endpoint, {
-              method: "POST",
-              body: formData,
-            });
-
-            if (!response.ok) {
-              const errorText = await response.text();
-              console.error(`❌ Upload response not OK for ${file.name}:`, response.status, errorText);
-              throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`);
-            }
-
-            const data = await response.json();
-            if (data.error) {
-              console.error(`❌ Meta API error for ${file.name}:`, data.error);
-              throw new Error(data.error.message);
-            }
-
-            const hash = file.type === "video" ? data.id : data.images[Object.keys(data.images)[0]].hash;
-            console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
-
-            return {
-              fileId: file.id,
-              hash: hash,
-              type: file.type,
-            };
-          } catch (err) {
-            console.error(`❌ Error uploading ${file.name}:`, err);
-            results.errors.push(`Upload failed for ${file.name}: ${err.message}`);
-            return null;
+            endpoint = `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`;
+          } else {
+            formData.append("filename", file.file);
+            endpoint = `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`;
           }
-        })
-      );
 
-      const validHashes = uploadedHashes.filter(h => h !== null);
+          const response = await fetch(endpoint, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ Upload response not OK for ${file.name}:`, response.status, errorText);
+            throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`);
+          }
+
+          const data = await response.json();
+          if (data.error) {
+            console.error(`❌ Meta API error for ${file.name}:`, data.error);
+            throw new Error(data.error.message);
+          }
+
+          const hash = file.type === "video" ? data.id : data.images[Object.keys(data.images)[0]].hash;
+          console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
+
+          uploadedHashes.push({
+            fileId: file.id,
+            hash: hash,
+            type: file.type,
+          });
+        } catch (err) {
+          console.error(`❌ Error uploading ${file.name}:`, err);
+          results.errors.push(`Upload failed for ${file.name}: ${err.message}`);
+        }
+      }
+
+      const validHashes = uploadedHashes;
       if (validHashes.length === 0) {
         throw new Error("No creatives uploaded successfully");
       }
@@ -1178,10 +1159,15 @@ export default function App() {
         let objectStorySpec;
 
         if (hashData.type === "video") {
-          // For videos, use simpler video_data structure without call_to_action
+          // For videos, include call_to_action with link so Meta auto-generates thumbnail
           const videoData = {
             video_id: hashData.hash,
             message: filteredTexts[i % filteredTexts.length],
+            link_description: filteredTexts[i % filteredTexts.length],
+            call_to_action: {
+              type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
+              value: { link: destinationUrl.trim() },
+            },
           };
 
           // Add title if headline available
@@ -2282,76 +2268,6 @@ export default function App() {
                     )}
                   </div>
                 )}
-              </div>
-            )}
-
-            {!(
-              (budgetType === "cbo" && cboMode === "existing_adset") ||
-              (budgetType === "abo" && aboMode === "1:1:1") ||
-              (budgetType === "abo" && aboMode === "existing")
-            ) && (
-              <div style={{ ...box, marginBottom: "24px" }}>
-                <h4
-                  style={{
-                    margin: "0 0 16px",
-                    fontSize: "13px",
-                    color: "#a5b4fc",
-                  }}
-                >
-                  ⚙️ Groupement
-                </h4>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "12px",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "12px",
-                      background: "rgba(0,0,0,0.2)",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: "13px", fontWeight: "500" }}>
-                        📐 Grouper par format
-                      </div>
-                    </div>
-                    <div
-                      onClick={() => setGroupByFormat(!groupByFormat)}
-                      style={toggle(groupByFormat, "#6366f1")}
-                    >
-                      <div style={toggleKnob(groupByFormat)} />
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "12px",
-                      background: "rgba(0,0,0,0.2)",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: "13px", fontWeight: "500" }}>
-                        🎬 Séparer Vidéo / Statique
-                      </div>
-                    </div>
-                    <div
-                      onClick={() => setSplitByMediaType(!splitByMediaType)}
-                      style={toggle(splitByMediaType, "#22c55e")}
-                    >
-                      <div style={toggleKnob(splitByMediaType)} />
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
 
