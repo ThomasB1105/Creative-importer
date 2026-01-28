@@ -1551,11 +1551,191 @@ export default function App() {
         throw new Error("L'URL de destination est requise pour créer les publicités");
       }
 
-      for (let i = 0; i < validHashes.length; i++) {
-        const hashData = validHashes[i];
+      // Helper to get placement positions based on format
+      const getPlacementForFormat = (format) => {
+        if (format === 'story') {
+          return {
+            facebook_positions: ["story"],
+            instagram_positions: ["story", "reels"]
+          };
+        } else {
+          // feed_square, feed_portrait, feed_landscape
+          return {
+            facebook_positions: ["feed"],
+            instagram_positions: ["stream"]
+          };
+        }
+      };
+
+      // Separate mapped files (in adGroups) from unmapped files
+      const mappedFileIds = adGroups.flatMap(g => g.fileIds);
+      const unmappedHashes = validHashes.filter(h => !mappedFileIds.includes(h.fileId));
+
+      // Process mapped groups first (create ONE ad per group with asset_feed_spec)
+      for (let groupIndex = 0; groupIndex < adGroups.length; groupIndex++) {
+        const group = adGroups[groupIndex];
+        const groupHashes = validHashes.filter(h => group.fileIds.includes(h.fileId));
+
+        if (groupHashes.length === 0) continue;
+
+        const adName = nomenclature.ad(groupIndex + 1, "multi");
+        console.log(`📦 Creating multi-format ad for group #${groupIndex + 1} with ${groupHashes.length} assets`);
+
+        // Update progress for all files in group
+        groupHashes.forEach(h => {
+          setUploadProgress(prev => ({
+            ...prev,
+            [h.fileId]: { progress: 60, status: 'creating' }
+          }));
+        });
+
+        // Build asset_feed_spec for multi-placement ad
+        const images = [];
+        const videos = [];
+        const assetCustomizationRules = [];
+
+        groupHashes.forEach((hashData, idx) => {
+          const file = uploadedFiles.find(f => f.id === hashData.fileId);
+          const labelName = `asset_${idx}_${file.format}`;
+          const placements = getPlacementForFormat(file.format);
+
+          if (hashData.type === "video") {
+            videos.push({
+              video_id: hashData.hash,
+              thumbnail_hash: hashData.thumbnailHash,
+              adlabels: [{ name: labelName }]
+            });
+            assetCustomizationRules.push({
+              customization_spec: {
+                publisher_platforms: ["facebook", "instagram"],
+                ...placements
+              },
+              video_label: { name: labelName }
+            });
+          } else {
+            images.push({
+              hash: hashData.hash,
+              adlabels: [{ name: labelName }]
+            });
+            assetCustomizationRules.push({
+              customization_spec: {
+                publisher_platforms: ["facebook", "instagram"],
+                ...placements
+              },
+              image_label: { name: labelName }
+            });
+          }
+        });
+
+        const assetFeedSpec = {
+          ...(images.length > 0 && { images }),
+          ...(videos.length > 0 && { videos }),
+          bodies: filteredTexts.map(t => ({ text: t })),
+          ...(filteredHeadlines.length > 0 && { titles: filteredHeadlines.map(t => ({ text: t })) }),
+          link_urls: [{ website_url: destinationUrl.trim() }],
+          call_to_action_types: [callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"],
+          asset_customization_rules: assetCustomizationRules
+        };
+
+        console.log(`📝 Creating multi-format creative with asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
+
+        const creativeData = new FormData();
+        creativeData.append("name", adName);
+        creativeData.append("object_story_spec", JSON.stringify({
+          page_id: selectedPage.id,
+          ...(instagramAccount?.id && { instagram_actor_id: instagramAccount.id })
+        }));
+        creativeData.append("asset_feed_spec", JSON.stringify(assetFeedSpec));
+
+        // Add Advantage+ Creative enhancements setting
+        if (!enableAdvantagePlus) {
+          const degreesOfFreedomSpec = {
+            creative_features_spec: {
+              image_touchups: { enroll_status: "OPT_OUT" },
+              image_enhancement: { enroll_status: "OPT_OUT" },
+              image_templates: { enroll_status: "OPT_OUT" },
+              image_uncrop: { enroll_status: "OPT_OUT" },
+              image_brightness_and_contrast: { enroll_status: "OPT_OUT" },
+              image_auto_crop: { enroll_status: "OPT_OUT" },
+              text_optimizations: { enroll_status: "OPT_OUT" },
+              text_generation: { enroll_status: "OPT_OUT" },
+              adapt_to_placement: { enroll_status: "OPT_OUT" },
+              enhance_cta: { enroll_status: "OPT_OUT" },
+              advantage_plus_creative: { enroll_status: "OPT_OUT" }
+            }
+          };
+          creativeData.append("degrees_of_freedom_spec", JSON.stringify(degreesOfFreedomSpec));
+        }
+
+        creativeData.append("access_token", accessToken);
+
+        const creativeResponse = await fetch(
+          `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adcreatives`)}`,
+          { method: "POST", body: creativeData }
+        );
+
+        const creativeResult = await creativeResponse.json();
+        if (creativeResult.error) {
+          console.error(`Error creating multi-format creative:`, creativeResult.error);
+          results.errors.push(`Multi-format creative failed: ${creativeResult.error.message}`);
+          groupHashes.forEach(h => {
+            setUploadProgress(prev => ({
+              ...prev,
+              [h.fileId]: { progress: 0, status: 'error' }
+            }));
+          });
+          continue;
+        }
+
+        // Update progress
+        groupHashes.forEach(h => {
+          setUploadProgress(prev => ({
+            ...prev,
+            [h.fileId]: { progress: 80, status: 'creating' }
+          }));
+        });
+
+        // Create ad
+        const adData = new FormData();
+        adData.append("name", adName);
+        adData.append("adset_id", adsetId);
+        adData.append("creative", JSON.stringify({ creative_id: creativeResult.id }));
+        adData.append("status", "ACTIVE");
+        adData.append("access_token", accessToken);
+
+        const adResponse = await fetch(
+          `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/ads`)}`,
+          { method: "POST", body: adData }
+        );
+
+        const adResult = await adResponse.json();
+        if (adResult.error) {
+          console.error(`Error creating multi-format ad:`, adResult.error);
+          results.errors.push(`Multi-format ad failed: ${adResult.error.message}`);
+          groupHashes.forEach(h => {
+            setUploadProgress(prev => ({
+              ...prev,
+              [h.fileId]: { progress: 0, status: 'error' }
+            }));
+          });
+        } else {
+          results.ads.push({ id: adResult.id, name: adName });
+          console.log(`✅ Multi-format ad created: ${adResult.id}`);
+          groupHashes.forEach(h => {
+            setUploadProgress(prev => ({
+              ...prev,
+              [h.fileId]: { progress: 100, status: 'done' }
+            }));
+          });
+        }
+      }
+
+      // Process unmapped files (original logic - one ad per file)
+      for (let i = 0; i < unmappedHashes.length; i++) {
+        const hashData = unmappedHashes[i];
         const file = uploadedFiles.find(f => f.id === hashData.fileId);
 
-        const adName = nomenclature.ad(i + 1, file.format);
+        const adName = nomenclature.ad(adGroups.length + i + 1, file.format);
 
         // Update progress: creating creative
         setUploadProgress(prev => ({
