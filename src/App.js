@@ -260,11 +260,13 @@ const createMetaApi = (accessToken) => ({
 
   async fetchCampaigns(adAccountId) {
     try {
+      const filtering = encodeURIComponent(JSON.stringify([{"field":"status","operator":"IN","value":["ACTIVE","PAUSED"]}]));
       const res = await fetch(
-        `${this.baseUrl}/${adAccountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget&filtering=[{"field":"status","operator":"IN","value":["ACTIVE","PAUSED"]}]&limit=50&access_token=${accessToken}`
+        `${this.baseUrl}/${adAccountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget&filtering=${filtering}&limit=50&access_token=${accessToken}`
       );
       if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData?.error?.message || `HTTP error! status: ${res.status}`);
       }
       const data = await res.json();
       if (data.error) {
@@ -279,11 +281,13 @@ const createMetaApi = (accessToken) => ({
 
   async fetchAdsets(campaignId) {
     try {
+      const filtering = encodeURIComponent(JSON.stringify([{"field":"status","operator":"IN","value":["ACTIVE","PAUSED"]}]));
       const res = await fetch(
-        `${this.baseUrl}/${campaignId}/adsets?fields=id,name,status,daily_budget&filtering=[{"field":"status","operator":"IN","value":["ACTIVE","PAUSED"]}]&limit=50&access_token=${accessToken}`
+        `${this.baseUrl}/${campaignId}/adsets?fields=id,name,status,daily_budget&filtering=${filtering}&limit=50&access_token=${accessToken}`
       );
       if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData?.error?.message || `HTTP error! status: ${res.status}`);
       }
       const data = await res.json();
       if (data.error) {
@@ -550,7 +554,7 @@ export default function App() {
     api
       .fetchCampaigns(selectedAdAccount.id)
       .then(setExistingCampaigns)
-      .catch(() => {})
+      .catch((err) => console.error("Load campaigns failed:", err))
       .finally(() => setIsLoadingCampaigns(false));
   }, [selectedAdAccount, accessToken]);
 
@@ -566,7 +570,7 @@ export default function App() {
     api
       .fetchAdsets(selectedCampaign.id)
       .then(setExistingAdsets)
-      .catch(() => {})
+      .catch((err) => console.error("Load adsets failed:", err))
       .finally(() => setIsLoadingAdsets(false));
   }, [selectedCampaign, accessToken]);
 
