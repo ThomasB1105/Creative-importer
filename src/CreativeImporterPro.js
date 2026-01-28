@@ -372,7 +372,6 @@ export default function App() {
 
   // Options
   const [splitByMediaType, setSplitByMediaType] = useState(true);
-  const [groupByFormat, setGroupByFormat] = useState(true);
 
   // Config
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -624,35 +623,21 @@ export default function App() {
 
   const groupedFiles = useMemo(() => {
     let groups = {};
-    if (groupByFormat) {
+    if (splitByMediaType) {
       uploadedFiles.forEach((f) => {
-        let key = f.format;
-        if (splitByMediaType) key += "_" + f.type;
-        if (!groups[key])
-          groups[key] = {
-            format: f.format,
-            type: splitByMediaType ? f.type : "mixed",
-            files: [],
-          };
-        groups[key].files.push(f);
+        if (!groups[f.type])
+          groups[f.type] = { format: "mixed", type: f.type, files: [] };
+        groups[f.type].files.push(f);
       });
     } else {
-      if (splitByMediaType) {
-        uploadedFiles.forEach((f) => {
-          if (!groups[f.type])
-            groups[f.type] = { format: "mixed", type: f.type, files: [] };
-          groups[f.type].files.push(f);
-        });
-      } else {
-        groups["all"] = {
-          format: "mixed",
-          type: "mixed",
-          files: uploadedFiles,
-        };
-      }
+      groups["all"] = {
+        format: "mixed",
+        type: "mixed",
+        files: uploadedFiles,
+      };
     }
     return groups;
-  }, [uploadedFiles, groupByFormat, splitByMediaType]);
+  }, [uploadedFiles, splitByMediaType]);
 
   // Nomenclature dynamique
   const nomenclature = useMemo(() => {
@@ -2779,28 +2764,6 @@ export default function App() {
                     gap: "12px",
                   }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "12px",
-                      background: "rgba(0,0,0,0.2)",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: "13px", fontWeight: "500" }}>
-                        📐 Grouper par format
-                      </div>
-                    </div>
-                    <div
-                      onClick={() => setGroupByFormat(!groupByFormat)}
-                      style={toggle(groupByFormat, "#6366f1")}
-                    >
-                      <div style={toggleKnob(groupByFormat)} />
-                    </div>
-                  </div>
                   <div
                     style={{
                       display: "flex",
