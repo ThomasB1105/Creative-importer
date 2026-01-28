@@ -1014,33 +1014,122 @@ export default function App() {
               [file.id]: { progress: 10, status: 'uploading' }
             }));
 
-            // Upload main file (image or video)
-            const formData = new FormData();
-            formData.append("source", file.file);
-            formData.append("access_token", accessToken);
+            let hash;
 
-            const endpoint = file.type === "video"
-              ? `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`
-              : `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`;
+            // Use resumable upload for large videos (>50MB)
+            if (file.type === "video" && fileSizeMB > 50) {
+              console.log(`📹 Using resumable upload for large video: ${file.name}`);
 
-            const response = await fetch(endpoint, {
-              method: "POST",
-              body: formData,
-            });
+              // Phase 1: Start upload session
+              const startData = new FormData();
+              startData.append("upload_phase", "start");
+              startData.append("file_size", file.file.size.toString());
+              startData.append("access_token", accessToken);
 
-            if (!response.ok) {
-              const errorText = await response.text();
-              console.error(`❌ Upload response not OK for ${file.name}:`, response.status, errorText);
-              throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`);
+              const startResponse = await fetch(
+                `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`,
+                { method: "POST", body: startData }
+              );
+
+              if (!startResponse.ok) {
+                throw new Error(`Start phase failed: ${startResponse.status}`);
+              }
+
+              const startResult = await startResponse.json();
+              if (startResult.error) {
+                throw new Error(startResult.error.message);
+              }
+
+              const { upload_session_id, video_id } = startResult;
+              console.log(`📦 Upload session created: ${upload_session_id}`);
+
+              // Update progress: 20%
+              setUploadProgress(prev => ({
+                ...prev,
+                [file.id]: { progress: 20, status: 'uploading' }
+              }));
+
+              // Phase 2: Transfer file
+              const transferData = new FormData();
+              transferData.append("upload_phase", "transfer");
+              transferData.append("upload_session_id", upload_session_id);
+              transferData.append("start_offset", "0");
+              transferData.append("video_file_chunk", file.file);
+              transferData.append("access_token", accessToken);
+
+              const transferResponse = await fetch(
+                `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`,
+                { method: "POST", body: transferData }
+              );
+
+              if (!transferResponse.ok) {
+                throw new Error(`Transfer phase failed: ${transferResponse.status}`);
+              }
+
+              const transferResult = await transferResponse.json();
+              if (transferResult.error) {
+                throw new Error(transferResult.error.message);
+              }
+
+              console.log(`📤 Transfer phase completed`);
+
+              // Update progress: 40%
+              setUploadProgress(prev => ({
+                ...prev,
+                [file.id]: { progress: 40, status: 'uploading' }
+              }));
+
+              // Phase 3: Finish upload
+              const finishData = new FormData();
+              finishData.append("upload_phase", "finish");
+              finishData.append("upload_session_id", upload_session_id);
+              finishData.append("access_token", accessToken);
+
+              const finishResponse = await fetch(
+                `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`,
+                { method: "POST", body: finishData }
+              );
+
+              if (!finishResponse.ok) {
+                throw new Error(`Finish phase failed: ${finishResponse.status}`);
+              }
+
+              const finishResult = await finishResponse.json();
+              if (finishResult.error) {
+                throw new Error(finishResult.error.message);
+              }
+
+              hash = video_id;
+              console.log(`✅ Resumable upload completed: ${hash}`);
+            } else {
+              // Standard upload for images and small videos
+              const formData = new FormData();
+              formData.append("source", file.file);
+              formData.append("access_token", accessToken);
+
+              const endpoint = file.type === "video"
+                ? `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`
+                : `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`;
+
+              const response = await fetch(endpoint, {
+                method: "POST",
+                body: formData,
+              });
+
+              if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`❌ Upload response not OK for ${file.name}:`, response.status, errorText);
+                throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`);
+              }
+
+              const data = await response.json();
+              if (data.error) {
+                console.error(`❌ Meta API error for ${file.name}:`, data.error);
+                throw new Error(data.error.message);
+              }
+
+              hash = file.type === "video" ? data.id : data.images[Object.keys(data.images)[0]].hash;
             }
-
-            const data = await response.json();
-            if (data.error) {
-              console.error(`❌ Meta API error for ${file.name}:`, data.error);
-              throw new Error(data.error.message);
-            }
-
-            const hash = file.type === "video" ? data.id : data.images[Object.keys(data.images)[0]].hash;
             console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
 
             // Update progress: upload complete
