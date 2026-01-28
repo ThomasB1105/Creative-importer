@@ -372,6 +372,7 @@ export default function App() {
 
   // Options
   const [splitByMediaType, setSplitByMediaType] = useState(true);
+  const [enableAdvantagePlus, setEnableAdvantagePlus] = useState(true);
 
   // Config
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -1637,6 +1638,20 @@ export default function App() {
         console.log(`📝 Creating creative for ${file.name}:`, JSON.stringify(objectStorySpec, null, 2));
 
         creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
+
+        // Add Advantage+ Creative enhancements setting
+        if (!enableAdvantagePlus) {
+          const degreesOfFreedomSpec = {
+            creative_features_spec: {
+              standard_enhancements: {
+                enroll_status: "OPT_OUT"
+              }
+            }
+          };
+          creativeData.append("degrees_of_freedom_spec", JSON.stringify(degreesOfFreedomSpec));
+          console.log(`🚫 Advantage+ Creative disabled for ${file.name}`);
+        }
+
         creativeData.append("access_token", accessToken);
 
         const creativeResponse = await fetch(
@@ -3597,6 +3612,62 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            {/* Option Advantage+ Creative */}
+            <div
+              style={{
+                background: "rgba(17,24,39,0.6)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: "12px",
+                padding: "16px",
+                marginBottom: "24px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "4px" }}>
+                    ✨ Améliorations Advantage+ Creative
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#71717a", maxWidth: "400px" }}>
+                    {enableAdvantagePlus
+                      ? "Meta peut modifier automatiquement vos créatives (retouches visuelles, texte, CTA...)"
+                      : "Vos créatives seront utilisées telles quelles, sans modification automatique"}
+                  </div>
+                </div>
+                <div
+                  onClick={() => setEnableAdvantagePlus(!enableAdvantagePlus)}
+                  style={{
+                    width: "44px",
+                    height: "24px",
+                    borderRadius: "12px",
+                    background: enableAdvantagePlus ? "#8b5cf6" : "rgba(255,255,255,0.1)",
+                    cursor: "pointer",
+                    position: "relative",
+                    transition: "background 0.2s",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "20px",
+                      height: "20px",
+                      borderRadius: "10px",
+                      background: "white",
+                      position: "absolute",
+                      top: "2px",
+                      left: enableAdvantagePlus ? "22px" : "2px",
+                      transition: "left 0.2s",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
             {uploadedFiles.length > 0 && (
               <div style={{ marginBottom: "24px" }}>
                 {Object.entries(groupedFiles).map(([key, group]) => {
