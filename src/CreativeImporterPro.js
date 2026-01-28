@@ -1064,6 +1064,24 @@ export default function App() {
 
             console.log(`📤 Uploading ${file.type}: ${file.name} (${fileSizeMB.toFixed(2)} MB)`);
 
+            // For videos, extract thumbnail FIRST (before upload)
+            let thumbnailHash = null;
+            if (file.type === "video") {
+              try {
+                console.log(`🖼️ Extracting thumbnail for ${file.name}...`);
+                const thumbBlob = await extractVideoThumbnail(file.file);
+                console.log(`🖼️ Thumbnail blob:`, thumbBlob ? `${thumbBlob.size} bytes` : 'null');
+                if (thumbBlob) {
+                  thumbnailHash = await uploadThumbnail(thumbBlob, file.name);
+                  console.log(`✅ Thumbnail uploaded for ${file.name}, hash: ${thumbnailHash}`);
+                } else {
+                  console.warn(`⚠️ Thumbnail extraction returned null for ${file.name}`);
+                }
+              } catch (thumbErr) {
+                console.error(`❌ Thumbnail extraction failed for ${file.name}:`, thumbErr);
+              }
+            }
+
             // Update progress: starting upload
             setUploadProgress(prev => ({
               ...prev,
@@ -1207,21 +1225,6 @@ export default function App() {
               hash = file.type === "video" ? data.id : data.images[Object.keys(data.images)[0]].hash;
             }
             console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
-
-            // For videos, extract first frame and upload as thumbnail
-            let thumbnailHash = null;
-            if (file.type === "video") {
-              try {
-                console.log(`🖼️ Extracting thumbnail for ${file.name}...`);
-                const thumbBlob = await extractVideoThumbnail(file.file);
-                if (thumbBlob) {
-                  thumbnailHash = await uploadThumbnail(thumbBlob, file.name);
-                  console.log(`✅ Thumbnail uploaded for ${file.name}, hash: ${thumbnailHash}`);
-                }
-              } catch (thumbErr) {
-                console.warn(`⚠️ Thumbnail extraction failed for ${file.name}:`, thumbErr.message);
-              }
-            }
 
             // Update progress: upload complete
             setUploadProgress(prev => ({
