@@ -574,14 +574,27 @@ export default function App() {
   }, [pages, pageSearch]);
 
   const filteredCampaigns = useMemo(() => {
-    if (!campaignSearch.trim()) return existingCampaigns;
-    const s = campaignSearch.toLowerCase();
-    return existingCampaigns.filter(
-      (c) =>
-        c.name?.toLowerCase().includes(s) ||
-        c.id?.includes(s)
-    );
-  }, [existingCampaigns, campaignSearch]);
+    // Filter by budget type: CBO campaigns have daily_budget or lifetime_budget, ABO don't
+    let filtered = existingCampaigns.filter((c) => {
+      const hasCampaignBudget = c.daily_budget || c.lifetime_budget;
+      if (budgetType === "cbo") {
+        return hasCampaignBudget; // CBO = budget at campaign level
+      } else {
+        return !hasCampaignBudget; // ABO = no budget at campaign level
+      }
+    });
+
+    // Then filter by search
+    if (campaignSearch.trim()) {
+      const s = campaignSearch.toLowerCase();
+      filtered = filtered.filter(
+        (c) =>
+          c.name?.toLowerCase().includes(s) ||
+          c.id?.includes(s)
+      );
+    }
+    return filtered;
+  }, [existingCampaigns, campaignSearch, budgetType]);
 
   const filteredAdsets = useMemo(() => {
     if (!adsetSearch.trim()) return existingAdsets;
