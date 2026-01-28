@@ -974,80 +974,80 @@ export default function App() {
       // Initialize progress for all files
       const initialProgress = {};
       uploadedFiles.forEach(file => {
-        initialProgress[file.id] = { progress: 0, status: 'uploading' };
+        initialProgress[file.id] = { progress: 0, status: 'pending' };
       });
       setUploadProgress(initialProgress);
 
-      const uploadedHashes = await Promise.all(
-        uploadedFiles.map(async (file) => {
-          try {
-            console.log(`📤 Uploading ${file.type}: ${file.name} (${(file.file.size / 1024 / 1024).toFixed(2)} MB)`);
+      // Upload sequentially to avoid rate limiting
+      const uploadedHashes = [];
+      for (let i = 0; i < uploadedFiles.length; i++) {
+        const file = uploadedFiles[i];
+        try {
+          console.log(`📤 Uploading ${file.type}: ${file.name} (${(file.file.size / 1024 / 1024).toFixed(2)} MB)`);
 
-            // Update progress: starting upload
-            setUploadProgress(prev => ({
-              ...prev,
-              [file.id]: { progress: 10, status: 'uploading' }
-            }));
+          // Update progress: starting upload
+          setUploadProgress(prev => ({
+            ...prev,
+            [file.id]: { progress: 10, status: 'uploading' }
+          }));
 
-            const formData = new FormData();
-            formData.append("source", file.file);
-            formData.append("access_token", accessToken);
+          const formData = new FormData();
+          formData.append("source", file.file);
+          formData.append("access_token", accessToken);
 
-            const endpoint = file.type === "video"
-              ? `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`
-              : `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`;
+          const endpoint = file.type === "video"
+            ? `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`
+            : `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`;
 
-            // Update progress: uploading
-            setUploadProgress(prev => ({
-              ...prev,
-              [file.id]: { progress: 30, status: 'uploading' }
-            }));
+          const response = await fetch(endpoint, {
+            method: "POST",
+            body: formData,
+          });
 
-            const response = await fetch(endpoint, {
-              method: "POST",
-              body: formData,
-            });
-
-            if (!response.ok) {
-              const errorText = await response.text();
-              console.error(`❌ Upload response not OK for ${file.name}:`, response.status, errorText);
-              throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`);
-            }
-
-            const data = await response.json();
-            if (data.error) {
-              console.error(`❌ Meta API error for ${file.name}:`, data.error);
-              throw new Error(data.error.message);
-            }
-
-            const hash = file.type === "video" ? data.id : data.images[Object.keys(data.images)[0]].hash;
-            console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
-
-            // Update progress: upload complete
-            setUploadProgress(prev => ({
-              ...prev,
-              [file.id]: { progress: 50, status: 'uploaded' }
-            }));
-
-            return {
-              fileId: file.id,
-              hash: hash,
-              type: file.type,
-            };
-          } catch (err) {
-            console.error(`❌ Error uploading ${file.name}:`, err);
-            results.errors.push(`Upload failed for ${file.name}: ${err.message}`);
-
-            // Update progress: error
-            setUploadProgress(prev => ({
-              ...prev,
-              [file.id]: { progress: 0, status: 'error' }
-            }));
-
-            return null;
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`❌ Upload response not OK for ${file.name}:`, response.status, errorText);
+            throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`);
           }
-        })
-      );
+
+          const data = await response.json();
+          if (data.error) {
+            console.error(`❌ Meta API error for ${file.name}:`, data.error);
+            throw new Error(data.error.message);
+          }
+
+          const hash = file.type === "video" ? data.id : data.images[Object.keys(data.images)[0]].hash;
+          console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
+
+          // Update progress: upload complete
+          setUploadProgress(prev => ({
+            ...prev,
+            [file.id]: { progress: 50, status: 'uploaded' }
+          }));
+
+          uploadedHashes.push({
+            fileId: file.id,
+            hash: hash,
+            type: file.type,
+          });
+
+          // Small delay between uploads to avoid rate limiting
+          if (i < uploadedFiles.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        } catch (err) {
+          console.error(`❌ Error uploading ${file.name}:`, err);
+          results.errors.push(`Upload failed for ${file.name}: ${err.message}`);
+
+          // Update progress: error
+          setUploadProgress(prev => ({
+            ...prev,
+            [file.id]: { progress: 0, status: 'error' }
+          }));
+
+          uploadedHashes.push(null);
+        }
+      }
 
       const validHashes = uploadedHashes.filter(h => h !== null);
       if (validHashes.length === 0) {
