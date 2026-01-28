@@ -1386,6 +1386,53 @@ export default function App() {
 
         // For videos, use video_data; for images, use link_data
         if (hashData.type === "video") {
+          // Extract thumbnail from video and upload it
+          let thumbnailHash = null;
+          try {
+            const videoFile = file.file;
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.muted = true;
+            video.playsInline = true;
+
+            const thumbnailBlob = await new Promise((resolve, reject) => {
+              video.onloadeddata = async () => {
+                video.currentTime = 0.1; // First frame
+              };
+              video.onseeked = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                canvas.toBlob((blob) => {
+                  URL.revokeObjectURL(video.src);
+                  resolve(blob);
+                }, 'image/jpeg', 0.8);
+              };
+              video.onerror = reject;
+              video.src = URL.createObjectURL(videoFile);
+            });
+
+            // Upload thumbnail
+            const thumbFormData = new FormData();
+            thumbFormData.append("filename", "thumbnail.jpg");
+            thumbFormData.append("bytes", await thumbnailBlob.arrayBuffer().then(buf => btoa(String.fromCharCode(...new Uint8Array(buf)))));
+            thumbFormData.append("access_token", accessToken);
+
+            const thumbResponse = await fetch(
+              `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`)}`,
+              { method: "POST", body: thumbFormData }
+            );
+            const thumbResult = await thumbResponse.json();
+            if (thumbResult.images) {
+              thumbnailHash = thumbResult.images[Object.keys(thumbResult.images)[0]].hash;
+              console.log(`📸 Thumbnail uploaded: ${thumbnailHash}`);
+            }
+          } catch (thumbError) {
+            console.warn(`⚠️ Could not extract thumbnail:`, thumbError);
+          }
+
           const videoData = {
             video_id: hashData.hash,
             message: filteredTexts[i % filteredTexts.length],
@@ -1396,6 +1443,11 @@ export default function App() {
               },
             },
           };
+
+          // Add thumbnail if available
+          if (thumbnailHash) {
+            videoData.image_hash = thumbnailHash;
+          }
 
           // Add title (headline) if available
           if (filteredHeadlines.length > 0) {
