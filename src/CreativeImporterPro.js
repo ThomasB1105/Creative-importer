@@ -949,6 +949,66 @@ export default function App() {
       // Step 1: Upload images/videos and get hash IDs (sequentially to avoid API overload)
       console.log("📤 Uploading creatives...");
       const uploadedHashes = [];
+
+      // Helper: extract first frame of a video as a Blob (JPEG)
+      const extractVideoThumbnail = (videoFile) => new Promise((resolve) => {
+        const video = document.createElement("video");
+        video.preload = "auto";
+        video.muted = true;
+        video.playsInline = true;
+        const url = URL.createObjectURL(videoFile);
+        video.src = url;
+
+        video.addEventListener("loadeddata", () => {
+          // Seek to 0.5s to avoid a black first frame
+          video.currentTime = 0.5;
+        });
+
+        video.addEventListener("seeked", () => {
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob((blob) => {
+              URL.revokeObjectURL(url);
+              resolve(blob);
+            }, "image/jpeg", 0.85);
+          } catch (e) {
+            URL.revokeObjectURL(url);
+            console.error("Thumbnail extraction failed:", e);
+            resolve(null);
+          }
+        });
+
+        video.addEventListener("error", () => {
+          URL.revokeObjectURL(url);
+          resolve(null);
+        });
+
+        // Timeout fallback
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+          resolve(null);
+        }, 10000);
+      });
+
+      // Helper: upload an image blob and return its hash
+      const uploadThumbnail = async (blob, name) => {
+        const thumbForm = new FormData();
+        thumbForm.append("filename", new File([blob], name + "_thumb.jpg", { type: "image/jpeg" }));
+        thumbForm.append("access_token", accessToken);
+        const res = await fetch(
+          `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`,
+          { method: "POST", body: thumbForm }
+        );
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        const images = data.images || {};
+        return Object.values(images)[0]?.hash || null;
+      };
+
       for (const file of uploadedFiles) {
         try {
           console.log(`📤 Uploading ${file.type}: ${file.name} (${(file.file.size / 1024 / 1024).toFixed(2)} MB)`);
@@ -985,10 +1045,26 @@ export default function App() {
           const hash = file.type === "video" ? data.id : data.images[Object.keys(data.images)[0]].hash;
           console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
 
+          // For videos, extract first frame and upload as thumbnail
+          let thumbnailHash = null;
+          if (file.type === "video") {
+            try {
+              console.log(`🖼️ Extracting thumbnail for ${file.name}...`);
+              const thumbBlob = await extractVideoThumbnail(file.file);
+              if (thumbBlob) {
+                thumbnailHash = await uploadThumbnail(thumbBlob, file.name);
+                console.log(`✅ Thumbnail uploaded for ${file.name}, hash: ${thumbnailHash}`);
+              }
+            } catch (thumbErr) {
+              console.warn(`⚠️ Thumbnail extraction failed for ${file.name}:`, thumbErr.message);
+            }
+          }
+
           uploadedHashes.push({
             fileId: file.id,
             hash: hash,
             type: file.type,
+            thumbnailHash: thumbnailHash,
           });
         } catch (err) {
           console.error(`❌ Error uploading ${file.name}:`, err);
@@ -1159,16 +1235,19 @@ export default function App() {
         let objectStorySpec;
 
         if (hashData.type === "video") {
-          // For videos, include call_to_action with link so Meta auto-generates thumbnail
           const videoData = {
             video_id: hashData.hash,
             message: filteredTexts[i % filteredTexts.length],
-            link_description: filteredTexts[i % filteredTexts.length],
             call_to_action: {
               type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
               value: { link: destinationUrl.trim() },
             },
           };
+
+          // Add thumbnail from first frame extraction
+          if (hashData.thumbnailHash) {
+            videoData.image_hash = hashData.thumbnailHash;
+          }
 
           // Add title if headline available
           if (filteredHeadlines.length > 0) {
