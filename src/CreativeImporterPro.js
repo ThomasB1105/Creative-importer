@@ -983,6 +983,62 @@ export default function App() {
       // Step 1: Upload images/videos and get hash IDs
       console.log("📤 Uploading creatives...");
 
+      // Helper: extract first frame of a video as a Blob (JPEG)
+      const extractVideoThumbnail = (videoFile) => new Promise((resolve) => {
+        const video = document.createElement("video");
+        video.preload = "auto";
+        video.muted = true;
+        video.playsInline = true;
+        const url = URL.createObjectURL(videoFile);
+        video.src = url;
+
+        video.addEventListener("loadeddata", () => {
+          video.currentTime = 0.5; // Seek to 0.5s to avoid black first frame
+        });
+
+        video.addEventListener("seeked", () => {
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob((blob) => {
+              URL.revokeObjectURL(url);
+              resolve(blob);
+            }, "image/jpeg", 0.85);
+          } catch (e) {
+            URL.revokeObjectURL(url);
+            resolve(null);
+          }
+        });
+
+        video.addEventListener("error", () => {
+          URL.revokeObjectURL(url);
+          resolve(null);
+        });
+
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+          resolve(null);
+        }, 10000);
+      });
+
+      // Helper: upload an image blob and return its hash
+      const uploadThumbnail = async (blob, name) => {
+        const thumbForm = new FormData();
+        thumbForm.append("filename", new File([blob], name + "_thumb.jpg", { type: "image/jpeg" }));
+        thumbForm.append("access_token", accessToken);
+        const res = await fetch(
+          `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`)}`,
+          { method: "POST", body: thumbForm }
+        );
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        const images = data.images || {};
+        return Object.values(images)[0]?.hash || null;
+      };
+
       // Initialize progress for all files
       const initialProgress = {};
       uploadedFiles.forEach(file => {
@@ -1152,6 +1208,21 @@ export default function App() {
             }
             console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
 
+            // For videos, extract first frame and upload as thumbnail
+            let thumbnailHash = null;
+            if (file.type === "video") {
+              try {
+                console.log(`🖼️ Extracting thumbnail for ${file.name}...`);
+                const thumbBlob = await extractVideoThumbnail(file.file);
+                if (thumbBlob) {
+                  thumbnailHash = await uploadThumbnail(thumbBlob, file.name);
+                  console.log(`✅ Thumbnail uploaded for ${file.name}, hash: ${thumbnailHash}`);
+                }
+              } catch (thumbErr) {
+                console.warn(`⚠️ Thumbnail extraction failed for ${file.name}:`, thumbErr.message);
+              }
+            }
+
             // Update progress: upload complete
             setUploadProgress(prev => ({
               ...prev,
@@ -1162,6 +1233,7 @@ export default function App() {
               fileId: file.id,
               hash: hash,
               type: file.type,
+              thumbnailHash: thumbnailHash,
             });
 
             uploadSuccess = true;
@@ -1386,53 +1458,6 @@ export default function App() {
 
         // For videos, use video_data; for images, use link_data
         if (hashData.type === "video") {
-          // Extract thumbnail from video and upload it
-          let thumbnailHash = null;
-          try {
-            const videoFile = file.file;
-            const video = document.createElement('video');
-            video.preload = 'metadata';
-            video.muted = true;
-            video.playsInline = true;
-
-            const thumbnailBlob = await new Promise((resolve, reject) => {
-              video.onloadeddata = async () => {
-                video.currentTime = 0.1; // First frame
-              };
-              video.onseeked = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                canvas.toBlob((blob) => {
-                  URL.revokeObjectURL(video.src);
-                  resolve(blob);
-                }, 'image/jpeg', 0.8);
-              };
-              video.onerror = reject;
-              video.src = URL.createObjectURL(videoFile);
-            });
-
-            // Upload thumbnail
-            const thumbFormData = new FormData();
-            thumbFormData.append("filename", "thumbnail.jpg");
-            thumbFormData.append("bytes", await thumbnailBlob.arrayBuffer().then(buf => btoa(String.fromCharCode(...new Uint8Array(buf)))));
-            thumbFormData.append("access_token", accessToken);
-
-            const thumbResponse = await fetch(
-              `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`)}`,
-              { method: "POST", body: thumbFormData }
-            );
-            const thumbResult = await thumbResponse.json();
-            if (thumbResult.images) {
-              thumbnailHash = thumbResult.images[Object.keys(thumbResult.images)[0]].hash;
-              console.log(`📸 Thumbnail uploaded: ${thumbnailHash}`);
-            }
-          } catch (thumbError) {
-            console.warn(`⚠️ Could not extract thumbnail:`, thumbError);
-          }
-
           const videoData = {
             video_id: hashData.hash,
             message: filteredTexts[i % filteredTexts.length],
@@ -1444,9 +1469,9 @@ export default function App() {
             },
           };
 
-          // Add thumbnail if available
-          if (thumbnailHash) {
-            videoData.image_hash = thumbnailHash;
+          // Add thumbnail from upload phase
+          if (hashData.thumbnailHash) {
+            videoData.image_hash = hashData.thumbnailHash;
           }
 
           // Add title (headline) if available
