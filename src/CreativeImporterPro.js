@@ -9,7 +9,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 // 5. Remplacez l'appId ci-dessous par votre App ID
 const META_APP = {
   appId: "720964414230898", // Votre App ID Facebook
-  apiVersion: "v21.0",
+  apiVersion: "v22.0",
   redirectUri: window.location.origin + window.location.pathname,
 };
 
@@ -1639,16 +1639,21 @@ export default function App() {
 
         creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
 
-        // Add Advantage+ Creative enhancements setting (using individual features - new API format)
+        // Add Advantage+ Creative enhancements setting (API v22.0 format)
         if (!enableAdvantagePlus) {
           const degreesOfFreedomSpec = {
             creative_features_spec: {
-              image_touch_up: { enroll_status: "OPT_OUT" },
-              text_optimizations: { enroll_status: "OPT_OUT" },
-              inline_comment: { enroll_status: "OPT_OUT" },
+              image_touchups: { enroll_status: "OPT_OUT" },
+              image_enhancement: { enroll_status: "OPT_OUT" },
               image_templates: { enroll_status: "OPT_OUT" },
               image_uncrop: { enroll_status: "OPT_OUT" },
-              adapt_to_placement: { enroll_status: "OPT_OUT" }
+              image_brightness_and_contrast: { enroll_status: "OPT_OUT" },
+              image_auto_crop: { enroll_status: "OPT_OUT" },
+              text_optimizations: { enroll_status: "OPT_OUT" },
+              text_generation: { enroll_status: "OPT_OUT" },
+              adapt_to_placement: { enroll_status: "OPT_OUT" },
+              enhance_cta: { enroll_status: "OPT_OUT" },
+              advantage_plus_creative: { enroll_status: "OPT_OUT" }
             }
           };
           creativeData.append("degrees_of_freedom_spec", JSON.stringify(degreesOfFreedomSpec));
