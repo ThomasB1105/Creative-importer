@@ -1027,7 +1027,7 @@ export default function App() {
               startData.append("access_token", accessToken);
 
               const startResponse = await fetch(
-                `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`,
+                `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`)}`,
                 { method: "POST", body: startData }
               );
 
@@ -1058,7 +1058,7 @@ export default function App() {
               transferData.append("access_token", accessToken);
 
               const transferResponse = await fetch(
-                `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`,
+                `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`)}`,
                 { method: "POST", body: transferData }
               );
 
@@ -1086,7 +1086,7 @@ export default function App() {
               finishData.append("access_token", accessToken);
 
               const finishResponse = await fetch(
-                `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`,
+                `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`)}`,
                 { method: "POST", body: finishData }
               );
 
@@ -1107,11 +1107,11 @@ export default function App() {
               formData.append("source", file.file);
               formData.append("access_token", accessToken);
 
-              const endpoint = file.type === "video"
+              const fbEndpoint = file.type === "video"
                 ? `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`
                 : `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`;
 
-              const response = await fetch(endpoint, {
+              const response = await fetch(`/api/facebook-proxy?endpoint=${encodeURIComponent(fbEndpoint)}`, {
                 method: "POST",
                 body: formData,
               });
