@@ -1639,13 +1639,16 @@ export default function App() {
 
         creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
 
-        // Add Advantage+ Creative enhancements setting
+        // Add Advantage+ Creative enhancements setting (using individual features - new API format)
         if (!enableAdvantagePlus) {
           const degreesOfFreedomSpec = {
             creative_features_spec: {
-              standard_enhancements: {
-                enroll_status: "OPT_OUT"
-              }
+              image_touch_up: { enroll_status: "OPT_OUT" },
+              text_optimizations: { enroll_status: "OPT_OUT" },
+              inline_comment: { enroll_status: "OPT_OUT" },
+              image_templates: { enroll_status: "OPT_OUT" },
+              image_uncrop: { enroll_status: "OPT_OUT" },
+              adapt_to_placement: { enroll_status: "OPT_OUT" }
             }
           };
           creativeData.append("degrees_of_freedom_spec", JSON.stringify(degreesOfFreedomSpec));
