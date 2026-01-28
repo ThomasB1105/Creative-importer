@@ -1218,37 +1218,60 @@ export default function App() {
         const creativeData = new FormData();
         creativeData.append("name", adName);
 
-        // Build object_story_spec using link_data for both images and videos
+        // Build object_story_spec differently for videos vs images
         let objectStorySpec;
 
-        const linkData = {
-          link: destinationUrl.trim(),
-          message: filteredTexts[i % filteredTexts.length],
-        };
-
-        // For videos, use video_id; for images, use image_hash
         if (hashData.type === "video") {
-          linkData.video_id = hashData.hash;
+          // For videos, use video_data with call_to_action containing the link
+          const videoData = {
+            video_id: hashData.hash,
+            message: filteredTexts[i % filteredTexts.length],
+          };
+
+          // Add call_to_action with link for videos
+          if (callToAction !== "NO_BUTTON") {
+            videoData.call_to_action = {
+              type: callToAction,
+              value: {
+                link: destinationUrl.trim()
+              }
+            };
+          }
+
+          // Add title if headline available
+          if (filteredHeadlines.length > 0) {
+            videoData.title = filteredHeadlines[i % filteredHeadlines.length];
+          }
+
+          objectStorySpec = {
+            page_id: selectedPage.id,
+            video_data: videoData,
+          };
         } else {
-          linkData.image_hash = hashData.hash;
-        }
+          // For images, use link_data
+          const linkData = {
+            link: destinationUrl.trim(),
+            message: filteredTexts[i % filteredTexts.length],
+            image_hash: hashData.hash,
+          };
 
-        // Add headline only if available
-        if (filteredHeadlines.length > 0) {
-          linkData.name = filteredHeadlines[i % filteredHeadlines.length];
-        }
+          // Add headline only if available
+          if (filteredHeadlines.length > 0) {
+            linkData.name = filteredHeadlines[i % filteredHeadlines.length];
+          }
 
-        // Add call_to_action only if not NO_BUTTON
-        if (callToAction !== "NO_BUTTON") {
-          linkData.call_to_action = {
-            type: callToAction,
+          // Add call_to_action only if not NO_BUTTON
+          if (callToAction !== "NO_BUTTON") {
+            linkData.call_to_action = {
+              type: callToAction,
+            };
+          }
+
+          objectStorySpec = {
+            page_id: selectedPage.id,
+            link_data: linkData,
           };
         }
-
-        objectStorySpec = {
-          page_id: selectedPage.id,
-          link_data: linkData,
-        };
 
         // Only add instagram_actor_id if available
         if (instagramAccount?.id) {
