@@ -1114,7 +1114,10 @@ export default function App() {
 
             // Use resumable upload for large videos (>50MB)
             if (file.type === "video" && fileSizeMB > 50) {
-              console.log(`📹 Using resumable upload for large video: ${file.name}`);
+              console.log(`📹 Using resumable upload for large video: ${file.name} (${fileSizeMB.toFixed(1)} MB)`);
+
+              // Upload directly to Facebook (no proxy) - Facebook's video endpoint supports CORS
+              const videoUploadUrl = `https://graph-video.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`;
 
               // Phase 1: Start upload session
               const startData = new FormData();
@@ -1122,12 +1125,15 @@ export default function App() {
               startData.append("file_size", file.file.size.toString());
               startData.append("access_token", accessToken);
 
-              const startResponse = await fetch(
-                `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`)}`,
-                { method: "POST", body: startData }
-              );
+              console.log(`📤 Starting upload session...`);
+              const startResponse = await fetch(videoUploadUrl, {
+                method: "POST",
+                body: startData
+              });
 
               if (!startResponse.ok) {
+                const errorText = await startResponse.text();
+                console.error(`Start phase error:`, errorText);
                 throw new Error(`Start phase failed: ${startResponse.status}`);
               }
 
@@ -1137,7 +1143,7 @@ export default function App() {
               }
 
               const { upload_session_id, video_id } = startResult;
-              console.log(`📦 Upload session created: ${upload_session_id}`);
+              console.log(`📦 Upload session created: ${upload_session_id}, video_id: ${video_id}`);
 
               // Update progress: 20%
               setUploadProgress(prev => ({
@@ -1145,8 +1151,8 @@ export default function App() {
                 [file.id]: { progress: 20, status: 'uploading' }
               }));
 
-              // Phase 2: Transfer file in chunks (4MB each to stay under Vercel's 4.5MB limit)
-              const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB
+              // Phase 2: Transfer file in chunks (20MB chunks for direct upload)
+              const CHUNK_SIZE = 20 * 1024 * 1024; // 20MB chunks for direct upload
               const fileSize = file.file.size;
               let startOffset = 0;
               let chunkNum = 0;
@@ -1168,10 +1174,10 @@ export default function App() {
                 transferData.append("video_file_chunk", chunk);
                 transferData.append("access_token", accessToken);
 
-                const transferResponse = await fetch(
-                  `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`)}`,
-                  { method: "POST", body: transferData }
-                );
+                const transferResponse = await fetch(videoUploadUrl, {
+                  method: "POST",
+                  body: transferData
+                });
 
                 if (!transferResponse.ok) {
                   throw new Error(`Transfer phase failed for chunk ${chunkNum}: ${transferResponse.status}`);
@@ -1185,7 +1191,7 @@ export default function App() {
                 // Facebook returns the next start_offset
                 startOffset = parseInt(transferResult.start_offset) || endOffset;
 
-                // Update progress: 20% + (chunk progress * 20%)
+                // Update progress: 20% + (chunk progress * 30%)
                 const chunkProgress = 20 + Math.round((chunkNum / totalChunks) * 20);
                 setUploadProgress(prev => ({
                   ...prev,
@@ -1201,10 +1207,10 @@ export default function App() {
               finishData.append("upload_session_id", upload_session_id);
               finishData.append("access_token", accessToken);
 
-              const finishResponse = await fetch(
-                `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`)}`,
-                { method: "POST", body: finishData }
-              );
+              const finishResponse = await fetch(videoUploadUrl, {
+                method: "POST",
+                body: finishData
+              });
 
               if (!finishResponse.ok) {
                 throw new Error(`Finish phase failed: ${finishResponse.status}`);
@@ -1217,6 +1223,19 @@ export default function App() {
 
               hash = video_id;
               console.log(`✅ Resumable upload completed: ${hash}`);
+
+              // Wait for Facebook to process the video before continuing
+              setUploadProgress(prev => ({
+                ...prev,
+                [file.id]: { progress: 45, status: 'processing' }
+              }));
+
+              // Wait for video to be ready (max 5 min + 1 min per 100MB)
+              const maxWaitMs = 300000 + Math.floor(fileSizeMB / 100) * 60000;
+              const isReady = await waitForVideoReady(hash, maxWaitMs);
+              if (!isReady) {
+                console.warn(`⚠️ Video ${file.name} may not be fully processed yet`);
+              }
             } else {
               // Standard upload for images and small videos
               const formData = new FormData();
@@ -1248,8 +1267,9 @@ export default function App() {
             }
             console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
 
-            // For videos, wait for Facebook to finish processing before creating creative
-            if (file.type === "video" && fileSizeMB > 10) {
+            // For small/medium videos (10-50MB), wait for Facebook to finish processing
+            // Large videos (>50MB) already wait in the resumable upload section
+            if (file.type === "video" && fileSizeMB > 10 && fileSizeMB <= 50) {
               setUploadProgress(prev => ({
                 ...prev,
                 [file.id]: { progress: 35, status: 'processing' }
@@ -1264,18 +1284,57 @@ export default function App() {
               }
             }
 
-            // For videos, extract first frame and upload as thumbnail
+            // For videos, extract first frame and upload as thumbnail (REQUIRED by Facebook)
             let thumbnailHash = null;
             if (file.type === "video") {
+              console.log(`🖼️ Extracting thumbnail for ${file.name}...`);
               try {
-                console.log(`🖼️ Extracting thumbnail for ${file.name}...`);
                 const thumbBlob = await extractVideoThumbnail(file.file);
                 if (thumbBlob) {
                   thumbnailHash = await uploadThumbnail(thumbBlob, file.name);
                   console.log(`✅ Thumbnail uploaded for ${file.name}, hash: ${thumbnailHash}`);
+                } else {
+                  console.warn(`⚠️ Could not extract thumbnail for ${file.name}, creating default thumbnail...`);
+                  // Create a simple colored canvas as fallback thumbnail
+                  const canvas = document.createElement('canvas');
+                  canvas.width = 1080;
+                  canvas.height = 1920;
+                  const ctx = canvas.getContext('2d');
+                  ctx.fillStyle = '#1a1a2e';
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+                  ctx.fillStyle = '#ffffff';
+                  ctx.font = 'bold 48px Arial';
+                  ctx.textAlign = 'center';
+                  ctx.fillText('Video', canvas.width / 2, canvas.height / 2);
+                  const fallbackBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+                  if (fallbackBlob) {
+                    thumbnailHash = await uploadThumbnail(fallbackBlob, file.name);
+                    console.log(`✅ Fallback thumbnail uploaded for ${file.name}, hash: ${thumbnailHash}`);
+                  }
                 }
               } catch (thumbErr) {
-                console.warn(`⚠️ Thumbnail extraction failed for ${file.name}:`, thumbErr.message);
+                console.error(`❌ Thumbnail extraction failed for ${file.name}:`, thumbErr.message);
+                // Create a simple fallback thumbnail
+                try {
+                  const canvas = document.createElement('canvas');
+                  canvas.width = 1080;
+                  canvas.height = 1920;
+                  const ctx = canvas.getContext('2d');
+                  ctx.fillStyle = '#1a1a2e';
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+                  const fallbackBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+                  if (fallbackBlob) {
+                    thumbnailHash = await uploadThumbnail(fallbackBlob, file.name);
+                    console.log(`✅ Fallback thumbnail uploaded for ${file.name}, hash: ${thumbnailHash}`);
+                  }
+                } catch (fallbackErr) {
+                  console.error(`❌ Even fallback thumbnail failed for ${file.name}:`, fallbackErr.message);
+                }
+              }
+
+              // If we still don't have a thumbnail, warn but continue
+              if (!thumbnailHash) {
+                console.warn(`⚠️ No thumbnail available for ${file.name} - creative may fail`);
               }
             }
 
@@ -1514,8 +1573,20 @@ export default function App() {
 
         // For videos, use video_data; for images, use link_data
         if (hashData.type === "video") {
+          // Facebook REQUIRES a thumbnail (image_hash) for video ads
+          if (!hashData.thumbnailHash) {
+            console.error(`❌ No thumbnail available for video ${file.name} - skipping creative`);
+            results.errors.push(`No thumbnail for ${file.name}: Facebook requires a thumbnail for video ads`);
+            setUploadProgress(prev => ({
+              ...prev,
+              [file.id]: { progress: 0, status: 'error' }
+            }));
+            continue;
+          }
+
           const videoData = {
             video_id: hashData.hash,
+            image_hash: hashData.thumbnailHash, // REQUIRED by Facebook
             message: filteredTexts[i % filteredTexts.length],
             call_to_action: {
               type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
@@ -1524,11 +1595,6 @@ export default function App() {
               },
             },
           };
-
-          // Add thumbnail from upload phase
-          if (hashData.thumbnailHash) {
-            videoData.image_hash = hashData.thumbnailHash;
-          }
 
           // Add title (headline) if available
           if (filteredHeadlines.length > 0) {
