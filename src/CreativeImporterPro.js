@@ -1049,8 +1049,8 @@ export default function App() {
                 [file.id]: { progress: 20, status: 'uploading' }
               }));
 
-              // Phase 2: Transfer file in chunks (3MB each to stay under Vercel's 4.5MB limit)
-              const CHUNK_SIZE = 3 * 1024 * 1024; // 3MB
+              // Phase 2: Transfer file in chunks (4MB each to stay under Vercel's 4.5MB limit)
+              const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB
               const fileSize = file.file.size;
               let startOffset = 0;
               let chunkNum = 0;
@@ -1219,7 +1219,7 @@ export default function App() {
         campaignData.append("access_token", accessToken);
 
         const campaignResponse = await fetch(
-          `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/campaigns`,
+          `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/campaigns`)}`,
           { method: "POST", body: campaignData }
         );
 
@@ -1329,7 +1329,7 @@ export default function App() {
         adsetData.append("access_token", accessToken);
 
         const adsetResponse = await fetch(
-          `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adsets`,
+          `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adsets`)}`,
           { method: "POST", body: adsetData }
         );
 
@@ -1424,7 +1424,7 @@ export default function App() {
         creativeData.append("access_token", accessToken);
 
         const creativeResponse = await fetch(
-          `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adcreatives`,
+          `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adcreatives`)}`,
           { method: "POST", body: creativeData }
         );
 
@@ -1457,7 +1457,7 @@ export default function App() {
         adData.append("access_token", accessToken);
 
         const adResponse = await fetch(
-          `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/ads`,
+          `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/ads`)}`,
           { method: "POST", body: adData }
         );
 
