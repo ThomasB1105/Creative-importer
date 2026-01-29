@@ -1618,16 +1618,16 @@ export default function CreativeImporterPro(props = {}) {
 
       const getPlacementForFormat = (format) => {
         if (format === 'story') {
-          // 9:16 vertical format - Stories
+          // 9:16 vertical format - Stories et Reels uniquement
           const placements = {
-            facebook_positions: ["story"],
+            facebook_positions: ["story", "reels"],
           };
           if (hasInstagramAccount) {
-            placements.instagram_positions = ["story"];
+            placements.instagram_positions = ["story", "reels"];
           }
           return placements;
         } else {
-          // 1:1, 4:5, 16:9 formats - Feed placements
+          // 1:1, 4:5, 16:9 formats - Feed uniquement
           const placements = {
             facebook_positions: ["feed"],
           };
