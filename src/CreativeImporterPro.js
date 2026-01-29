@@ -1627,7 +1627,13 @@ export default function App() {
           }
         });
 
+        // Determine ad format based on content
+        const hasVideos = videos.length > 0;
+        const hasImages = images.length > 0;
+        const adFormat = hasVideos && !hasImages ? "SINGLE_VIDEO" : "SINGLE_IMAGE";
+
         const assetFeedSpec = {
+          ad_formats: [adFormat],
           ...(images.length > 0 && { images }),
           ...(videos.length > 0 && { videos }),
           bodies: filteredTexts.map(t => ({ text: t })),
@@ -1646,6 +1652,7 @@ export default function App() {
           ...(instagramAccount?.id && { instagram_actor_id: instagramAccount.id })
         }));
         creativeData.append("asset_feed_spec", JSON.stringify(assetFeedSpec));
+        creativeData.append("link_url", destinationUrl.trim());
 
         // Add Advantage+ Creative enhancements setting
         if (!enableAdvantagePlus) {
