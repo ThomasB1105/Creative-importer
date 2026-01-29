@@ -1708,13 +1708,23 @@ export default function CreativeImporterPro(props = {}) {
         };
 
         console.log(`📝 Creating multi-format creative with asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
+        console.log(`📸 Instagram account:`, instagramAccount);
+        console.log(`📸 Instagram ID:`, instagramAccount?.id);
+
+        const objectStorySpecForFeed = {
+          page_id: selectedPage.id,
+        };
+
+        // Only add instagram_actor_id if we have Instagram placements
+        if (hasInstagram && instagramAccount?.id) {
+          objectStorySpecForFeed.instagram_actor_id = instagramAccount.id;
+        }
+
+        console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpecForFeed, null, 2));
 
         const creativeData = new FormData();
         creativeData.append("name", adName);
-        creativeData.append("object_story_spec", JSON.stringify({
-          page_id: selectedPage.id,
-          ...(instagramAccount?.id && { instagram_actor_id: instagramAccount.id })
-        }));
+        creativeData.append("object_story_spec", JSON.stringify(objectStorySpecForFeed));
         creativeData.append("asset_feed_spec", JSON.stringify(assetFeedSpec));
         creativeData.append("link_url", destinationUrl.trim());
 
