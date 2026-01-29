@@ -668,6 +668,7 @@ export default function App() {
     // Login screen
     loginContainer: {
       minHeight: "100vh",
+      width: "100%",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
