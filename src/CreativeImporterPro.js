@@ -1642,9 +1642,28 @@ export default function CreativeImporterPro(props = {}) {
       const mappedFileIds = adGroups.flatMap(g => g.fileIds);
       let unmappedHashes = validHashes.filter(h => !mappedFileIds.includes(h.fileId));
 
+      // AUTO-GROUP: If no groups created and multiple files with different formats,
+      // create ONE ad with all files mapped to their respective placements
+      let effectiveAdGroups = [...adGroups];
+      if (effectiveAdGroups.length === 0 && validHashes.length > 1) {
+        const formats = new Set(validHashes.map(h => {
+          const file = uploadedFiles.find(f => f.id === h.fileId);
+          return file?.format;
+        }));
+
+        // If we have different formats (e.g., story AND feed), auto-group them
+        if (formats.size > 1) {
+          console.log(`📦 Auto-grouping ${validHashes.length} files with ${formats.size} different formats`);
+          effectiveAdGroups = [{
+            fileIds: validHashes.map(h => h.fileId)
+          }];
+          unmappedHashes = []; // All files are now in the group
+        }
+      }
+
       // Process mapped groups first (create ONE ad per group with asset_feed_spec)
-      for (let groupIndex = 0; groupIndex < adGroups.length; groupIndex++) {
-        const group = adGroups[groupIndex];
+      for (let groupIndex = 0; groupIndex < effectiveAdGroups.length; groupIndex++) {
+        const group = effectiveAdGroups[groupIndex];
         const groupHashes = validHashes.filter(h => group.fileIds.includes(h.fileId));
 
         if (groupHashes.length === 0) continue;
@@ -1831,7 +1850,7 @@ export default function CreativeImporterPro(props = {}) {
         const hashData = unmappedHashes[i];
         const file = uploadedFiles.find(f => f.id === hashData.fileId);
 
-        const adName = nomenclature.ad(adGroups.length + i + 1, file.format);
+        const adName = nomenclature.ad(effectiveAdGroups.length + i + 1, file.format);
 
         // Update progress: creating creative
         setUploadProgress(prev => ({

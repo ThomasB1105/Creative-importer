@@ -3,8 +3,8 @@ import { authHelpers, createMetaApi } from "./config";
 import CreativeImporterPro from "./CreativeImporterPro";
 import MediaBuyerPro from "./MediaBuyerPro";
 
-// Navigation items configuration - Premium design without emojis
-const navItems = [
+// Tools - Main navigation items
+const toolItems = [
   {
     id: "creative-importer",
     name: "Creative Importer",
@@ -23,15 +23,10 @@ const navItems = [
     bgColor: "rgba(251,146,60,0.12)",
     status: "active",
   },
-  {
-    id: "integrations",
-    name: "Integrations",
-    abbrev: "IN",
-    description: "Connect your tools",
-    color: "#a78bfa",
-    bgColor: "rgba(167,139,250,0.12)",
-    status: "active",
-  },
+];
+
+// Coming soon tools
+const comingSoonItems = [
   {
     id: "creative-strategist",
     name: "Creative Strategist",
@@ -61,6 +56,30 @@ const navItems = [
   },
 ];
 
+// Settings sub-items
+const settingsItems = [
+  {
+    id: "settings-account",
+    name: "Account",
+    description: "Connected accounts",
+  },
+  {
+    id: "settings-billing",
+    name: "Billing",
+    description: "Plan & usage",
+  },
+  {
+    id: "settings-history",
+    name: "History",
+    description: "Upload history",
+  },
+  {
+    id: "settings-integrations",
+    name: "Integrations",
+    description: "Connect services",
+  },
+];
+
 export default function App() {
   const [activeModule, setActiveModule] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
@@ -68,6 +87,7 @@ export default function App() {
   const [isAuthenticating, setIsAuthenticating] = useState(true);
   const [authError, setAuthError] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [settingsExpanded, setSettingsExpanded] = useState(false);
 
   // Ad Account state
   const [adAccounts, setAdAccounts] = useState([]);
@@ -358,9 +378,17 @@ export default function App() {
   };
 
   const handleModuleSelect = (moduleId) => {
-    const item = navItems.find((n) => n.id === moduleId);
-    if (item && item.status === "active") {
+    // Check in tools
+    const tool = toolItems.find((n) => n.id === moduleId);
+    if (tool && tool.status === "active") {
       setActiveModule(moduleId);
+      return;
+    }
+    // Check in settings
+    const setting = settingsItems.find((n) => n.id === moduleId);
+    if (setting) {
+      setActiveModule(moduleId);
+      return;
     }
   };
 
