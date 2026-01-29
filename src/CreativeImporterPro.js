@@ -1618,12 +1618,12 @@ export default function CreativeImporterPro(props = {}) {
 
       const getPlacementForFormat = (format) => {
         if (format === 'story') {
-          // 9:16 vertical format - Stories and Reels
+          // 9:16 vertical format - Stories
           const placements = {
-            facebook_positions: ["story", "facebook_reels"],
+            facebook_positions: ["story"],
           };
           if (hasInstagramAccount) {
-            placements.instagram_positions = ["story", "reels"];
+            placements.instagram_positions = ["story"];
           }
           return placements;
         } else {
