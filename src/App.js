@@ -255,7 +255,7 @@ export default function App() {
     // Layout
     container: {
       minHeight: "100vh",
-      background: "#09090b",
+      background: "linear-gradient(135deg, #0f0f14 0%, #1a1a2e 50%, #16213e 100%)",
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
       color: "#fafafa",
       display: "flex",
@@ -264,7 +264,7 @@ export default function App() {
     sidebar: {
       width: sidebarCollapsed ? "64px" : "260px",
       minHeight: "100vh",
-      background: "#0a0a0b",
+      background: "rgba(10,10,15,0.95)",
       borderRight: "1px solid rgba(255,255,255,0.06)",
       display: "flex",
       flexDirection: "column",
@@ -978,7 +978,15 @@ export default function App() {
             <div style={styles.logoIcon}>MA</div>
             <div style={styles.logoText}>
               <h1 style={styles.logoTitle}>Meta Ads Tools</h1>
-              <p style={styles.logoSubtitle}>by Thomas</p>
+              <p style={styles.logoSubtitle}>
+                A NEW <span style={{
+                  background: "linear-gradient(135deg, #ec4899, #d946ef)",
+                  padding: "2px 6px",
+                  borderRadius: "4px",
+                  color: "#fff",
+                  fontWeight: "600",
+                }}>GROWTH</span>
+              </p>
             </div>
           </div>
         </div>
