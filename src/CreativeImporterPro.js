@@ -1612,21 +1612,29 @@ export default function CreativeImporterPro(props = {}) {
       }
 
       // Helper to get placement positions based on format
-      // Use exact Meta API position values
+      // Only include Instagram if account is linked
       const hasInstagramAccount = !!instagramAccount?.id;
+      console.log(`📸 Has Instagram account: ${hasInstagramAccount}`);
+
       const getPlacementForFormat = (format) => {
         if (format === 'story') {
           // 9:16 vertical format - Stories and Reels
-          return {
+          const placements = {
             facebook_positions: ["story", "facebook_reels"],
-            instagram_positions: ["story", "reels"]
           };
+          if (hasInstagramAccount) {
+            placements.instagram_positions = ["story", "reels"];
+          }
+          return placements;
         } else {
           // 1:1, 4:5, 16:9 formats - Feed placements
-          return {
+          const placements = {
             facebook_positions: ["feed"],
-            instagram_positions: ["stream"]
           };
+          if (hasInstagramAccount) {
+            placements.instagram_positions = ["stream"];
+          }
+          return placements;
         }
       };
 
@@ -1662,8 +1670,8 @@ export default function CreativeImporterPro(props = {}) {
           const labelName = `asset_${idx}_${file.format}`;
           const placements = getPlacementForFormat(file.format);
 
-          // Always include both platforms - Meta will use FB Page for Instagram if no IG account
-          const publisherPlatforms = ["facebook", "instagram"];
+          // Only include Instagram if account is linked
+          const publisherPlatforms = hasInstagramAccount ? ["facebook", "instagram"] : ["facebook"];
 
           if (hashData.type === "video") {
             videos.push({
