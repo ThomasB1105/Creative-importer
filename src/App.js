@@ -80,6 +80,9 @@ const settingsItems = [
   },
 ];
 
+// Combined nav items for display
+const navItems = [...toolItems, ...comingSoonItems];
+
 export default function App() {
   const [activeModule, setActiveModule] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
