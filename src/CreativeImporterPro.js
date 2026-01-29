@@ -1718,6 +1718,7 @@ export default function App() {
         const adResult = await adResponse.json();
         if (adResult.error) {
           console.error(`Error creating multi-format ad:`, adResult.error);
+          console.error(`Error details:`, JSON.stringify(adResult.error, null, 2));
           results.errors.push(`Multi-format ad failed: ${adResult.error.message}`);
           groupHashes.forEach(h => {
             setUploadProgress(prev => ({
