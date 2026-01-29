@@ -3051,54 +3051,6 @@ export default function CreativeImporterPro(props = {}) {
               </div>
             )}
 
-            {!(
-              (budgetType === "cbo" && cboMode === "existing_adset") ||
-              (budgetType === "abo" && aboMode === "1:1:1") ||
-              (budgetType === "abo" && aboMode === "existing")
-            ) && (
-              <div style={{ ...box, marginBottom: "24px" }}>
-                <h4
-                  style={{
-                    margin: "0 0 16px",
-                    fontSize: "13px",
-                    color: "#a5b4fc",
-                  }}
-                >
-                  ⚙️ Groupement
-                </h4>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "12px",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "12px",
-                      background: "rgba(0,0,0,0.2)",
-                      borderRadius: "8px",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: "13px", fontWeight: "500" }}>
-                        🎬 Séparer Vidéo / Statique
-                      </div>
-                    </div>
-                    <div
-                      onClick={() => setSplitByMediaType(!splitByMediaType)}
-                      style={toggle(splitByMediaType, "#22c55e")}
-                    >
-                      <div style={toggleKnob(splitByMediaType)} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={() => setStep(0)} style={btn2}>
                 ← Compte
