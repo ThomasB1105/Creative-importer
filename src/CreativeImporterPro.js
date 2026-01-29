@@ -1682,8 +1682,11 @@ export default function App() {
         );
 
         const creativeResult = await creativeResponse.json();
+        console.log(`📦 Creative API response:`, JSON.stringify(creativeResult, null, 2));
+
         if (creativeResult.error) {
           console.error(`Error creating multi-format creative:`, creativeResult.error);
+          console.error(`Creative error details:`, JSON.stringify(creativeResult.error, null, 2));
           results.errors.push(`Multi-format creative failed: ${creativeResult.error.message}`);
           groupHashes.forEach(h => {
             setUploadProgress(prev => ({
@@ -1693,6 +1696,8 @@ export default function App() {
           });
           continue;
         }
+
+        console.log(`✅ Multi-format creative created: ${creativeResult.id}`);
 
         // Update progress
         groupHashes.forEach(h => {
