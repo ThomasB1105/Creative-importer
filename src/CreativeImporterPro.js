@@ -1612,19 +1612,17 @@ export default function CreativeImporterPro(props = {}) {
       }
 
       // Helper to get placement positions based on format
-      // Only include Instagram placements if Instagram account is linked
-      const hasInstagram = !!instagramAccount?.id;
+      // For now, only use Facebook placements to avoid Instagram account issues
+      const hasInstagram = false; // Disabled for now - can enable later: !!instagramAccount?.id;
       const getPlacementForFormat = (format) => {
         if (format === 'story') {
           return {
-            facebook_positions: ["story"],
-            ...(hasInstagram && { instagram_positions: ["story", "reels"] })
+            facebook_positions: ["story", "reels"],
           };
         } else {
           // feed_square, feed_portrait, feed_landscape
           return {
             facebook_positions: ["feed"],
-            ...(hasInstagram && { instagram_positions: ["stream"] })
           };
         }
       };
