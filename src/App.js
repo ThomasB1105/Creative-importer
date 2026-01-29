@@ -979,13 +979,13 @@ export default function App() {
             <div style={styles.logoText}>
               <h1 style={styles.logoTitle}>Meta Ads Tools</h1>
               <p style={styles.logoSubtitle}>
-                A NEW <span style={{
+                by <span style={{
                   background: "linear-gradient(135deg, #ec4899, #d946ef)",
                   padding: "2px 6px",
                   borderRadius: "4px",
                   color: "#fff",
                   fontWeight: "600",
-                }}>GROWTH</span>
+                }}>A New Growth</span>
               </p>
             </div>
           </div>
