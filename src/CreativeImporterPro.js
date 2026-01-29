@@ -1620,7 +1620,7 @@ export default function CreativeImporterPro(props = {}) {
         if (format === 'story') {
           // 9:16 vertical format - Stories et Reels uniquement
           const placements = {
-            facebook_positions: ["story", "reels"],
+            facebook_positions: ["story", "facebook_reels"],
           };
           if (hasInstagramAccount) {
             placements.instagram_positions = ["story", "reels"];
