@@ -336,11 +336,20 @@ const createMetaApi = (accessToken) => ({
   },
 });
 
-export default function App() {
-  // Auth state
-  const [accessToken, setAccessToken] = useState(null);
-  const [user, setUser] = useState(null);
-  const [isAuthenticating, setIsAuthenticating] = useState(true);
+export default function CreativeImporterPro(props = {}) {
+  // Props from parent App (when embedded)
+  const {
+    accessToken: propAccessToken,
+    user: propUser,
+    onLogout: propOnLogout,
+    onBack: propOnBack,
+    embedded = false,
+  } = props;
+
+  // Auth state - use props if provided
+  const [accessToken, setAccessToken] = useState(propAccessToken || null);
+  const [user, setUser] = useState(propUser || null);
+  const [isAuthenticating, setIsAuthenticating] = useState(!propAccessToken);
   const [authError, setAuthError] = useState(null);
 
   // Data state
@@ -401,6 +410,12 @@ export default function App() {
 
   // Check for OAuth callback or saved token on mount
   useEffect(() => {
+    // Skip auth check if props are provided (embedded mode)
+    if (propAccessToken) {
+      setIsAuthenticating(false);
+      return;
+    }
+
     const checkAuth = async () => {
       setIsAuthenticating(true);
 
@@ -543,6 +558,10 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    if (propOnLogout) {
+      propOnLogout();
+      return;
+    }
     authHelpers.clearToken();
     setAccessToken(null);
     setUser(null);
@@ -1926,37 +1945,41 @@ export default function App() {
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(135deg, #0f0817 0%, #1a0b2e 25%, #2d1b4e 50%, #1a0b2e 75%, #0f0817 100%)",
+        background: embedded ? "transparent" : "linear-gradient(135deg, #0f0817 0%, #1a0b2e 25%, #2d1b4e 50%, #1a0b2e 75%, #0f0817 100%)",
         fontFamily: "system-ui",
         color: "#e4e4e7",
-        padding: "24px",
+        padding: embedded ? "32px 40px" : "24px",
         position: "relative",
-        overflow: "hidden",
+        overflow: embedded ? "visible" : "hidden",
       }}
     >
-      {/* Gradient orbs for background effect */}
-      <div style={{
-        position: "fixed",
-        top: "-20%",
-        right: "-10%",
-        width: "600px",
-        height: "600px",
-        background: "radial-gradient(circle, rgba(168,85,247,0.15) 0%, transparent 70%)",
-        filter: "blur(80px)",
-        pointerEvents: "none",
-        zIndex: 0,
-      }}></div>
-      <div style={{
-        position: "fixed",
-        bottom: "-20%",
-        left: "-10%",
-        width: "600px",
-        height: "600px",
-        background: "radial-gradient(circle, rgba(236,72,153,0.12) 0%, transparent 70%)",
-        filter: "blur(80px)",
-        pointerEvents: "none",
-        zIndex: 0,
-      }}></div>
+      {/* Gradient orbs for background effect - only in standalone mode */}
+      {!embedded && (
+        <>
+          <div style={{
+            position: "fixed",
+            top: "-20%",
+            right: "-10%",
+            width: "600px",
+            height: "600px",
+            background: "radial-gradient(circle, rgba(168,85,247,0.15) 0%, transparent 70%)",
+            filter: "blur(80px)",
+            pointerEvents: "none",
+            zIndex: 0,
+          }}></div>
+          <div style={{
+            position: "fixed",
+            bottom: "-20%",
+            left: "-10%",
+            width: "600px",
+            height: "600px",
+            background: "radial-gradient(circle, rgba(236,72,153,0.12) 0%, transparent 70%)",
+            filter: "blur(80px)",
+            pointerEvents: "none",
+            zIndex: 0,
+          }}></div>
+        </>
+      )}
       <div style={{ position: "relative", zIndex: 1 }}>
       <header
         style={{
@@ -1972,31 +1995,31 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <div
             style={{
-              width: "48px",
-              height: "48px",
-              background: "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)",
-              borderRadius: "14px",
+              width: embedded ? "44px" : "48px",
+              height: embedded ? "44px" : "48px",
+              background: embedded ? "linear-gradient(135deg, #6366f1 0%, #d946ef 100%)" : "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)",
+              borderRadius: embedded ? "12px" : "14px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "24px",
-              boxShadow: "0 8px 24px rgba(168,85,247,0.5), inset 0 1px 0 rgba(255,255,255,0.2)",
+              fontSize: embedded ? "22px" : "24px",
+              boxShadow: embedded ? "none" : "0 8px 24px rgba(168,85,247,0.5), inset 0 1px 0 rgba(255,255,255,0.2)",
             }}
           >
             ⚡
           </div>
           <div>
-            <h1 style={{ margin: 0, fontSize: "24px", color: "#fff" }}>
+            <h1 style={{ margin: 0, fontSize: embedded ? "22px" : "24px", color: "#fff" }}>
               Creative Importer{" "}
               <span style={{
-                background: "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)",
+                background: embedded ? "linear-gradient(135deg, #6366f1 0%, #d946ef 100%)" : "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
               }}>Pro</span>
             </h1>
             <p style={{ margin: 0, fontSize: "11px", color: "#71717a" }}>
-              Connected to Meta Ads API
+              {embedded ? "Importez et lancez vos campagnes Meta Ads" : "Connected to Meta Ads API"}
             </p>
           </div>
         </div>
@@ -2017,14 +2040,19 @@ export default function App() {
                     borderRadius: "8px",
                     fontSize: "11px",
                     cursor: s.n < step ? "pointer" : "default",
+                    color: "#fff",
                     background:
                       step === s.n
-                        ? "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)"
+                        ? embedded ? "linear-gradient(135deg, #6366f1 0%, #d946ef 100%)" : "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)"
                         : step > s.n
-                        ? "rgba(168,85,247,0.2)"
+                        ? embedded ? "rgba(99,102,241,0.2)" : "rgba(168,85,247,0.2)"
                         : "rgba(255,255,255,0.05)",
-                    border: step === s.n ? "1px solid rgba(168,85,247,0.3)" : "1px solid transparent",
-                    boxShadow: step === s.n ? "0 4px 12px rgba(168,85,247,0.3)" : "none",
+                    border: step === s.n
+                      ? embedded ? "1px solid rgba(99,102,241,0.3)" : "1px solid rgba(168,85,247,0.3)"
+                      : "1px solid transparent",
+                    boxShadow: step === s.n
+                      ? embedded ? "0 4px 12px rgba(99,102,241,0.3)" : "0 4px 12px rgba(168,85,247,0.3)"
+                      : "none",
                   }}
                 >
                   {step > s.n ? "✓" : s.n} {s.l}
@@ -2032,46 +2060,48 @@ export default function App() {
               ))}
             </div>
           )}
-          {/* User Menu */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              padding: "8px 12px",
-              background: "rgba(255,255,255,0.05)",
-              borderRadius: "10px",
-            }}
-          >
-            {user?.picture?.data?.url && (
-              <img
-                src={user.picture.data.url}
-                alt=""
-                style={{ width: "32px", height: "32px", borderRadius: "50%" }}
-              />
-            )}
-            <div>
-              <div style={{ fontSize: "12px", fontWeight: "500" }}>
-                {user?.name}
-              </div>
-              <div style={{ fontSize: "10px", color: "#71717a" }}>Connecté</div>
-            </div>
-            <button
-              onClick={handleLogout}
+          {/* User Menu - only show in standalone mode */}
+          {!embedded && (
+            <div
               style={{
-                marginLeft: "8px",
-                padding: "6px 10px",
-                background: "rgba(239,68,68,0.2)",
-                border: "none",
-                borderRadius: "6px",
-                color: "#ef4444",
-                cursor: "pointer",
-                fontSize: "11px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "8px 12px",
+                background: "rgba(255,255,255,0.05)",
+                borderRadius: "10px",
               }}
             >
-              Déconnexion
-            </button>
-          </div>
+              {user?.picture?.data?.url && (
+                <img
+                  src={user.picture.data.url}
+                  alt=""
+                  style={{ width: "32px", height: "32px", borderRadius: "50%" }}
+                />
+              )}
+              <div>
+                <div style={{ fontSize: "12px", fontWeight: "500" }}>
+                  {user?.name}
+                </div>
+                <div style={{ fontSize: "10px", color: "#71717a" }}>Connecté</div>
+              </div>
+              <button
+                onClick={handleLogout}
+                style={{
+                  marginLeft: "8px",
+                  padding: "6px 10px",
+                  background: "rgba(239,68,68,0.2)",
+                  border: "none",
+                  borderRadius: "6px",
+                  color: "#ef4444",
+                  cursor: "pointer",
+                  fontSize: "11px",
+                }}
+              >
+                Déconnexion
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
