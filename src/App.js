@@ -89,6 +89,111 @@ export default function App() {
   const [isLoadingPixels, setIsLoadingPixels] = useState(false);
   const [pixelSelectorOpen, setPixelSelectorOpen] = useState(false);
 
+  // Projects state
+  const [projects, setProjects] = useState([]);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [projectSelectorOpen, setProjectSelectorOpen] = useState(false);
+  const [showProjectSettings, setShowProjectSettings] = useState(false);
+  const [editingProject, setEditingProject] = useState(null);
+
+  // Load projects from localStorage on mount
+  useEffect(() => {
+    const savedProjects = localStorage.getItem('meta_ads_projects');
+    const savedSelectedProject = localStorage.getItem('meta_ads_selected_project');
+    if (savedProjects) {
+      const parsed = JSON.parse(savedProjects);
+      setProjects(parsed);
+      if (savedSelectedProject) {
+        const project = parsed.find(p => p.id === savedSelectedProject);
+        if (project) setSelectedProject(project);
+      }
+    }
+  }, []);
+
+  // Save projects to localStorage when changed
+  useEffect(() => {
+    if (projects.length > 0) {
+      localStorage.setItem('meta_ads_projects', JSON.stringify(projects));
+    }
+  }, [projects]);
+
+  // Save selected project to localStorage
+  useEffect(() => {
+    if (selectedProject) {
+      localStorage.setItem('meta_ads_selected_project', selectedProject.id);
+    }
+  }, [selectedProject]);
+
+  // Apply project settings when project is selected and data is loaded
+  useEffect(() => {
+    if (!selectedProject || adAccounts.length === 0 || pages.length === 0) return;
+
+    // Apply ad account
+    if (selectedProject.adAccountId) {
+      const account = adAccounts.find(a => a.id === selectedProject.adAccountId);
+      if (account && (!selectedAdAccount || selectedAdAccount.id !== account.id)) {
+        setSelectedAdAccount(account);
+      }
+    }
+
+    // Apply page
+    if (selectedProject.pageId) {
+      const page = pages.find(p => p.id === selectedProject.pageId);
+      if (page && (!selectedPage || selectedPage.id !== page.id)) {
+        setSelectedPage(page);
+      }
+    }
+  }, [selectedProject, adAccounts, pages]);
+
+  // Apply pixel when pixels are loaded and project is selected
+  useEffect(() => {
+    if (!selectedProject || pixels.length === 0) return;
+
+    if (selectedProject.pixelId) {
+      const pixel = pixels.find(p => p.id === selectedProject.pixelId);
+      if (pixel && (!selectedPixel || selectedPixel.id !== pixel.id)) {
+        setSelectedPixel(pixel);
+      }
+    }
+  }, [selectedProject, pixels]);
+
+  // Project management functions
+  const createProject = (projectData) => {
+    const newProject = {
+      id: `project_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      ...projectData
+    };
+    setProjects(prev => [...prev, newProject]);
+    setSelectedProject(newProject);
+    setShowProjectSettings(false);
+    setEditingProject(null);
+  };
+
+  const updateProject = (projectId, projectData) => {
+    setProjects(prev => prev.map(p =>
+      p.id === projectId ? { ...p, ...projectData, updatedAt: new Date().toISOString() } : p
+    ));
+    if (selectedProject?.id === projectId) {
+      setSelectedProject(prev => ({ ...prev, ...projectData }));
+    }
+    setShowProjectSettings(false);
+    setEditingProject(null);
+  };
+
+  const deleteProject = (projectId) => {
+    setProjects(prev => prev.filter(p => p.id !== projectId));
+    if (selectedProject?.id === projectId) {
+      setSelectedProject(null);
+      localStorage.removeItem('meta_ads_selected_project');
+    }
+  };
+
+  const selectProject = (project) => {
+    setSelectedProject(project);
+    setProjectSelectorOpen(false);
+  };
+
   // Check for OAuth callback or saved token on mount
   useEffect(() => {
     const checkAuth = async () => {
@@ -367,6 +472,98 @@ export default function App() {
       display: "flex",
       alignItems: "center",
       gap: "6px",
+    },
+    // Project selector section
+    projectSection: {
+      padding: sidebarCollapsed ? "12px 16px" : "12px 20px",
+      borderBottom: "1px solid rgba(255,255,255,0.06)",
+    },
+    projectSelectorBtn: {
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      width: "100%",
+      padding: "10px 12px",
+      background: "linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.1))",
+      border: "1px solid rgba(99,102,241,0.3)",
+      borderRadius: "8px",
+      cursor: "pointer",
+      transition: "all 0.15s ease",
+      textAlign: "left",
+    },
+    projectIcon: {
+      width: "32px",
+      height: "32px",
+      background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+      borderRadius: "8px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: "13px",
+      fontWeight: "700",
+      color: "#fff",
+      flexShrink: 0,
+    },
+    projectInfo: {
+      display: sidebarCollapsed ? "none" : "block",
+      flex: 1,
+      minWidth: 0,
+    },
+    projectName: {
+      fontSize: "13px",
+      fontWeight: "600",
+      color: "#fafafa",
+      marginBottom: "2px",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    },
+    projectMeta: {
+      fontSize: "11px",
+      color: "#71717a",
+    },
+    projectDropdown: {
+      position: "absolute",
+      top: "100%",
+      left: 0,
+      right: 0,
+      marginTop: "4px",
+      background: "#18181b",
+      border: "1px solid rgba(255,255,255,0.1)",
+      borderRadius: "8px",
+      boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+      zIndex: 200,
+      maxHeight: "300px",
+      overflow: "auto",
+    },
+    projectListItem: (isSelected) => ({
+      padding: "10px 12px",
+      cursor: "pointer",
+      background: isSelected ? "rgba(99,102,241,0.15)" : "transparent",
+      borderBottom: "1px solid rgba(255,255,255,0.05)",
+      transition: "background 0.1s ease",
+    }),
+    projectListItemName: {
+      fontSize: "13px",
+      fontWeight: "500",
+      color: "#fafafa",
+      marginBottom: "2px",
+    },
+    projectListItemMeta: {
+      fontSize: "11px",
+      color: "#71717a",
+    },
+    projectAddBtn: {
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      padding: "10px 12px",
+      cursor: "pointer",
+      background: "transparent",
+      color: "#818cf8",
+      fontSize: "13px",
+      fontWeight: "500",
+      borderTop: "1px solid rgba(255,255,255,0.05)",
     },
     // Account selector section
     accountSection: {
@@ -1180,6 +1377,100 @@ export default function App() {
           </div>
         )}
 
+        {/* Project Selector */}
+        {user && (
+          <div style={styles.projectSection}>
+            <div style={{ position: "relative" }}>
+              <button
+                style={styles.projectSelectorBtn}
+                onClick={() => {
+                  setProjectSelectorOpen(!projectSelectorOpen);
+                  setAccountSelectorOpen(false);
+                  setPageSelectorOpen(false);
+                  setPixelSelectorOpen(false);
+                }}
+              >
+                <div style={styles.projectIcon}>
+                  {selectedProject ? selectedProject.name.substring(0, 2).toUpperCase() : "+"}
+                </div>
+                <div style={styles.projectInfo}>
+                  <div style={styles.projectName}>
+                    {selectedProject ? selectedProject.name : "Nouveau projet"}
+                  </div>
+                  <div style={styles.projectMeta}>
+                    {selectedProject
+                      ? `${projects.length} projet${projects.length > 1 ? 's' : ''}`
+                      : "Cliquez pour créer"}
+                  </div>
+                </div>
+                <div style={{ color: "#71717a", fontSize: "10px" }}>
+                  {projectSelectorOpen ? "▲" : "▼"}
+                </div>
+              </button>
+
+              {projectSelectorOpen && (
+                <div style={styles.projectDropdown}>
+                  {projects.map((project) => (
+                    <div
+                      key={project.id}
+                      style={styles.projectListItem(selectedProject?.id === project.id)}
+                      onClick={() => selectProject(project)}
+                      onMouseOver={(e) => {
+                        if (selectedProject?.id !== project.id) {
+                          e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (selectedProject?.id !== project.id) {
+                          e.currentTarget.style.background = "transparent";
+                        }
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div>
+                          <div style={styles.projectListItemName}>{project.name}</div>
+                          <div style={styles.projectListItemMeta}>
+                            {project.adAccountName || "Compte non défini"}
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingProject(project);
+                            setShowProjectSettings(true);
+                            setProjectSelectorOpen(false);
+                          }}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#71717a",
+                            cursor: "pointer",
+                            padding: "4px 8px",
+                            fontSize: "12px",
+                          }}
+                        >
+                          ✏️
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <div
+                    style={styles.projectAddBtn}
+                    onClick={() => {
+                      setEditingProject(null);
+                      setShowProjectSettings(true);
+                      setProjectSelectorOpen(false);
+                    }}
+                  >
+                    <span>+</span>
+                    <span>Créer un projet</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Account, Page, Pixel Selectors */}
         {user && (
           <div style={styles.accountSection}>
@@ -1526,6 +1817,302 @@ export default function App() {
 
       {/* Main content */}
       <main style={styles.main}>{renderModule()}</main>
+
+      {/* Project Settings Modal */}
+      {showProjectSettings && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.7)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: "#18181b",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "12px",
+            padding: "24px",
+            width: "100%",
+            maxWidth: "500px",
+            maxHeight: "90vh",
+            overflow: "auto",
+          }}>
+            <h2 style={{
+              margin: "0 0 20px",
+              fontSize: "18px",
+              fontWeight: "600",
+              color: "#fafafa",
+            }}>
+              {editingProject ? "Modifier le projet" : "Nouveau projet"}
+            </h2>
+
+            <ProjectSettingsForm
+              project={editingProject}
+              adAccounts={adAccounts}
+              pages={pages}
+              pixels={pixels}
+              selectedAdAccount={selectedAdAccount}
+              onSave={(data) => {
+                if (editingProject) {
+                  updateProject(editingProject.id, data);
+                } else {
+                  createProject(data);
+                }
+              }}
+              onDelete={editingProject ? () => {
+                if (window.confirm("Supprimer ce projet ?")) {
+                  deleteProject(editingProject.id);
+                  setShowProjectSettings(false);
+                  setEditingProject(null);
+                }
+              } : null}
+              onCancel={() => {
+                setShowProjectSettings(false);
+                setEditingProject(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+// Project Settings Form Component
+function ProjectSettingsForm({ project, adAccounts, pages, pixels, selectedAdAccount, onSave, onDelete, onCancel }) {
+  const [name, setName] = useState(project?.name || "");
+  const [adAccountId, setAdAccountId] = useState(project?.adAccountId || selectedAdAccount?.id || "");
+  const [pageId, setPageId] = useState(project?.pageId || "");
+  const [instagramAccountId, setInstagramAccountId] = useState(project?.instagramAccountId || "");
+  const [usePageForInstagram, setUsePageForInstagram] = useState(project?.usePageForInstagram ?? true);
+  const [pixelId, setPixelId] = useState(project?.pixelId || "");
+
+  const selectedPage = pages.find(p => p.id === pageId);
+  const instagramAccount = selectedPage?.instagram_business_account;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      alert("Le nom du projet est requis");
+      return;
+    }
+
+    const selectedAcc = adAccounts.find(a => a.id === adAccountId);
+    const selectedPg = pages.find(p => p.id === pageId);
+    const selectedPx = pixels.find(p => p.id === pixelId);
+
+    onSave({
+      name: name.trim(),
+      adAccountId,
+      adAccountName: selectedAcc?.name || "",
+      pageId,
+      pageName: selectedPg?.name || "",
+      instagramAccountId: usePageForInstagram ? null : instagramAccount?.id,
+      instagramAccountName: usePageForInstagram ? null : instagramAccount?.username,
+      usePageForInstagram,
+      pixelId,
+      pixelName: selectedPx?.name || "",
+    });
+  };
+
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    background: "#27272a",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "6px",
+    color: "#fafafa",
+    fontSize: "14px",
+    outline: "none",
+  };
+
+  const labelStyle = {
+    display: "block",
+    marginBottom: "6px",
+    fontSize: "13px",
+    fontWeight: "500",
+    color: "#a1a1aa",
+  };
+
+  const fieldStyle = {
+    marginBottom: "16px",
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div style={fieldStyle}>
+        <label style={labelStyle}>Nom du projet *</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Ex: Neoweed, Client ABC..."
+          style={inputStyle}
+          autoFocus
+        />
+      </div>
+
+      <div style={fieldStyle}>
+        <label style={labelStyle}>Compte Publicitaire</label>
+        <select
+          value={adAccountId}
+          onChange={(e) => setAdAccountId(e.target.value)}
+          style={{ ...inputStyle, cursor: "pointer" }}
+        >
+          <option value="">-- Sélectionner --</option>
+          {adAccounts.map((acc) => (
+            <option key={acc.id} value={acc.id}>
+              {acc.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={fieldStyle}>
+        <label style={labelStyle}>Page Facebook</label>
+        <select
+          value={pageId}
+          onChange={(e) => setPageId(e.target.value)}
+          style={{ ...inputStyle, cursor: "pointer" }}
+        >
+          <option value="">-- Sélectionner --</option>
+          {pages.map((page) => (
+            <option key={page.id} value={page.id}>
+              {page.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={fieldStyle}>
+        <label style={labelStyle}>Compte Instagram</label>
+        {selectedPage && instagramAccount ? (
+          <div>
+            <label style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              cursor: "pointer",
+              marginBottom: "8px",
+            }}>
+              <input
+                type="radio"
+                checked={!usePageForInstagram}
+                onChange={() => setUsePageForInstagram(false)}
+              />
+              <span style={{ color: "#fafafa", fontSize: "14px" }}>
+                @{instagramAccount.username}
+              </span>
+            </label>
+            <label style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              cursor: "pointer",
+            }}>
+              <input
+                type="radio"
+                checked={usePageForInstagram}
+                onChange={() => setUsePageForInstagram(true)}
+              />
+              <span style={{ color: "#a1a1aa", fontSize: "14px" }}>
+                Utiliser la Page Facebook
+              </span>
+            </label>
+          </div>
+        ) : (
+          <div style={{
+            padding: "10px 12px",
+            background: "#27272a",
+            borderRadius: "6px",
+            color: "#71717a",
+            fontSize: "13px",
+          }}>
+            {pageId ? "Aucun compte Instagram lié à cette page" : "Sélectionnez une page d'abord"}
+          </div>
+        )}
+      </div>
+
+      <div style={fieldStyle}>
+        <label style={labelStyle}>Pixel</label>
+        <select
+          value={pixelId}
+          onChange={(e) => setPixelId(e.target.value)}
+          style={{ ...inputStyle, cursor: "pointer" }}
+        >
+          <option value="">-- Sélectionner --</option>
+          {pixels.map((pixel) => (
+            <option key={pixel.id} value={pixel.id}>
+              {pixel.name}
+            </option>
+          ))}
+        </select>
+        {pixels.length === 0 && adAccountId && (
+          <p style={{ margin: "6px 0 0", fontSize: "12px", color: "#71717a" }}>
+            Sélectionnez un compte pub pour voir les pixels
+          </p>
+        )}
+      </div>
+
+      <div style={{
+        display: "flex",
+        gap: "12px",
+        marginTop: "24px",
+      }}>
+        <button
+          type="button"
+          onClick={onCancel}
+          style={{
+            flex: 1,
+            padding: "10px 16px",
+            background: "transparent",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "6px",
+            color: "#a1a1aa",
+            fontSize: "14px",
+            fontWeight: "500",
+            cursor: "pointer",
+          }}
+        >
+          Annuler
+        </button>
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            style={{
+              padding: "10px 16px",
+              background: "rgba(239,68,68,0.1)",
+              border: "1px solid rgba(239,68,68,0.3)",
+              borderRadius: "6px",
+              color: "#ef4444",
+              fontSize: "14px",
+              fontWeight: "500",
+              cursor: "pointer",
+            }}
+          >
+            Supprimer
+          </button>
+        )}
+        <button
+          type="submit"
+          style={{
+            flex: 1,
+            padding: "10px 16px",
+            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            border: "none",
+            borderRadius: "6px",
+            color: "#fff",
+            fontSize: "14px",
+            fontWeight: "500",
+            cursor: "pointer",
+          }}
+        >
+          {project ? "Enregistrer" : "Créer le projet"}
+        </button>
+      </div>
+    </form>
   );
 }
