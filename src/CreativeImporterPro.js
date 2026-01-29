@@ -1649,10 +1649,9 @@ export default function CreativeImporterPro(props = {}) {
 
         if (groupHashes.length === 0) continue;
 
-        // If only ONE file in group OR no Instagram account, treat as unmapped (separate ads)
-        // Meta requires Instagram account for asset_customization_rules
-        if (groupHashes.length === 1 || !hasInstagramAccount) {
-          console.log(`📦 Group #${groupIndex + 1}: Creating separate ads (${!hasInstagramAccount ? 'no Instagram account' : 'single file'})`);
+        // If only ONE file in group, treat as unmapped (separate ads)
+        if (groupHashes.length === 1) {
+          console.log(`📦 Group #${groupIndex + 1}: Single file, creating regular ad`);
           groupHashes.forEach(h => unmappedHashes.push(h));
           continue;
         }
@@ -1731,13 +1730,10 @@ export default function CreativeImporterPro(props = {}) {
 
         const objectStorySpecForFeed = {
           page_id: selectedPage.id,
+          // Use Instagram account if linked, otherwise use Facebook Page ID
+          // This is equivalent to "Use Facebook Page" option in Meta Ads Manager
+          instagram_actor_id: hasInstagramAccount ? instagramAccount.id : selectedPage.id,
         };
-
-        // Add instagram_actor_id if Instagram account is linked
-        // If not linked, Meta will use the Facebook Page for Instagram placements
-        if (hasInstagramAccount) {
-          objectStorySpecForFeed.instagram_actor_id = instagramAccount.id;
-        }
 
         console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpecForFeed, null, 2));
 
