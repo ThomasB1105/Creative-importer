@@ -1612,17 +1612,19 @@ export default function CreativeImporterPro(props = {}) {
       }
 
       // Helper to get placement positions based on format
+      // Only include Instagram placements if Instagram account is linked
+      const hasInstagram = !!instagramAccount?.id;
       const getPlacementForFormat = (format) => {
         if (format === 'story') {
           return {
             facebook_positions: ["story"],
-            instagram_positions: ["story", "reels"]
+            ...(hasInstagram && { instagram_positions: ["story", "reels"] })
           };
         } else {
           // feed_square, feed_portrait, feed_landscape
           return {
             facebook_positions: ["feed"],
-            instagram_positions: ["stream"]
+            ...(hasInstagram && { instagram_positions: ["stream"] })
           };
         }
       };
@@ -1659,6 +1661,8 @@ export default function CreativeImporterPro(props = {}) {
           const labelName = `asset_${idx}_${file.format}`;
           const placements = getPlacementForFormat(file.format);
 
+          const publisherPlatforms = hasInstagram ? ["facebook", "instagram"] : ["facebook"];
+
           if (hashData.type === "video") {
             videos.push({
               video_id: hashData.hash,
@@ -1667,7 +1671,7 @@ export default function CreativeImporterPro(props = {}) {
             });
             assetCustomizationRules.push({
               customization_spec: {
-                publisher_platforms: ["facebook", "instagram"],
+                publisher_platforms: publisherPlatforms,
                 ...placements
               },
               video_label: { name: labelName }
@@ -1679,7 +1683,7 @@ export default function CreativeImporterPro(props = {}) {
             });
             assetCustomizationRules.push({
               customization_spec: {
-                publisher_platforms: ["facebook", "instagram"],
+                publisher_platforms: publisherPlatforms,
                 ...placements
               },
               image_label: { name: labelName }
