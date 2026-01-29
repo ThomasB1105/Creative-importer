@@ -60,6 +60,26 @@ export default function App() {
   const [authError, setAuthError] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  // Ad Account state
+  const [adAccounts, setAdAccounts] = useState([]);
+  const [selectedAdAccount, setSelectedAdAccount] = useState(null);
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
+  const [accountSelectorOpen, setAccountSelectorOpen] = useState(false);
+  const [accountSearch, setAccountSearch] = useState("");
+
+  // Page state
+  const [pages, setPages] = useState([]);
+  const [selectedPage, setSelectedPage] = useState(null);
+  const [isLoadingPages, setIsLoadingPages] = useState(false);
+  const [pageSelectorOpen, setPageSelectorOpen] = useState(false);
+  const [pageSearch, setPageSearch] = useState("");
+
+  // Pixel state
+  const [pixels, setPixels] = useState([]);
+  const [selectedPixel, setSelectedPixel] = useState(null);
+  const [isLoadingPixels, setIsLoadingPixels] = useState(false);
+  const [pixelSelectorOpen, setPixelSelectorOpen] = useState(false);
+
   // Check for OAuth callback or saved token on mount
   useEffect(() => {
     const checkAuth = async () => {
@@ -113,6 +133,80 @@ export default function App() {
     checkAuth();
   }, []);
 
+  // Load ad accounts and pages when authenticated
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const loadData = async () => {
+      try {
+        setIsLoadingAccounts(true);
+        setIsLoadingPages(true);
+        const api = createMetaApi(accessToken);
+
+        // Load accounts and pages in parallel
+        const [accounts, pagesData] = await Promise.all([
+          api.fetchAdAccounts(),
+          api.fetchPages()
+        ]);
+
+        // Filter only active accounts
+        const activeAccounts = accounts.filter((a) => a.account_status === 1);
+        setAdAccounts(activeAccounts);
+        setPages(pagesData || []);
+      } catch (error) {
+        console.error("Error loading data:", error);
+      } finally {
+        setIsLoadingAccounts(false);
+        setIsLoadingPages(false);
+      }
+    };
+
+    loadData();
+  }, [accessToken]);
+
+  // Load pixels when account is selected
+  useEffect(() => {
+    if (!accessToken || !selectedAdAccount) {
+      setPixels([]);
+      setSelectedPixel(null);
+      return;
+    }
+
+    const loadPixels = async () => {
+      try {
+        setIsLoadingPixels(true);
+        const api = createMetaApi(accessToken);
+        const pixelsData = await api.fetchPixels(selectedAdAccount.id);
+        setPixels(pixelsData || []);
+        // Auto-select first pixel if available
+        if (pixelsData && pixelsData.length > 0) {
+          setSelectedPixel(pixelsData[0]);
+        }
+      } catch (error) {
+        console.error("Error loading pixels:", error);
+        setPixels([]);
+      } finally {
+        setIsLoadingPixels(false);
+      }
+    };
+
+    loadPixels();
+  }, [accessToken, selectedAdAccount]);
+
+  // Filter accounts based on search
+  const filteredAccounts = adAccounts.filter(
+    (acc) =>
+      acc.name?.toLowerCase().includes(accountSearch.toLowerCase()) ||
+      acc.id?.includes(accountSearch)
+  );
+
+  // Filter pages based on search
+  const filteredPages = pages.filter(
+    (page) =>
+      page.name?.toLowerCase().includes(pageSearch.toLowerCase()) ||
+      page.id?.includes(pageSearch)
+  );
+
   const handleLogin = () => {
     window.location.href = authHelpers.getOAuthUrl();
   };
@@ -122,6 +216,31 @@ export default function App() {
     setAccessToken(null);
     setUser(null);
     setActiveModule(null);
+    setAdAccounts([]);
+    setSelectedAdAccount(null);
+    setPages([]);
+    setSelectedPage(null);
+    setPixels([]);
+    setSelectedPixel(null);
+  };
+
+  const handleAccountSelect = (account) => {
+    setSelectedAdAccount(account);
+    setAccountSelectorOpen(false);
+    setAccountSearch("");
+    // Reset pixel when account changes
+    setSelectedPixel(null);
+  };
+
+  const handlePageSelect = (page) => {
+    setSelectedPage(page);
+    setPageSelectorOpen(false);
+    setPageSearch("");
+  };
+
+  const handlePixelSelect = (pixel) => {
+    setSelectedPixel(pixel);
+    setPixelSelectorOpen(false);
   };
 
   const handleModuleSelect = (moduleId) => {
@@ -236,6 +355,120 @@ export default function App() {
       display: "flex",
       alignItems: "center",
       gap: "4px",
+    },
+    // Account selector section
+    accountSection: {
+      padding: sidebarCollapsed ? "12px" : "12px 20px",
+      borderBottom: "1px solid rgba(71,85,105,0.2)",
+    },
+    accountSelectorLabel: {
+      fontSize: "10px",
+      fontWeight: "600",
+      color: "#71717a",
+      textTransform: "uppercase",
+      letterSpacing: "0.5px",
+      marginBottom: "8px",
+      display: sidebarCollapsed ? "none" : "block",
+    },
+    accountSelector: {
+      position: "relative",
+    },
+    accountSelectorBtn: {
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      width: "100%",
+      padding: sidebarCollapsed ? "10px" : "10px 12px",
+      background: "rgba(255,255,255,0.05)",
+      border: "1px solid rgba(71,85,105,0.3)",
+      borderRadius: "10px",
+      cursor: "pointer",
+      transition: "all 0.2s ease",
+      textAlign: "left",
+    },
+    accountIcon: {
+      width: "32px",
+      height: "32px",
+      background: "linear-gradient(135deg,#3b82f6,#1d4ed8)",
+      borderRadius: "8px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: "14px",
+      flexShrink: 0,
+    },
+    accountInfo: {
+      display: sidebarCollapsed ? "none" : "block",
+      flex: 1,
+      minWidth: 0,
+    },
+    accountName: {
+      fontSize: "12px",
+      fontWeight: "600",
+      color: "#fff",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    },
+    accountId: {
+      fontSize: "10px",
+      color: "#71717a",
+    },
+    accountDropdownIcon: {
+      color: "#71717a",
+      fontSize: "12px",
+      display: sidebarCollapsed ? "none" : "block",
+    },
+    accountDropdown: {
+      position: "absolute",
+      top: "calc(100% + 8px)",
+      left: 0,
+      right: sidebarCollapsed ? "auto" : 0,
+      width: sidebarCollapsed ? "280px" : "100%",
+      background: "rgba(15,15,20,0.98)",
+      border: "1px solid rgba(71,85,105,0.4)",
+      borderRadius: "12px",
+      boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+      zIndex: 1000,
+      maxHeight: "320px",
+      overflow: "hidden",
+    },
+    accountSearchWrapper: {
+      padding: "12px",
+      borderBottom: "1px solid rgba(71,85,105,0.2)",
+    },
+    accountSearchInput: {
+      width: "100%",
+      padding: "10px 12px",
+      background: "rgba(255,255,255,0.05)",
+      border: "1px solid rgba(71,85,105,0.3)",
+      borderRadius: "8px",
+      color: "#fff",
+      fontSize: "13px",
+      outline: "none",
+    },
+    accountList: {
+      maxHeight: "240px",
+      overflowY: "auto",
+    },
+    accountListItem: (isSelected) => ({
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      padding: "12px 14px",
+      cursor: "pointer",
+      background: isSelected ? "rgba(99,102,241,0.15)" : "transparent",
+      borderLeft: isSelected ? "3px solid #6366f1" : "3px solid transparent",
+      transition: "all 0.15s ease",
+    }),
+    accountListItemName: {
+      fontSize: "13px",
+      fontWeight: "500",
+      color: "#fff",
+    },
+    accountListItemId: {
+      fontSize: "10px",
+      color: "#71717a",
     },
     // Navigation
     nav: {
@@ -592,6 +825,9 @@ export default function App() {
           onLogout={handleLogout}
           onBack={() => setActiveModule(null)}
           embedded={true}
+          sharedAdAccount={selectedAdAccount}
+          sharedPage={selectedPage}
+          sharedPixel={selectedPixel}
         />
       );
     }
@@ -604,6 +840,7 @@ export default function App() {
           onLogout={handleLogout}
           onBack={() => setActiveModule(null)}
           embedded={true}
+          sharedAdAccount={selectedAdAccount}
         />
       );
     }
@@ -696,6 +933,223 @@ export default function App() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Account, Page, Pixel Selectors */}
+        {user && (
+          <div style={styles.accountSection}>
+            {/* Account Selector */}
+            <div style={styles.accountSelectorLabel}>Compte Publicitaire</div>
+            <div style={styles.accountSelector}>
+              <button
+                style={{
+                  ...styles.accountSelectorBtn,
+                  borderColor: accountSelectorOpen ? "rgba(99,102,241,0.5)" : "rgba(71,85,105,0.3)",
+                }}
+                onClick={() => {
+                  setAccountSelectorOpen(!accountSelectorOpen);
+                  setPageSelectorOpen(false);
+                  setPixelSelectorOpen(false);
+                }}
+              >
+                <div style={styles.accountIcon}>
+                  {isLoadingAccounts ? "⏳" : "📊"}
+                </div>
+                <div style={styles.accountInfo}>
+                  <div style={styles.accountName}>
+                    {isLoadingAccounts
+                      ? "Chargement..."
+                      : selectedAdAccount
+                      ? selectedAdAccount.name
+                      : "Sélectionner un compte"}
+                  </div>
+                  <div style={styles.accountId}>
+                    {selectedAdAccount ? `act_${selectedAdAccount.account_id}` : `${adAccounts.length} comptes disponibles`}
+                  </div>
+                </div>
+                <div style={styles.accountDropdownIcon}>{accountSelectorOpen ? "▲" : "▼"}</div>
+              </button>
+
+              {accountSelectorOpen && (
+                <div style={styles.accountDropdown}>
+                  <div style={styles.accountSearchWrapper}>
+                    <input
+                      type="text"
+                      placeholder="Rechercher un compte..."
+                      value={accountSearch}
+                      onChange={(e) => setAccountSearch(e.target.value)}
+                      style={styles.accountSearchInput}
+                      autoFocus
+                    />
+                  </div>
+                  <div style={styles.accountList}>
+                    {filteredAccounts.map((acc) => (
+                      <div
+                        key={acc.id}
+                        style={styles.accountListItem(selectedAdAccount?.id === acc.id)}
+                        onClick={() => handleAccountSelect(acc)}
+                        onMouseOver={(e) => {
+                          if (selectedAdAccount?.id !== acc.id) {
+                            e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          if (selectedAdAccount?.id !== acc.id) {
+                            e.currentTarget.style.background = "transparent";
+                          }
+                        }}
+                      >
+                        <div>
+                          <div style={styles.accountListItemName}>{acc.name}</div>
+                          <div style={styles.accountListItemId}>act_{acc.account_id}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Page Selector */}
+            <div style={{ ...styles.accountSelectorLabel, marginTop: "16px" }}>Page Facebook</div>
+            <div style={styles.accountSelector}>
+              <button
+                style={{
+                  ...styles.accountSelectorBtn,
+                  borderColor: pageSelectorOpen ? "rgba(99,102,241,0.5)" : "rgba(71,85,105,0.3)",
+                }}
+                onClick={() => {
+                  setPageSelectorOpen(!pageSelectorOpen);
+                  setAccountSelectorOpen(false);
+                  setPixelSelectorOpen(false);
+                }}
+              >
+                <div style={{ ...styles.accountIcon, background: "linear-gradient(135deg,#1877f2,#0c63d4)" }}>
+                  {isLoadingPages ? "⏳" : "📘"}
+                </div>
+                <div style={styles.accountInfo}>
+                  <div style={styles.accountName}>
+                    {isLoadingPages
+                      ? "Chargement..."
+                      : selectedPage
+                      ? selectedPage.name
+                      : "Sélectionner une page"}
+                  </div>
+                  <div style={styles.accountId}>
+                    {selectedPage ? selectedPage.id : `${pages.length} pages disponibles`}
+                  </div>
+                </div>
+                <div style={styles.accountDropdownIcon}>{pageSelectorOpen ? "▲" : "▼"}</div>
+              </button>
+
+              {pageSelectorOpen && (
+                <div style={styles.accountDropdown}>
+                  <div style={styles.accountSearchWrapper}>
+                    <input
+                      type="text"
+                      placeholder="Rechercher une page..."
+                      value={pageSearch}
+                      onChange={(e) => setPageSearch(e.target.value)}
+                      style={styles.accountSearchInput}
+                      autoFocus
+                    />
+                  </div>
+                  <div style={styles.accountList}>
+                    {filteredPages.map((page) => (
+                      <div
+                        key={page.id}
+                        style={styles.accountListItem(selectedPage?.id === page.id)}
+                        onClick={() => handlePageSelect(page)}
+                        onMouseOver={(e) => {
+                          if (selectedPage?.id !== page.id) {
+                            e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          if (selectedPage?.id !== page.id) {
+                            e.currentTarget.style.background = "transparent";
+                          }
+                        }}
+                      >
+                        <div>
+                          <div style={styles.accountListItemName}>{page.name}</div>
+                          <div style={styles.accountListItemId}>{page.id}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Pixel Selector - only show when account is selected */}
+            {selectedAdAccount && (
+              <>
+                <div style={{ ...styles.accountSelectorLabel, marginTop: "16px" }}>Pixel</div>
+                <div style={styles.accountSelector}>
+                  <button
+                    style={{
+                      ...styles.accountSelectorBtn,
+                      borderColor: pixelSelectorOpen ? "rgba(99,102,241,0.5)" : "rgba(71,85,105,0.3)",
+                    }}
+                    onClick={() => {
+                      setPixelSelectorOpen(!pixelSelectorOpen);
+                      setAccountSelectorOpen(false);
+                      setPageSelectorOpen(false);
+                    }}
+                  >
+                    <div style={{ ...styles.accountIcon, background: "linear-gradient(135deg,#22c55e,#16a34a)" }}>
+                      {isLoadingPixels ? "⏳" : "🎯"}
+                    </div>
+                    <div style={styles.accountInfo}>
+                      <div style={styles.accountName}>
+                        {isLoadingPixels
+                          ? "Chargement..."
+                          : selectedPixel
+                          ? selectedPixel.name
+                          : pixels.length === 0
+                          ? "Aucun pixel"
+                          : "Sélectionner un pixel"}
+                      </div>
+                      <div style={styles.accountId}>
+                        {selectedPixel ? selectedPixel.id : `${pixels.length} pixels disponibles`}
+                      </div>
+                    </div>
+                    <div style={styles.accountDropdownIcon}>{pixelSelectorOpen ? "▲" : "▼"}</div>
+                  </button>
+
+                  {pixelSelectorOpen && pixels.length > 0 && (
+                    <div style={styles.accountDropdown}>
+                      <div style={styles.accountList}>
+                        {pixels.map((pixel) => (
+                          <div
+                            key={pixel.id}
+                            style={styles.accountListItem(selectedPixel?.id === pixel.id)}
+                            onClick={() => handlePixelSelect(pixel)}
+                            onMouseOver={(e) => {
+                              if (selectedPixel?.id !== pixel.id) {
+                                e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                              }
+                            }}
+                            onMouseOut={(e) => {
+                              if (selectedPixel?.id !== pixel.id) {
+                                e.currentTarget.style.background = "transparent";
+                              }
+                            }}
+                          >
+                            <div>
+                              <div style={styles.accountListItemName}>{pixel.name}</div>
+                              <div style={styles.accountListItemId}>{pixel.id}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
 

@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { META_APP, createMetaApi } from "./config";
 
-export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, embedded = false }) {
-  // Account selection
+export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, embedded = false, sharedAdAccount = null }) {
+  // Account selection - use shared if provided
   const [adAccounts, setAdAccounts] = useState([]);
-  const [selectedAccount, setSelectedAccount] = useState(null);
-  const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
+  const [selectedAccount, setSelectedAccount] = useState(sharedAdAccount);
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(!sharedAdAccount);
   const [accountSearch, setAccountSearch] = useState("");
 
   // Data states
@@ -52,8 +52,20 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
   // SOP ABO - Paliers de scaling
   const SCALING_TIERS = [30, 50, 70, 90, 120, 150, 210, 270, 330, 390, 450, 550, 650, 750];
 
-  // Load ad accounts on mount
+  // Sync shared account from parent (when user changes in sidebar)
   useEffect(() => {
+    if (embedded && sharedAdAccount) {
+      setSelectedAccount(sharedAdAccount);
+    }
+  }, [embedded, sharedAdAccount]);
+
+  // Load ad accounts on mount - skip if we have shared account in embedded mode
+  useEffect(() => {
+    if (embedded && sharedAdAccount) {
+      setIsLoadingAccounts(false);
+      return;
+    }
+
     const loadAccounts = async () => {
       try {
         setIsLoadingAccounts(true);
@@ -68,7 +80,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
     };
 
     loadAccounts();
-  }, [accessToken]);
+  }, [accessToken, embedded, sharedAdAccount]);
 
   // Load campaigns, adsets, and ads when account is selected
   const loadData = useCallback(async () => {

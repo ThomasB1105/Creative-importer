@@ -344,7 +344,13 @@ export default function CreativeImporterPro(props = {}) {
     onLogout: propOnLogout,
     onBack: propOnBack,
     embedded = false,
+    sharedAdAccount = null,
+    sharedPage = null,
+    sharedPixel = null,
   } = props;
+
+  // Determine if we have all required shared selections
+  const hasSharedSelections = embedded && sharedAdAccount && sharedPage;
 
   // Auth state - use props if provided
   const [accessToken, setAccessToken] = useState(propAccessToken || null);
@@ -352,23 +358,23 @@ export default function CreativeImporterPro(props = {}) {
   const [isAuthenticating, setIsAuthenticating] = useState(!propAccessToken);
   const [authError, setAuthError] = useState(null);
 
-  // Data state
+  // Data state - use shared props if provided
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [adAccounts, setAdAccounts] = useState([]);
-  const [selectedAdAccount, setSelectedAdAccount] = useState(null);
+  const [selectedAdAccount, setSelectedAdAccount] = useState(sharedAdAccount);
   const [pages, setPages] = useState([]);
-  const [selectedPage, setSelectedPage] = useState(null);
+  const [selectedPage, setSelectedPage] = useState(sharedPage);
   const [pixels, setPixels] = useState([]);
-  const [selectedPixel, setSelectedPixel] = useState(null);
+  const [selectedPixel, setSelectedPixel] = useState(sharedPixel);
   const [isLoadingPixels, setIsLoadingPixels] = useState(false);
   const [adAccountSearch, setAdAccountSearch] = useState("");
   const [pageSearch, setPageSearch] = useState("");
   const [campaignSearch, setCampaignSearch] = useState("");
   const [adsetSearch, setAdsetSearch] = useState("");
 
-  // Campaign structure
-  const [step, setStep] = useState(0);
+  // Campaign structure - start at step 1 if we have shared selections
+  const [step, setStep] = useState(hasSharedSelections ? 1 : 0);
   const [budgetType, setBudgetType] = useState("cbo");
   const [cboMode, setCboMode] = useState("new");
   const [aboMode, setAboMode] = useState("1:1:1");
@@ -407,6 +413,25 @@ export default function CreativeImporterPro(props = {}) {
   const [creationError, setCreationError] = useState(null);
   const [creationResult, setCreationResult] = useState(null);
   const [uploadProgress, setUploadProgress] = useState({}); // Progress per creative {fileId: {progress: 0-100, status: 'uploading'|'creating'|'done'}}
+
+  // Sync shared selections from parent (when user changes in sidebar)
+  useEffect(() => {
+    if (embedded) {
+      if (sharedAdAccount) {
+        setSelectedAdAccount(sharedAdAccount);
+      }
+      if (sharedPage) {
+        setSelectedPage(sharedPage);
+      }
+      if (sharedPixel) {
+        setSelectedPixel(sharedPixel);
+      }
+      // If we have all selections and we're at step 0, move to step 1
+      if (sharedAdAccount && sharedPage && step === 0) {
+        setStep(1);
+      }
+    }
+  }, [embedded, sharedAdAccount, sharedPage, sharedPixel]);
 
   // Check for OAuth callback or saved token on mount
   useEffect(() => {
