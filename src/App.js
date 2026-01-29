@@ -3,51 +3,51 @@ import { authHelpers, createMetaApi } from "./config";
 import CreativeImporterPro from "./CreativeImporterPro";
 import MediaBuyerPro from "./MediaBuyerPro";
 
-// Navigation items configuration
+// Navigation items configuration - Premium design without emojis
 const navItems = [
   {
     id: "creative-importer",
-    name: "Creative Importer Pro",
-    icon: "⚡",
+    name: "Creative Importer",
+    abbrev: "CI",
     description: "Import & launch ads",
-    gradient: "linear-gradient(135deg,#6366f1,#d946ef)",
-    borderColor: "#6366f1",
+    color: "#818cf8",
+    bgColor: "rgba(129,140,248,0.12)",
     status: "active",
   },
   {
     id: "media-buyer",
-    name: "Media Buyer Pro",
-    icon: "📊",
+    name: "Media Buyer",
+    abbrev: "MB",
     description: "Optimize campaigns",
-    gradient: "linear-gradient(135deg,#f59e0b,#ef4444)",
-    borderColor: "#f59e0b",
+    color: "#fb923c",
+    bgColor: "rgba(251,146,60,0.12)",
     status: "active",
   },
   {
     id: "creative-strategist",
-    name: "Creative Strategist Pro",
-    icon: "🎯",
+    name: "Creative Strategist",
+    abbrev: "CS",
     description: "AI creative insights",
-    gradient: "linear-gradient(135deg,#22d3ee,#6366f1)",
-    borderColor: "#22d3ee",
+    color: "#22d3ee",
+    bgColor: "rgba(34,211,238,0.12)",
     status: "coming-soon",
   },
   {
     id: "ad-creator",
-    name: "Ad Creator Pro",
-    icon: "🎨",
-    description: "Generate ad creatives",
-    gradient: "linear-gradient(135deg,#ec4899,#f43f5e)",
-    borderColor: "#ec4899",
+    name: "Ad Creator",
+    abbrev: "AC",
+    description: "Generate creatives",
+    color: "#f472b6",
+    bgColor: "rgba(244,114,182,0.12)",
     status: "coming-soon",
   },
   {
     id: "data-analyst",
-    name: "Data Analyst Pro",
-    icon: "📈",
+    name: "Data Analyst",
+    abbrev: "DA",
     description: "Advanced analytics",
-    gradient: "linear-gradient(135deg,#22c55e,#14b8a6)",
-    borderColor: "#22c55e",
+    color: "#4ade80",
+    bgColor: "rgba(74,222,128,0.12)",
     status: "coming-soon",
   },
 ];
@@ -250,25 +250,25 @@ export default function App() {
     }
   };
 
-  // Styles
+  // Styles - Premium SaaS Design
   const styles = {
     // Layout
     container: {
       minHeight: "100vh",
-      background: "linear-gradient(135deg,#0a0a0f,#1a1a2e,#16213e)",
-      fontFamily: "system-ui",
-      color: "#e4e4e7",
+      background: "#09090b",
+      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
+      color: "#fafafa",
       display: "flex",
     },
     // Sidebar
     sidebar: {
-      width: sidebarCollapsed ? "72px" : "280px",
+      width: sidebarCollapsed ? "64px" : "260px",
       minHeight: "100vh",
-      background: "rgba(10,10,15,0.95)",
-      borderRight: "1px solid rgba(71,85,105,0.3)",
+      background: "#0a0a0b",
+      borderRight: "1px solid rgba(255,255,255,0.06)",
       display: "flex",
       flexDirection: "column",
-      transition: "width 0.3s ease",
+      transition: "width 0.2s ease",
       position: "fixed",
       left: 0,
       top: 0,
@@ -276,8 +276,8 @@ export default function App() {
       zIndex: 100,
     },
     sidebarHeader: {
-      padding: sidebarCollapsed ? "20px 12px" : "24px 20px",
-      borderBottom: "1px solid rgba(71,85,105,0.2)",
+      padding: sidebarCollapsed ? "20px 16px" : "20px",
+      borderBottom: "1px solid rgba(255,255,255,0.06)",
     },
     logo: {
       display: "flex",
@@ -285,55 +285,58 @@ export default function App() {
       gap: "12px",
     },
     logoIcon: {
-      width: "40px",
-      height: "40px",
-      background: "linear-gradient(135deg,#6366f1,#d946ef)",
-      borderRadius: "12px",
+      width: "32px",
+      height: "32px",
+      background: "#18181b",
+      border: "1px solid rgba(255,255,255,0.08)",
+      borderRadius: "8px",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      fontSize: "20px",
+      fontSize: "13px",
+      fontWeight: "700",
+      color: "#818cf8",
       flexShrink: 0,
     },
     logoText: {
       display: sidebarCollapsed ? "none" : "block",
     },
     logoTitle: {
-      fontSize: "16px",
-      fontWeight: "700",
-      color: "#fff",
+      fontSize: "14px",
+      fontWeight: "600",
+      color: "#fafafa",
       margin: 0,
+      letterSpacing: "-0.02em",
     },
     logoSubtitle: {
       fontSize: "11px",
-      color: "#71717a",
+      color: "#52525b",
       margin: "2px 0 0",
     },
     // User section
     userSection: {
-      padding: sidebarCollapsed ? "16px 12px" : "16px 20px",
-      borderBottom: "1px solid rgba(71,85,105,0.2)",
+      padding: sidebarCollapsed ? "12px 16px" : "12px 20px",
+      borderBottom: "1px solid rgba(255,255,255,0.06)",
     },
     userCard: {
       display: "flex",
       alignItems: "center",
-      gap: "12px",
-      padding: sidebarCollapsed ? "8px" : "12px",
-      background: "rgba(255,255,255,0.03)",
-      borderRadius: "10px",
-      cursor: "pointer",
+      gap: "10px",
+      padding: sidebarCollapsed ? "8px" : "8px 10px",
+      background: "transparent",
+      borderRadius: "6px",
     },
     userAvatar: {
-      width: "36px",
-      height: "36px",
-      background: "linear-gradient(135deg,#6366f1,#a855f7)",
-      borderRadius: "10px",
+      width: "32px",
+      height: "32px",
+      background: "#27272a",
+      borderRadius: "6px",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      fontSize: "14px",
+      fontSize: "12px",
       fontWeight: "600",
-      color: "#fff",
+      color: "#a1a1aa",
       flexShrink: 0,
     },
     userInfo: {
@@ -343,30 +346,30 @@ export default function App() {
     },
     userName: {
       fontSize: "13px",
-      fontWeight: "600",
-      color: "#fff",
+      fontWeight: "500",
+      color: "#fafafa",
       whiteSpace: "nowrap",
       overflow: "hidden",
       textOverflow: "ellipsis",
     },
     userStatus: {
       fontSize: "11px",
-      color: "#22c55e",
+      color: "#52525b",
       display: "flex",
       alignItems: "center",
-      gap: "4px",
+      gap: "6px",
     },
     // Account selector section
     accountSection: {
-      padding: sidebarCollapsed ? "12px" : "12px 20px",
-      borderBottom: "1px solid rgba(71,85,105,0.2)",
+      padding: sidebarCollapsed ? "12px 16px" : "16px 20px",
+      borderBottom: "1px solid rgba(255,255,255,0.06)",
     },
     accountSelectorLabel: {
-      fontSize: "10px",
-      fontWeight: "600",
-      color: "#71717a",
+      fontSize: "11px",
+      fontWeight: "500",
+      color: "#52525b",
       textTransform: "uppercase",
-      letterSpacing: "0.5px",
+      letterSpacing: "0.05em",
       marginBottom: "8px",
       display: sidebarCollapsed ? "none" : "block",
     },
@@ -378,23 +381,25 @@ export default function App() {
       alignItems: "center",
       gap: "10px",
       width: "100%",
-      padding: sidebarCollapsed ? "10px" : "10px 12px",
-      background: "rgba(255,255,255,0.05)",
-      border: "1px solid rgba(71,85,105,0.3)",
-      borderRadius: "10px",
+      padding: sidebarCollapsed ? "8px" : "8px 10px",
+      background: "transparent",
+      border: "1px solid rgba(255,255,255,0.08)",
+      borderRadius: "6px",
       cursor: "pointer",
-      transition: "all 0.2s ease",
+      transition: "all 0.15s ease",
       textAlign: "left",
     },
     accountIcon: {
-      width: "32px",
-      height: "32px",
-      background: "linear-gradient(135deg,#3b82f6,#1d4ed8)",
-      borderRadius: "8px",
+      width: "28px",
+      height: "28px",
+      background: "#18181b",
+      borderRadius: "6px",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      fontSize: "14px",
+      fontSize: "11px",
+      fontWeight: "600",
+      color: "#71717a",
       flexShrink: 0,
     },
     accountInfo: {
@@ -404,8 +409,8 @@ export default function App() {
     },
     accountName: {
       fontSize: "12px",
-      fontWeight: "600",
-      color: "#fff",
+      fontWeight: "500",
+      color: "#fafafa",
       whiteSpace: "nowrap",
       overflow: "hidden",
       textOverflow: "ellipsis",
@@ -753,21 +758,23 @@ export default function App() {
         <div style={{ textAlign: "center" }}>
           <div
             style={{
-              width: "64px",
-              height: "64px",
-              background: "linear-gradient(135deg,#6366f1,#d946ef)",
-              borderRadius: "16px",
+              width: "48px",
+              height: "48px",
+              background: "#18181b",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "12px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "32px",
+              fontSize: "18px",
+              fontWeight: "700",
+              color: "#818cf8",
               margin: "0 auto 20px",
-              animation: "pulse 2s infinite",
             }}
           >
-            ⚡
+            MA
           </div>
-          <p style={{ color: "#71717a", fontSize: "14px" }}>Vérification de la connexion...</p>
+          <p style={{ color: "#52525b", fontSize: "13px", fontWeight: "500" }}>Vérification de la connexion...</p>
         </div>
       </div>
     );
@@ -780,7 +787,20 @@ export default function App() {
         <div style={styles.loginContainer}>
           <div style={styles.loginBox}>
             <div style={styles.loginLogoSection}>
-              <div style={styles.loginLogo}>⚡</div>
+              <div style={{
+                width: "56px",
+                height: "56px",
+                background: "#18181b",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: "14px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "20px",
+                fontWeight: "700",
+                color: "#818cf8",
+                margin: "0 auto 20px",
+              }}>MA</div>
               <h1 style={styles.loginTitle}>Meta Ads Tools</h1>
               <p style={styles.loginSubtitle}>Suite complète pour les Media Buyers</p>
             </div>
@@ -805,7 +825,9 @@ export default function App() {
                   e.currentTarget.style.boxShadow = "none";
                 }}
               >
-                <span style={{ fontSize: "20px" }}>📘</span>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
                 Se connecter avec Facebook
               </button>
             </div>
@@ -850,7 +872,7 @@ export default function App() {
       <div style={styles.welcomeContainer}>
         <div style={styles.welcomeHeader}>
           <h1 style={styles.welcomeTitle}>
-            Bienvenue{user?.name ? `, ${user.name.split(" ")[0]}` : ""} 👋
+            Bienvenue{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
           </h1>
           <p style={styles.welcomeSubtitle}>
             Sélectionnez un outil pour commencer à optimiser vos campagnes Meta Ads
@@ -861,29 +883,71 @@ export default function App() {
           {navItems.map((item) => (
             <div
               key={item.id}
-              style={styles.toolCard(item)}
+              style={{
+                padding: "28px",
+                background: "#0a0a0b",
+                border: `1px solid ${item.status === "active" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)"}`,
+                borderRadius: "12px",
+                cursor: item.status === "active" ? "pointer" : "default",
+                transition: "all 0.2s ease",
+                opacity: item.status === "coming-soon" ? 0.6 : 1,
+                position: "relative",
+              }}
               onClick={() => handleModuleSelect(item.id)}
               onMouseOver={(e) => {
                 if (item.status === "active") {
-                  e.currentTarget.style.borderColor = item.borderColor;
-                  e.currentTarget.style.transform = "translateY(-4px)";
-                  e.currentTarget.style.boxShadow = `0 12px 32px ${item.borderColor}20`;
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
+                  e.currentTarget.style.background = "#111113";
                 }
               }}
               onMouseOut={(e) => {
                 if (item.status === "active") {
-                  e.currentTarget.style.borderColor = `${item.borderColor}30`;
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                  e.currentTarget.style.background = "#0a0a0b";
                 }
               }}
             >
               {item.status === "coming-soon" && (
-                <div style={styles.toolCardBadge}>Coming Soon</div>
+                <div style={{
+                  position: "absolute",
+                  top: "16px",
+                  right: "16px",
+                  padding: "4px 10px",
+                  background: "rgba(255,255,255,0.06)",
+                  borderRadius: "4px",
+                  fontSize: "10px",
+                  fontWeight: "600",
+                  color: "#71717a",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}>Soon</div>
               )}
-              <div style={styles.toolCardIcon(item)}>{item.icon}</div>
-              <h3 style={styles.toolCardTitle}>{item.name}</h3>
-              <p style={styles.toolCardDesc}>
+              <div style={{
+                width: "44px",
+                height: "44px",
+                background: item.bgColor,
+                borderRadius: "10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "15px",
+                fontWeight: "700",
+                color: item.color,
+                marginBottom: "20px",
+              }}>{item.abbrev}</div>
+              <h3 style={{
+                fontSize: "16px",
+                fontWeight: "600",
+                color: "#fafafa",
+                margin: "0 0 8px",
+                letterSpacing: "-0.01em",
+              }}>{item.name}</h3>
+              <p style={{
+                fontSize: "13px",
+                color: "#71717a",
+                margin: 0,
+                lineHeight: "1.6",
+              }}>
                 {item.id === "creative-importer" &&
                   "Créez et lancez vos campagnes Meta Ads en quelques clics. Importez vos créatives, configurez votre ciblage et générez automatiquement toutes vos publicités."}
                 {item.id === "media-buyer" &&
@@ -910,7 +974,7 @@ export default function App() {
         {/* Logo */}
         <div style={styles.sidebarHeader}>
           <div style={styles.logo}>
-            <div style={styles.logoIcon}>⚡</div>
+            <div style={styles.logoIcon}>MA</div>
             <div style={styles.logoText}>
               <h1 style={styles.logoTitle}>Meta Ads Tools</h1>
               <p style={styles.logoSubtitle}>by Thomas</p>
@@ -953,8 +1017,11 @@ export default function App() {
                   setPixelSelectorOpen(false);
                 }}
               >
-                <div style={styles.accountIcon}>
-                  {isLoadingAccounts ? "⏳" : "📊"}
+                <div style={{
+                  ...styles.accountIcon,
+                  color: isLoadingAccounts ? "#52525b" : "#818cf8",
+                }}>
+                  {isLoadingAccounts ? "..." : "AD"}
                 </div>
                 <div style={styles.accountInfo}>
                   <div style={styles.accountName}>
@@ -1025,8 +1092,11 @@ export default function App() {
                   setPixelSelectorOpen(false);
                 }}
               >
-                <div style={{ ...styles.accountIcon, background: "linear-gradient(135deg,#1877f2,#0c63d4)" }}>
-                  {isLoadingPages ? "⏳" : "📘"}
+                <div style={{
+                  ...styles.accountIcon,
+                  color: isLoadingPages ? "#52525b" : "#3b82f6",
+                }}>
+                  {isLoadingPages ? "..." : "PG"}
                 </div>
                 <div style={styles.accountInfo}>
                   <div style={styles.accountName}>
@@ -1099,8 +1169,11 @@ export default function App() {
                       setPageSelectorOpen(false);
                     }}
                   >
-                    <div style={{ ...styles.accountIcon, background: "linear-gradient(135deg,#22c55e,#16a34a)" }}>
-                      {isLoadingPixels ? "⏳" : "🎯"}
+                    <div style={{
+                      ...styles.accountIcon,
+                      color: isLoadingPixels ? "#52525b" : "#22c55e",
+                    }}>
+                      {isLoadingPixels ? "..." : "PX"}
                     </div>
                     <div style={styles.accountInfo}>
                       <div style={styles.accountName}>
@@ -1176,7 +1249,19 @@ export default function App() {
                     }
                   }}
                 >
-                  <div style={styles.navItemIcon(item)}>{item.icon}</div>
+                  <div style={{
+                    width: "36px",
+                    height: "36px",
+                    background: item.bgColor,
+                    borderRadius: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "13px",
+                    fontWeight: "700",
+                    color: item.color,
+                    flexShrink: 0,
+                  }}>{item.abbrev}</div>
                   <div style={styles.navItemContent}>
                     <div style={styles.navItemName}>{item.name}</div>
                     <div style={styles.navItemDesc}>{item.description}</div>
@@ -1192,14 +1277,34 @@ export default function App() {
               .filter((item) => item.status === "coming-soon")
               .map((item) => (
                 <div key={item.id} style={styles.navItem(false, item)}>
-                  <div style={styles.navItemIcon(item)}>{item.icon}</div>
+                  <div style={{
+                    width: "36px",
+                    height: "36px",
+                    background: item.bgColor,
+                    borderRadius: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "13px",
+                    fontWeight: "700",
+                    color: item.color,
+                    flexShrink: 0,
+                    opacity: 0.7,
+                  }}>{item.abbrev}</div>
                   <div style={styles.navItemContent}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <span style={styles.navItemName}>{item.name}</span>
-                    </div>
+                    <div style={styles.navItemName}>{item.name}</div>
                     <div style={styles.navItemDesc}>{item.description}</div>
                   </div>
-                  <div style={styles.comingSoonBadge}>Soon</div>
+                  <div style={{
+                    padding: "3px 8px",
+                    background: "rgba(255,255,255,0.06)",
+                    borderRadius: "4px",
+                    fontSize: "9px",
+                    fontWeight: "600",
+                    color: "#71717a",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}>Soon</div>
                 </div>
               ))}
           </div>
@@ -1217,7 +1322,11 @@ export default function App() {
               e.currentTarget.style.background = "rgba(239,68,68,0.1)";
             }}
           >
-            <span>🚪</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
             {!sidebarCollapsed && <span>Déconnexion</span>}
           </button>
           <button

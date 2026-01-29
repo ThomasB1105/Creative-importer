@@ -24,42 +24,42 @@ const GEO_ZONES = {
 };
 
 const OBJECTIVES = {
-  conversions: { name: "Conversions", code: "CONV", icon: "🎯" },
-  lead_form: { name: "Lead Form", code: "LF", icon: "📝" },
-  lead_site: { name: "Lead Site", code: "LS", icon: "🌐" },
+  conversions: { name: "Conversions", code: "CONV", abbrev: "CV" },
+  lead_form: { name: "Lead Form", code: "LF", abbrev: "LF" },
+  lead_site: { name: "Lead Site", code: "LS", abbrev: "LS" },
 };
 
 const OPTIMIZATION_EVENTS = {
   conversions: [
-    { id: "purchase", name: "Achat (Purchase)", code: "PUR", icon: "💳" },
-    { id: "add_to_cart", name: "Ajout panier (ATC)", code: "ATC", icon: "🛒" },
-    { id: "initiate_checkout", name: "Début paiement", code: "IC", icon: "💰" },
-    { id: "add_payment_info", name: "Info paiement", code: "API", icon: "💳" },
-    { id: "view_content", name: "Voir contenu", code: "VC", icon: "👁️" },
-    { id: "search", name: "Recherche", code: "SCH", icon: "🔍" },
+    { id: "purchase", name: "Achat (Purchase)", code: "PUR" },
+    { id: "add_to_cart", name: "Ajout panier (ATC)", code: "ATC" },
+    { id: "initiate_checkout", name: "Début paiement", code: "IC" },
+    { id: "add_payment_info", name: "Info paiement", code: "API" },
+    { id: "view_content", name: "Voir contenu", code: "VC" },
+    { id: "search", name: "Recherche", code: "SCH" },
   ],
-  lead_form: [{ id: "lead", name: "Lead", code: "LEAD", icon: "📋" }],
-  lead_site: [{ id: "lead", name: "Lead", code: "LEAD", icon: "📋" }],
+  lead_form: [{ id: "lead", name: "Lead", code: "LEAD" }],
+  lead_site: [{ id: "lead", name: "Lead", code: "LEAD" }],
 };
 
 const CALL_TO_ACTIONS = [
-  { id: "LEARN_MORE", name: "En savoir plus", icon: "📖" },
-  { id: "SHOP_NOW", name: "Acheter", icon: "🛍️" },
-  { id: "SIGN_UP", name: "S'inscrire", icon: "✍️" },
-  { id: "DOWNLOAD", name: "Télécharger", icon: "⬇️" },
-  { id: "APPLY_NOW", name: "Postuler", icon: "📝" },
-  { id: "BOOK_NOW", name: "Réserver", icon: "📅" },
-  { id: "CONTACT_US", name: "Nous contacter", icon: "📞" },
-  { id: "GET_QUOTE", name: "Devis", icon: "💼" },
-  { id: "SUBSCRIBE", name: "S'abonner", icon: "🔔" },
-  { id: "WATCH_MORE", name: "Voir plus", icon: "▶️" },
-  { id: "NO_BUTTON", name: "Pas de bouton", icon: "⚪" },
+  { id: "LEARN_MORE", name: "En savoir plus" },
+  { id: "SHOP_NOW", name: "Acheter" },
+  { id: "SIGN_UP", name: "S'inscrire" },
+  { id: "DOWNLOAD", name: "Télécharger" },
+  { id: "APPLY_NOW", name: "Postuler" },
+  { id: "BOOK_NOW", name: "Réserver" },
+  { id: "CONTACT_US", name: "Nous contacter" },
+  { id: "GET_QUOTE", name: "Devis" },
+  { id: "SUBSCRIBE", name: "S'abonner" },
+  { id: "WATCH_MORE", name: "Voir plus" },
+  { id: "NO_BUTTON", name: "Pas de bouton" },
 ];
 
 const META_PLACEMENTS = {
   story: {
     name: "Stories",
-    icon: "📱",
+    abbrev: "ST",
     ratio: "9:16",
     minRatio: 0.5,
     maxRatio: 0.625,
@@ -68,7 +68,7 @@ const META_PLACEMENTS = {
   },
   feed_square: {
     name: "Feed 1:1",
-    icon: "⬜",
+    abbrev: "1:1",
     ratio: "1:1",
     minRatio: 0.9,
     maxRatio: 1.1,
@@ -77,7 +77,7 @@ const META_PLACEMENTS = {
   },
   feed_portrait: {
     name: "Feed 4:5",
-    icon: "📋",
+    abbrev: "4:5",
     ratio: "4:5",
     minRatio: 0.75,
     maxRatio: 0.89,
@@ -86,7 +86,7 @@ const META_PLACEMENTS = {
   },
   feed_landscape: {
     name: "Feed 16:9",
-    icon: "🖼️",
+    abbrev: "16:9",
     ratio: "16:9",
     minRatio: 1.5,
     maxRatio: 2.0,
@@ -831,8 +831,21 @@ export default function CreativeImporterPro(props = {}) {
         }}
       >
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏳</div>
-          <p>Vérification de la connexion...</p>
+          <div style={{
+            width: "48px",
+            height: "48px",
+            background: "#18181b",
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: "12px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "16px",
+            fontWeight: "700",
+            color: "#818cf8",
+            margin: "0 auto 16px",
+          }}>CI</div>
+          <p style={{ color: "#52525b", fontSize: "13px" }}>Vérification de la connexion...</p>
         </div>
       </div>
     );
@@ -856,18 +869,21 @@ export default function CreativeImporterPro(props = {}) {
           <div style={{ textAlign: "center", marginBottom: "40px" }}>
             <div
               style={{
-                width: "80px",
-                height: "80px",
-                background: "linear-gradient(135deg,#6366f1,#d946ef)",
-                borderRadius: "20px",
+                width: "56px",
+                height: "56px",
+                background: "#18181b",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: "14px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "40px",
+                fontSize: "20px",
+                fontWeight: "700",
+                color: "#818cf8",
                 margin: "0 auto 24px",
               }}
             >
-              ⚡
+              CI
             </div>
             <h1 style={{ fontSize: "28px", margin: "0 0 8px" }}>
               Creative Importer{" "}
@@ -913,7 +929,7 @@ export default function CreativeImporterPro(props = {}) {
                 }}
               >
                 <div style={{ fontWeight: "600", marginBottom: "4px" }}>
-                  ⚠️ Erreur de connexion
+                  Erreur de connexion
                 </div>
                 <div>{authError}</div>
                 <div style={{ marginTop: "8px", fontSize: "11px", color: "#fca5a5" }}>
@@ -995,7 +1011,7 @@ export default function CreativeImporterPro(props = {}) {
               marginTop: "24px",
             }}
           >
-            🔒 Connexion sécurisée via Facebook OAuth. Vos identifiants ne sont
+            Connexion sécurisée via Facebook OAuth. Vos identifiants ne sont
             jamais stockés.
           </p>
         </div>
@@ -2020,18 +2036,20 @@ export default function CreativeImporterPro(props = {}) {
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <div
             style={{
-              width: embedded ? "44px" : "48px",
-              height: embedded ? "44px" : "48px",
-              background: embedded ? "linear-gradient(135deg, #6366f1 0%, #d946ef 100%)" : "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)",
-              borderRadius: embedded ? "12px" : "14px",
+              width: embedded ? "40px" : "44px",
+              height: embedded ? "40px" : "44px",
+              background: "rgba(129,140,248,0.12)",
+              borderRadius: embedded ? "10px" : "12px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: embedded ? "22px" : "24px",
-              boxShadow: embedded ? "none" : "0 8px 24px rgba(168,85,247,0.5), inset 0 1px 0 rgba(255,255,255,0.2)",
+              fontSize: embedded ? "14px" : "16px",
+              fontWeight: "700",
+              color: "#818cf8",
+              border: "1px solid rgba(129,140,248,0.2)",
             }}
           >
-            ⚡
+            CI
           </div>
           <div>
             <h1 style={{ margin: 0, fontSize: embedded ? "22px" : "24px", color: "#fff" }}>
@@ -2141,12 +2159,25 @@ export default function CreativeImporterPro(props = {}) {
                 color: "#a5b4fc",
               }}
             >
-              🔐 Sélection du compte
+              Sélection du compte
             </h2>
             {isLoading && (
               <div style={{ textAlign: "center", padding: "60px" }}>
-                <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏳</div>
-                <p>Chargement des comptes...</p>
+                <div style={{
+                  width: "40px",
+                  height: "40px",
+                  background: "#18181b",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  color: "#71717a",
+                  margin: "0 auto 16px",
+                }}>...</div>
+                <p style={{ color: "#71717a", fontSize: "13px" }}>Chargement des comptes...</p>
               </div>
             )}
             {error && (
@@ -2158,7 +2189,7 @@ export default function CreativeImporterPro(props = {}) {
                   marginBottom: "24px",
                 }}
               >
-                <p style={{ color: "#ef4444", margin: 0 }}>❌ {error}</p>
+                <p style={{ color: "#ef4444", margin: 0 }}>{error}</p>
               </div>
             )}
             {!isLoading && !error && (
@@ -2176,7 +2207,7 @@ export default function CreativeImporterPro(props = {}) {
                     <h3
                       style={{ margin: 0, fontSize: "14px", color: "#a5b4fc" }}
                     >
-                      📊 Compte Publicitaire ({adAccounts.length})
+                      Compte Publicitaire ({adAccounts.length})
                     </h3>
                     {selectedAdAccount && (
                       <span
@@ -2201,7 +2232,7 @@ export default function CreativeImporterPro(props = {}) {
                         transform: "translateY(-50%)",
                       }}
                     >
-                      🔍
+                      S
                     </span>
                     <input
                       type="text"
@@ -2281,7 +2312,7 @@ export default function CreativeImporterPro(props = {}) {
                           marginBottom: "10px",
                         }}
                       >
-                        🎯 Pixel{" "}
+                        Pixel{" "}
                         {isLoadingPixels && (
                           <span style={{ color: "#71717a", fontSize: "11px" }}>
                             (chargement...)
@@ -2353,7 +2384,7 @@ export default function CreativeImporterPro(props = {}) {
                           transform: "translateY(-50%)",
                         }}
                       >
-                        🔍
+                        S
                       </span>
                       <input
                         type="text"
@@ -2655,7 +2686,7 @@ export default function CreativeImporterPro(props = {}) {
                     },
                     {
                       id: "existing_adset",
-                      name: "📁 Campagne existante → Adset existant",
+                      name: "Campagne existante → Adset existant",
                       desc: "Ajouter des ads à un adset existant",
                     },
                   ].map((opt) => (
@@ -2718,7 +2749,7 @@ export default function CreativeImporterPro(props = {}) {
                     {existingCampaigns.length > 0 && (
                       <input
                         type="text"
-                        placeholder="🔍 Rechercher une campagne..."
+                        placeholder="Rechercher une campagne..."
                         value={campaignSearch}
                         onChange={(e) => setCampaignSearch(e.target.value)}
                         style={{
@@ -2797,12 +2828,12 @@ export default function CreativeImporterPro(props = {}) {
                         marginBottom: "10px",
                       }}
                     >
-                      📁 Adset {isLoadingAdsets && "(chargement...)"}
+                      Adset {isLoadingAdsets && "(chargement...)"}
                     </div>
                     {existingAdsets.length > 0 && (
                       <input
                         type="text"
-                        placeholder="🔍 Rechercher un adset..."
+                        placeholder="Rechercher un adset..."
                         value={adsetSearch}
                         onChange={(e) => setAdsetSearch(e.target.value)}
                         style={{
@@ -2886,7 +2917,7 @@ export default function CreativeImporterPro(props = {}) {
                     },
                     {
                       id: "multi",
-                      name: "📊 Structure Multi (Nouvelle campagne)",
+                      name: "Structure Multi (Nouvelle campagne)",
                       desc: "1 campagne → X adsets → Y ads",
                     },
                     {
@@ -2955,7 +2986,7 @@ export default function CreativeImporterPro(props = {}) {
                     {existingCampaigns.length > 0 && (
                       <input
                         type="text"
-                        placeholder="🔍 Rechercher une campagne..."
+                        placeholder="Rechercher une campagne..."
                         value={campaignSearch}
                         onChange={(e) => setCampaignSearch(e.target.value)}
                         style={{
@@ -3275,7 +3306,7 @@ export default function CreativeImporterPro(props = {}) {
                 </div>
                 <div style={box}>
                   <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
-                    🌍 Zones
+                    Zones
                   </p>
                   <div
                     style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}
@@ -3311,7 +3342,7 @@ export default function CreativeImporterPro(props = {}) {
                 {!(budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) && (
                   <div style={box}>
                     <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
-                      🎯 Objectif
+                      Objectif
                     </p>
                     <div
                       style={{
@@ -3357,7 +3388,7 @@ export default function CreativeImporterPro(props = {}) {
                 {!(budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) && objective === "conversions" && (
                   <div style={box}>
                     <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
-                      🎯 Événement de conversion
+                      Événement de conversion
                     </p>
                     <div
                       style={{
@@ -3530,7 +3561,7 @@ export default function CreativeImporterPro(props = {}) {
                         color: isStep2Valid ? "#22c55e" : "#ef4444",
                       }}
                     >
-                      {isStep2Valid ? "✓" : "⚠️"}
+                      {isStep2Valid ? "OK" : "!"}
                     </span>
                   </div>
 
@@ -3545,7 +3576,7 @@ export default function CreativeImporterPro(props = {}) {
                         }}
                       >
                         <span style={{ fontSize: "11px", color: "#71717a" }}>
-                          📝 Texte {idx === 0 ? "(Requis)" : `#${idx + 1}`}
+                          Texte {idx === 0 ? "(Requis)" : `#${idx + 1}`}
                         </span>
                         {idx > 0 && (
                           <button
@@ -3680,7 +3711,7 @@ export default function CreativeImporterPro(props = {}) {
                   {/* URL */}
                   <div style={{ marginBottom: "6px" }}>
                     <span style={{ fontSize: "11px", color: "#71717a" }}>
-                      🔗 URL de destination (Requis)
+                      URL de destination (Requis)
                     </span>
                   </div>
                   <input
@@ -3697,7 +3728,7 @@ export default function CreativeImporterPro(props = {}) {
                 </div>
                 <div style={box}>
                   <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
-                    🏷️ Nomenclature
+                    Nomenclature
                   </p>
                   <div
                     style={{
@@ -3746,7 +3777,7 @@ export default function CreativeImporterPro(props = {}) {
                     }}
                   >
                     <div style={{ fontSize: "10px", color: "#a5b4fc", marginBottom: "8px" }}>
-                      📋 Aperçu de la structure
+                      Aperçu de la structure
                     </div>
                     <div style={{ fontSize: "11px", lineHeight: "1.6" }}>
                       {/* Show campaign name only if creating new campaign */}
@@ -3840,7 +3871,7 @@ export default function CreativeImporterPro(props = {}) {
                 <p>Analyse...</p>
               ) : (
                 <div>
-                  <p style={{ fontSize: "40px", margin: "0 0 12px" }}>📁</p>
+                  <div style={{ width: "48px", height: "48px", background: "rgba(129,140,248,0.12)", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: "700", color: "#818cf8", margin: "0 auto 12px" }}>+</div>
                   <p>Glisser vos fichiers</p>
                   <label
                     style={{
@@ -3882,7 +3913,7 @@ export default function CreativeImporterPro(props = {}) {
               >
                 <div>
                   <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "4px" }}>
-                    ✨ Améliorations Advantage+ Creative
+                    Améliorations Advantage+ Creative
                   </div>
                   <div style={{ fontSize: "12px", color: "#71717a", maxWidth: "400px" }}>
                     {enableAdvantagePlus
@@ -3923,7 +3954,7 @@ export default function CreativeImporterPro(props = {}) {
                 {Object.entries(groupedFiles).map(([key, group]) => {
                   const p = META_PLACEMENTS[group.format] || {
                     name: "Mixed",
-                    icon: "📁",
+                    abbrev: "F",
                     color: "#71717a",
                     bgColor: "rgba(255,255,255,0.05)",
                   };
@@ -4056,7 +4087,7 @@ export default function CreativeImporterPro(props = {}) {
                 <div style={{ ...box, marginBottom: "24px" }}>
                   <div style={{ display: "flex", alignItems: "center", marginBottom: "16px" }}>
                     <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "600" }}>
-                      🔗 Mapping des formats
+                      Mapping des formats
                     </h3>
                     <button
                       onClick={() => setMappingMode(!mappingMode)}
@@ -4091,7 +4122,7 @@ export default function CreativeImporterPro(props = {}) {
                         fontSize: "11px",
                         lineHeight: "1.6",
                       }}>
-                        💡 <strong>Glissez-déposez</strong> des créatives pour les grouper ensemble. Chaque groupe deviendra une ad avec plusieurs formats.
+                        <strong>Tip:</strong> <strong>Glissez-déposez</strong> des créatives pour les grouper ensemble. Chaque groupe deviendra une ad avec plusieurs formats.
                       </div>
 
                       {/* Existing Groups */}
@@ -4227,7 +4258,7 @@ export default function CreativeImporterPro(props = {}) {
                                         justifyContent: "center",
                                         gap: "3px",
                                       }}>
-                                        <span>{placement?.icon || "📁"}</span>
+                                        <span>{placement?.abbrev || "F"}</span>
                                         <span>{placement?.name || file.format}</span>
                                       </div>
 
@@ -4291,7 +4322,7 @@ export default function CreativeImporterPro(props = {}) {
 
                       {/* Available Files */}
                       <div style={{ fontSize: "12px", fontWeight: "600", marginBottom: "10px", color: "#a5b4fc" }}>
-                        📁 Créatives disponibles
+                        Créatives disponibles
                       </div>
                       <div style={{
                         display: "grid",
@@ -4391,7 +4422,7 @@ export default function CreativeImporterPro(props = {}) {
                                     color: placement?.color || "#6366f1",
                                     marginBottom: "4px",
                                   }}>
-                                    <span>{placement?.icon || "📁"}</span>
+                                    <span>{placement?.abbrev || "F"}</span>
                                     <span>{placement?.name || file.format}</span>
                                   </div>
                                   <div style={{
@@ -4456,7 +4487,7 @@ export default function CreativeImporterPro(props = {}) {
                     color: "#a5b4fc",
                   }}
                 >
-                  📊 Résumé
+                  Résumé
                 </h3>
                 <div
                   style={{
@@ -4467,7 +4498,7 @@ export default function CreativeImporterPro(props = {}) {
                   }}
                 >
                   <div style={{ fontWeight: "600", fontSize: "12px" }}>
-                    ✅ {selectedAdAccount?.name}
+                    {selectedAdAccount?.name}
                   </div>
                   <div style={{ fontSize: "11px", color: "#71717a" }}>
                     📄 {selectedPage?.name}
@@ -4631,7 +4662,7 @@ export default function CreativeImporterPro(props = {}) {
                   }}
                   style={{ ...btn2, width: "100%", marginBottom: "10px" }}
                 >
-                  📥 Export JSON
+                  Export JSON
                 </button>
                 <button
                   onClick={createCampaignOnMeta}
@@ -4651,7 +4682,7 @@ export default function CreativeImporterPro(props = {}) {
                     opacity: isCreating ? 0.7 : 1,
                   }}
                 >
-                  {isCreating ? "⏳ Création en cours..." : "🚀 Lancer sur Meta"}
+                  {isCreating ? "Création en cours..." : "Lancer sur Meta"}
                 </button>
                 {creationError && (
                   <div style={{
@@ -4663,7 +4694,7 @@ export default function CreativeImporterPro(props = {}) {
                     color: "#ef4444",
                     fontSize: "11px",
                   }}>
-                    ❌ Erreur: {creationError}
+                    Erreur: {creationError}
                   </div>
                 )}
 
@@ -4677,18 +4708,18 @@ export default function CreativeImporterPro(props = {}) {
                     borderRadius: "8px",
                   }}>
                     <p style={{ fontSize: "11px", color: "#a5b4fc", marginBottom: "12px", fontWeight: "600" }}>
-                      📊 Progression des créatives
+                      Progression des créatives
                     </p>
                     {uploadedFiles.map(file => {
                       const progress = uploadProgress[file.id] || { progress: 0, status: 'pending' };
-                      const statusEmoji = progress.status === 'uploading' ? '📤' : progress.status === 'processing' ? '⚙️' : progress.status === 'uploaded' ? '☁️' : progress.status === 'creating' ? '🔨' : progress.status === 'done' ? '✅' : progress.status === 'error' ? '❌' : '⏳';
-                      const statusText = progress.status === 'uploading' ? 'Upload...' : progress.status === 'processing' ? 'Traitement vidéo...' : progress.status === 'uploaded' ? 'Uploadé' : progress.status === 'creating' ? 'Création...' : progress.status === 'done' ? 'Terminé' : progress.status === 'error' ? 'Erreur' : 'En attente';
+                      const statusAbbrev = progress.status === 'uploading' ? 'UP' : progress.status === 'processing' ? 'PR' : progress.status === 'uploaded' ? 'OK' : progress.status === 'creating' ? 'CR' : progress.status === 'done' ? 'OK' : progress.status === 'error' ? 'ER' : '...';
+                      const statusDesc = progress.status === 'uploading' ? 'Upload...' : progress.status === 'processing' ? 'Traitement vidéo...' : progress.status === 'uploaded' ? 'Uploadé' : progress.status === 'creating' ? 'Création...' : progress.status === 'done' ? 'Terminé' : progress.status === 'error' ? 'Erreur' : 'En attente';
 
                       return (
                         <div key={file.id} style={{ marginBottom: "8px" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#e4e4e7", marginBottom: "4px" }}>
-                            <span>{statusEmoji} {file.name}</span>
-                            <span>{statusText} ({progress.progress}%)</span>
+                            <span>[{statusAbbrev}] {file.name}</span>
+                            <span>{statusDesc} ({progress.progress}%)</span>
                           </div>
                           <div style={{
                             width: "100%",
@@ -4734,7 +4765,7 @@ export default function CreativeImporterPro(props = {}) {
                 </div>
                 {Object.entries(groupedFiles).map(([key, group]) => {
                   const p = META_PLACEMENTS[group.format] || {
-                    icon: "📁",
+                    abbrev: "F",
                     color: "#71717a",
                     bgColor: "rgba(255,255,255,0.05)",
                   };
@@ -4767,7 +4798,7 @@ export default function CreativeImporterPro(props = {}) {
                             borderLeft: "2px solid #22c55e",
                           }}
                         >
-                          {f.type === "video" ? "🎬" : "🖼️"} {f.adName}
+                          {f.type === "video" ? "V" : "I"} {f.adName}
                         </div>
                       ))}
                     </div>
@@ -4799,7 +4830,7 @@ export default function CreativeImporterPro(props = {}) {
                 borderRadius: "12px",
                 marginBottom: "24px",
               }}>
-                <div style={{ fontSize: "48px", marginBottom: "12px" }}>🎉</div>
+                <div style={{ width: "56px", height: "56px", background: "rgba(34,197,94,0.15)", borderRadius: "14px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", fontWeight: "700", color: "#22c55e", margin: "0 auto 12px" }}>OK</div>
                 <h3 style={{ fontSize: "20px", fontWeight: "700", color: "#22c55e", marginBottom: "8px" }}>
                   Campagne créée avec succès !
                 </h3>
@@ -4859,7 +4890,7 @@ export default function CreativeImporterPro(props = {}) {
               {/* Details */}
               <div style={{ marginBottom: "20px" }}>
                 <h4 style={{ fontSize: "13px", fontWeight: "600", marginBottom: "12px", color: "#a5b4fc" }}>
-                  📋 Détails de la création
+                  Détails de la création
                 </h4>
 
                 {creationResult.campaigns.length > 0 && (
@@ -4874,7 +4905,7 @@ export default function CreativeImporterPro(props = {}) {
                         fontSize: "11px",
                         marginBottom: "4px",
                       }}>
-                        ✅ {c.name}
+                        {c.name}
                         <span style={{ float: "right", color: "#71717a", fontSize: "9px" }}>
                           ID: {c.id}
                         </span>
@@ -4895,7 +4926,7 @@ export default function CreativeImporterPro(props = {}) {
                         fontSize: "11px",
                         marginBottom: "4px",
                       }}>
-                        ✅ {a.name}
+                        {a.name}
                         <span style={{ float: "right", color: "#71717a", fontSize: "9px" }}>
                           ID: {a.id}
                         </span>
@@ -4919,7 +4950,7 @@ export default function CreativeImporterPro(props = {}) {
                           fontSize: "10px",
                           marginBottom: "3px",
                         }}>
-                          ✅ {ad.name}
+                          {ad.name}
                           <span style={{ float: "right", color: "#71717a", fontSize: "9px" }}>
                             {ad.id}
                           </span>
@@ -4932,7 +4963,7 @@ export default function CreativeImporterPro(props = {}) {
                 {creationResult.errors.length > 0 && (
                   <div>
                     <div style={{ fontSize: "11px", color: "#ef4444", marginBottom: "6px" }}>
-                      ⚠️ Erreurs ({creationResult.errors.length}):
+                      Erreurs ({creationResult.errors.length}):
                     </div>
                     {creationResult.errors.map((err, i) => (
                       <div key={i} style={{
@@ -4972,7 +5003,7 @@ export default function CreativeImporterPro(props = {}) {
                     cursor: "pointer",
                   }}
                 >
-                  🔗 Ouvrir Meta Ads Manager
+                  Ouvrir Meta Ads Manager
                 </button>
                 <button
                   onClick={() => {
@@ -5005,7 +5036,7 @@ export default function CreativeImporterPro(props = {}) {
                     cursor: "pointer",
                   }}
                 >
-                  ✨ Nouvelle intégration
+                  Nouvelle intégration
                 </button>
               </div>
             </div>

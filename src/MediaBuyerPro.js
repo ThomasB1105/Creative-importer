@@ -516,7 +516,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
     // Check cooldown
     if (isOnCooldown(itemId)) {
       const remaining = getRemainingCooldown(itemId);
-      alert(`⏳ Action déjà prise sur cet élément. Prochaine action possible dans ${formatCooldownTime(remaining)}`);
+      alert(`Action déjà prise sur cet élément. Prochaine action possible dans ${formatCooldownTime(remaining)}`);
       return { success: false, error: 'Cooldown actif' };
     }
 
@@ -579,7 +579,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
     // Check cooldown
     if (isOnCooldown(itemId)) {
       const remaining = getRemainingCooldown(itemId);
-      alert(`⏳ Action déjà prise sur cet élément. Prochaine action possible dans ${formatCooldownTime(remaining)}`);
+      alert(`Action déjà prise sur cet élément. Prochaine action possible dans ${formatCooldownTime(remaining)}`);
       return { success: false, error: 'Cooldown actif' };
     }
 
@@ -721,10 +721,10 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
 
       setPlannedActions([]);
       console.log('✅ Automatic optimization completed');
-      alert('✅ Optimisation automatique terminée !');
+      alert('Optimisation automatique terminée !');
     } catch (error) {
       console.error('❌ Error during auto optimization:', error);
-      alert('❌ Erreur lors de l\'optimisation automatique');
+      alert('Erreur lors de l\'optimisation automatique');
     } finally {
       setIsOptimizing(false);
     }
@@ -920,17 +920,20 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
 
           <div
             style={{
-              width: embedded ? "44px" : "48px",
-              height: embedded ? "44px" : "48px",
-              background: "linear-gradient(135deg,#f59e0b,#ef4444)",
-              borderRadius: "12px",
+              width: embedded ? "40px" : "44px",
+              height: embedded ? "40px" : "44px",
+              background: "rgba(251,146,60,0.12)",
+              borderRadius: embedded ? "10px" : "12px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: embedded ? "22px" : "24px",
+              fontSize: embedded ? "14px" : "16px",
+              fontWeight: "700",
+              color: "#fb923c",
+              border: "1px solid rgba(251,146,60,0.2)",
             }}
           >
-            📊
+            MB
           </div>
           <div>
             <h1 style={{ margin: 0, fontSize: embedded ? "22px" : "24px", color: "#fff" }}>
@@ -977,18 +980,31 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
         {!selectedAccount && (
           <div>
             <h2 style={{ fontSize: "18px", marginBottom: "24px", color: "#a5b4fc" }}>
-              🔐 Sélection du compte
+              Sélection du compte
             </h2>
             {isLoadingAccounts ? (
               <div style={{ textAlign: "center", padding: "60px" }}>
-                <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏳</div>
-                <p>Chargement des comptes...</p>
+                <div style={{
+                  width: "40px",
+                  height: "40px",
+                  background: "#18181b",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  color: "#71717a",
+                  margin: "0 auto 16px",
+                }}>...</div>
+                <p style={{ color: "#71717a", fontSize: "13px" }}>Chargement des comptes...</p>
               </div>
             ) : (
               <div style={box}>
                 <div style={{ marginBottom: "16px" }}>
                   <h3 style={{ margin: "0 0 12px", fontSize: "14px", color: "#a5b4fc" }}>
-                    📊 Compte Publicitaire ({adAccounts.length})
+                    Compte Publicitaire ({adAccounts.length})
                   </h3>
                   <input
                     type="text"
@@ -1055,7 +1071,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
           <div>
             <div style={{ marginBottom: "24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <h2 style={{ fontSize: "18px", margin: 0, color: "#a5b4fc" }}>
-                📊 {selectedAccount.name}
+                {selectedAccount.name}
               </h2>
               <button
                 onClick={() => setSelectedAccount(null)}
@@ -1079,7 +1095,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                 onClick={() => setCurrentView("campaigns")}
                 style={currentView === "campaigns" ? activeButton : button}
               >
-                🎯 Campagnes ({campaigns.length})
+                Campagnes ({campaigns.length})
               </button>
               <button
                 onClick={() => setCurrentView("adsets")}
@@ -1091,7 +1107,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                 onClick={() => setCurrentView("ads")}
                 style={currentView === "ads" ? activeButton : button}
               >
-                🎨 Ads ({ads.length})
+                Ads ({ads.length})
               </button>
             </div>
 
@@ -1167,7 +1183,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                   transition: "all 0.2s",
                 }}
               >
-                <span>⚡ Mode Optimisation</span>
+                <span>Mode Optimisation</span>
                 <span>{showOptimizationPanel ? "▼" : "▶"}</span>
               </button>
 
@@ -1209,7 +1225,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                           transition: "all 0.2s",
                         }}
                       >
-                        📋 Leadgen
+                        Leadgen
                       </button>
                     </div>
                   </div>
@@ -1271,10 +1287,10 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                             transition: "all 0.2s",
                           }}
                         >
-                          {isOptimizing ? "⏳ Optimisation en cours..." : "🚀 Lancer l'optimisation automatique"}
+                          {isOptimizing ? "Optimisation en cours..." : "Lancer l'optimisation automatique"}
                         </button>
                         <p style={{ fontSize: "11px", color: "#f59e0b", marginTop: "8px", marginBottom: 0 }}>
-                          ⚠️ Les budgets seront ajustés selon les recommandations
+                          Les budgets seront ajustés selon les recommandations
                         </p>
                       </div>
                     )}
@@ -1308,7 +1324,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
 
                         <div>
                           <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
-                            🎯 ROAS Target
+                            ROAS Target
                           </label>
                           <input
                             type="number"
@@ -1354,7 +1370,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
 
                         <div>
                           <label style={{ fontSize: "12px", color: "#71717a", display: "block", marginBottom: "8px" }}>
-                            🎯 CPL Target (€)
+                            CPL Target (€)
                           </label>
                           <input
                             type="number"
@@ -1408,7 +1424,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                       <span style={{ color: "#f59e0b" }}>⏸️ Hold</span>: Breakeven ≤ ROAS 4j &lt; Target
                     </div>
                     <div>
-                      <span style={{ color: "#22c55e" }}>🚀 Scale (+10%)</span>: ROAS 4j ≥ Target
+                      <span style={{ color: "#22c55e" }}>Scale (+10%)</span>: ROAS 4j ≥ Target
                     </div>
                   </div>
                 </div>
@@ -1418,7 +1434,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
             {/* Data Tables */}
             {isLoadingData ? (
               <div style={{ ...box, textAlign: "center", padding: "60px" }}>
-                <div style={{ fontSize: "48px", marginBottom: "16px" }}>⏳</div>
+                <div style={{ width: "40px", height: "40px", background: "#18181b", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: "600", color: "#71717a", margin: "0 auto 16px" }}>...</div>
                 <p>Chargement des données...</p>
               </div>
             ) : (
@@ -1428,7 +1444,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                   <>
                     <div style={{ padding: "16px 24px", borderBottom: "1px solid rgba(71,85,105,0.3)" }}>
                       <h3 style={{ margin: 0, fontSize: "14px", color: "#a5b4fc" }}>
-                        🎯 Campagnes ({getFilteredCampaigns().length})
+                        Campagnes ({getFilteredCampaigns().length})
                       </h3>
                     </div>
                     <div style={{ overflowX: "auto" }}>
@@ -1534,8 +1550,8 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                                   if (rec.action === 'none' || rec.action === 'wait') return <span style={{ fontSize: "11px", color: rec.color }}>{rec.reason}</span>;
                                   return (
                                     <div style={{ fontSize: "11px", color: rec.color, fontWeight: "600" }} title={rec.reason}>
-                                      {rec.action === 'scale' && '🚀 Scale'}
-                                      {rec.action === 'scale_jump' && '🚀🚀 Scale +2'}
+                                      {rec.action === 'scale' && 'Scale'}
+                                      {rec.action === 'scale_jump' && 'Scale +2'}
                                       {rec.action === 'descale' && '🔻 Descale'}
                                       {rec.action === 'hold' && '⏸️ Hold'}
                                       {rec.action === 'cut' && '✂️ CUT'}
@@ -1552,7 +1568,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                                   if (onCooldown) {
                                     return (
                                       <div style={{ fontSize: "10px", color: "#71717a", textAlign: "center" }} title={`Prochaine action dans ${formatCooldownTime(remaining)}`}>
-                                        ⏳ {formatCooldownTime(remaining)}
+                                        {formatCooldownTime(remaining)}
                                       </div>
                                     );
                                   }
@@ -1749,8 +1765,8 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                                   if (rec.action === 'none' || rec.action === 'wait') return <span style={{ fontSize: "11px", color: rec.color }}>{rec.reason}</span>;
                                   return (
                                     <div style={{ fontSize: "11px", color: rec.color, fontWeight: "600" }} title={rec.reason}>
-                                      {rec.action === 'scale' && '🚀 Scale'}
-                                      {rec.action === 'scale_jump' && '🚀🚀 Scale +2'}
+                                      {rec.action === 'scale' && 'Scale'}
+                                      {rec.action === 'scale_jump' && 'Scale +2'}
                                       {rec.action === 'descale' && '🔻 Descale'}
                                       {rec.action === 'hold' && '⏸️ Hold'}
                                       {rec.action === 'cut' && '✂️ CUT'}
@@ -1767,7 +1783,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                                   if (onCooldown) {
                                     return (
                                       <div style={{ fontSize: "10px", color: "#71717a", textAlign: "center" }} title={`Prochaine action dans ${formatCooldownTime(remaining)}`}>
-                                        ⏳ {formatCooldownTime(remaining)}
+                                        {formatCooldownTime(remaining)}
                                       </div>
                                     );
                                   }
@@ -1857,7 +1873,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                   <>
                     <div style={{ padding: "16px 24px", borderBottom: "1px solid rgba(71,85,105,0.3)" }}>
                       <h3 style={{ margin: 0, fontSize: "14px", color: "#a5b4fc" }}>
-                        🎨 Ads ({getFilteredAds().length})
+                        Ads ({getFilteredAds().length})
                       </h3>
                     </div>
                     <div style={{ overflowX: "auto" }}>
@@ -1965,7 +1981,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                                   if (onCooldown) {
                                     return (
                                       <div style={{ fontSize: "10px", color: "#71717a", textAlign: "center" }} title={`Prochaine action dans ${formatCooldownTime(remaining)}`}>
-                                        ⏳ {formatCooldownTime(remaining)}
+                                        {formatCooldownTime(remaining)}
                                       </div>
                                     );
                                   }
@@ -2050,7 +2066,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
               justifyContent: "space-between"
             }}>
               <h3 style={{ margin: 0, color: "#a5b4fc", fontSize: "18px", fontWeight: "600" }}>
-                📋 Récapitulatif des actions prévues
+                Récapitulatif des actions prévues
               </h3>
               <button
                 onClick={() => setShowActionsSummary(false)}
@@ -2167,7 +2183,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                                 {action.name}
                               </div>
                               <div style={{ fontSize: "10px", color: "#71717a", marginTop: "2px" }}>
-                                {action.type === 'campaign' ? '📊 Campagne' : '🎯 Adset'}
+                                {action.type === 'campaign' ? 'Campagne' : 'Adset'}
                               </div>
                             </td>
                             <td style={{ padding: "12px", textAlign: "center" }}>
@@ -2179,8 +2195,8 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                                 background: action.action === 'scale' || action.action === 'scale_jump' ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)",
                                 color: action.action === 'scale' || action.action === 'scale_jump' ? "#22c55e" : "#ef4444"
                               }}>
-                                {action.action === 'scale' && '🚀 Scale'}
-                                {action.action === 'scale_jump' && '🚀🚀 Scale +2'}
+                                {action.action === 'scale' && 'Scale'}
+                                {action.action === 'scale_jump' && 'Scale +2'}
                                 {action.action === 'descale' && '🔻 Descale'}
                               </span>
                             </td>
@@ -2248,7 +2264,7 @@ export default function MediaBuyerPro({ accessToken, user, onLogout, onBack, emb
                     transition: "all 0.2s"
                   }}
                 >
-                  {isOptimizing ? "⏳ Optimisation en cours..." : "✅ Valider et exécuter"}
+                  {isOptimizing ? "Optimisation en cours..." : "Valider et exécuter"}
                 </button>
               </div>
             )}
