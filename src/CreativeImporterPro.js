@@ -1612,19 +1612,20 @@ export default function CreativeImporterPro(props = {}) {
       }
 
       // Helper to get placement positions based on format
-      // Always include Instagram placements - Meta will use FB Page if no Instagram account linked
+      // Use exact Meta API position values
       const hasInstagramAccount = !!instagramAccount?.id;
       const getPlacementForFormat = (format) => {
         if (format === 'story') {
+          // 9:16 vertical format - Stories and Reels
           return {
-            facebook_positions: ["story", "reels"],
+            facebook_positions: ["story", "facebook_reels"],
             instagram_positions: ["story", "reels"]
           };
         } else {
-          // feed_square, feed_portrait, feed_landscape
+          // 1:1, 4:5, 16:9 formats - Feed placements
           return {
             facebook_positions: ["feed"],
-            instagram_positions: ["stream", "profile_feed"]
+            instagram_positions: ["stream"]
           };
         }
       };
