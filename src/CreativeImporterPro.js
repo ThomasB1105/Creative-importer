@@ -347,6 +347,7 @@ export default function CreativeImporterPro(props = {}) {
     sharedAdAccount = null,
     sharedPage = null,
     sharedPixel = null,
+    usePageForInstagram = true, // If true, use FB Page ID for Instagram placements
   } = props;
 
   // Determine if we have all required shared selections
@@ -1746,12 +1747,18 @@ export default function CreativeImporterPro(props = {}) {
         console.log(`📝 Creating multi-format creative with asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
         console.log(`📸 Instagram account:`, instagramAccount);
         console.log(`📸 Instagram ID:`, instagramAccount?.id);
+        console.log(`📸 Use Page for Instagram:`, usePageForInstagram);
+
+        // Determine instagram_actor_id based on project settings
+        // If usePageForInstagram is true, always use Facebook Page ID (like Meta's "Use Facebook Page" option)
+        // Otherwise, use Instagram account if linked, or fallback to Page ID
+        const instagramActorId = usePageForInstagram
+          ? selectedPage.id
+          : (hasInstagramAccount ? instagramAccount.id : selectedPage.id);
 
         const objectStorySpecForFeed = {
           page_id: selectedPage.id,
-          // Use Instagram account if linked, otherwise use Facebook Page ID
-          // This is equivalent to "Use Facebook Page" option in Meta Ads Manager
-          instagram_actor_id: hasInstagramAccount ? instagramAccount.id : selectedPage.id,
+          instagram_actor_id: instagramActorId,
         };
 
         console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpecForFeed, null, 2));
@@ -1925,10 +1932,13 @@ export default function CreativeImporterPro(props = {}) {
           };
         }
 
-        // Only add instagram_actor_id if available
-        if (instagramAccount?.id) {
-          objectStorySpec.instagram_actor_id = instagramAccount.id;
-        }
+        // Add instagram_actor_id based on project settings
+        // If usePageForInstagram is true, use Facebook Page ID
+        // Otherwise, use Instagram account if linked, or Page ID as fallback
+        const singleAdInstagramActorId = usePageForInstagram
+          ? selectedPage.id
+          : (instagramAccount?.id || selectedPage.id);
+        objectStorySpec.instagram_actor_id = singleAdInstagramActorId;
 
         console.log(`📝 Creating creative for ${file.name}:`, JSON.stringify(objectStorySpec, null, 2));
 
