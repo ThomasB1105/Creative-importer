@@ -373,8 +373,8 @@ export default function CreativeImporterPro(props = {}) {
   const [campaignSearch, setCampaignSearch] = useState("");
   const [adsetSearch, setAdsetSearch] = useState("");
 
-  // Campaign structure - start at step 1 if we have shared selections
-  const [step, setStep] = useState(hasSharedSelections ? 1 : 0);
+  // Campaign structure - start at step 2 (Config) if we have shared selections (skip Structure step)
+  const [step, setStep] = useState(hasSharedSelections ? 2 : 0);
   const [budgetType, setBudgetType] = useState("cbo");
   const [cboMode, setCboMode] = useState("new");
   const [aboMode, setAboMode] = useState("1:1:1");
@@ -426,9 +426,9 @@ export default function CreativeImporterPro(props = {}) {
       if (sharedPixel) {
         setSelectedPixel(sharedPixel);
       }
-      // If we have all selections and we're at step 0, move to step 1
+      // If we have all selections and we're at step 0, move to step 2 (Config, skip Structure)
       if (sharedAdAccount && sharedPage && step === 0) {
-        setStep(1);
+        setStep(2);
       }
     }
   }, [embedded, sharedAdAccount, sharedPage, sharedPixel]);
@@ -2067,10 +2067,9 @@ export default function CreativeImporterPro(props = {}) {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          {step > 0 && selectedAdAccount && (
+          {step > 1 && selectedAdAccount && (
             <div style={{ display: "flex", gap: "6px" }}>
               {[
-                { n: 1, l: "Structure" },
                 { n: 2, l: "Config" },
                 { n: 3, l: "Upload" },
                 { n: 4, l: "Export" },
@@ -2542,22 +2541,22 @@ export default function CreativeImporterPro(props = {}) {
                 )}
 
                 <button
-                  onClick={() => setStep(1)}
+                  onClick={() => setStep(2)}
                   disabled={!selectedAdAccount || !selectedPage}
                   style={{
                     ...btn1,
                     opacity: selectedAdAccount && selectedPage ? 1 : 0.5,
                   }}
                 >
-                  Continuer → Structure
+                  Continuer → Config
                 </button>
               </>
             )}
           </div>
         )}
 
-        {/* STEP 1: Structure */}
-        {step === 1 && (
+        {/* STEP 1: Structure - HIDDEN, using defaults */}
+        {step === 1 && false && (
           <div>
             <h2
               style={{
@@ -3811,8 +3810,8 @@ export default function CreativeImporterPro(props = {}) {
               </div>
             </div>
             <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
-              <button onClick={() => setStep(1)} style={btn2}>
-                ← Structure
+              <button onClick={() => setStep(0)} style={btn2}>
+                ← Compte
               </button>
               <button
                 onClick={() => {

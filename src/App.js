@@ -24,6 +24,15 @@ const navItems = [
     status: "active",
   },
   {
+    id: "integrations",
+    name: "Integrations",
+    abbrev: "IN",
+    description: "Connect your tools",
+    color: "#a78bfa",
+    bgColor: "rgba(167,139,250,0.12)",
+    status: "active",
+  },
+  {
     id: "creative-strategist",
     name: "Creative Strategist",
     abbrev: "CS",
@@ -868,6 +877,166 @@ export default function App() {
       );
     }
 
+    if (activeModule === "integrations") {
+      const integrations = [
+        {
+          id: "meta",
+          name: "Meta Ads Manager",
+          description: "Your Facebook Ads account for campaigns and analytics",
+          abbrev: "MA",
+          color: "#1877f2",
+          bgColor: "rgba(24,119,242,0.12)",
+          connected: !!accessToken,
+        },
+        {
+          id: "google-drive",
+          name: "Google Drive",
+          description: "Import creative assets from Google Drive",
+          abbrev: "GD",
+          color: "#34a853",
+          bgColor: "rgba(52,168,83,0.12)",
+          connected: false,
+        },
+        {
+          id: "frame-io",
+          name: "Frame.io",
+          description: "Import video assets from Frame.io projects",
+          abbrev: "FR",
+          color: "#8b5cf6",
+          bgColor: "rgba(139,92,246,0.12)",
+          connected: false,
+        },
+        {
+          id: "dropbox",
+          name: "Dropbox",
+          description: "Import creative assets from Dropbox",
+          abbrev: "DB",
+          color: "#0061fe",
+          bgColor: "rgba(0,97,254,0.12)",
+          connected: false,
+        },
+        {
+          id: "discord",
+          name: "Discord",
+          description: "Receive upload notifications in Discord channels",
+          abbrev: "DC",
+          color: "#5865f2",
+          bgColor: "rgba(88,101,242,0.12)",
+          connected: false,
+        },
+        {
+          id: "slack",
+          name: "Slack",
+          description: "Receive upload notifications in Slack channels",
+          abbrev: "SL",
+          color: "#e01e5a",
+          bgColor: "rgba(224,30,90,0.12)",
+          connected: false,
+        },
+      ];
+
+      return (
+        <div style={{ padding: "40px", maxWidth: "1200px", margin: "0 auto" }}>
+          <div style={{ marginBottom: "32px" }}>
+            <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#fafafa", margin: "0 0 8px" }}>
+              Integrations
+            </h1>
+            <p style={{ fontSize: "14px", color: "#71717a", margin: 0 }}>
+              Connect your tools and services
+            </p>
+          </div>
+
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: "20px",
+          }}>
+            {integrations.map((integration) => (
+              <div
+                key={integration.id}
+                style={{
+                  padding: "24px",
+                  background: "rgba(15,15,20,0.6)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderRadius: "12px",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", marginBottom: "16px" }}>
+                  <div style={{
+                    width: "48px",
+                    height: "48px",
+                    background: integration.bgColor,
+                    borderRadius: "12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "16px",
+                    fontWeight: "700",
+                    color: integration.color,
+                    flexShrink: 0,
+                  }}>
+                    {integration.abbrev}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#fafafa", margin: "0 0 4px" }}>
+                      {integration.name}
+                    </h3>
+                    <p style={{ fontSize: "13px", color: "#71717a", margin: 0, lineHeight: "1.5" }}>
+                      {integration.description}
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  {integration.connected ? (
+                    <span style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 12px",
+                      background: "rgba(34,197,94,0.1)",
+                      border: "1px solid rgba(34,197,94,0.2)",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontWeight: "500",
+                      color: "#22c55e",
+                    }}>
+                      <span style={{ width: "6px", height: "6px", background: "#22c55e", borderRadius: "50%" }}></span>
+                      Connected
+                    </span>
+                  ) : (
+                    <button
+                      style={{
+                        padding: "8px 16px",
+                        background: "transparent",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: "6px",
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        color: "#a1a1aa",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)";
+                        e.currentTarget.style.color = "#fafafa";
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+                        e.currentTarget.style.color = "#a1a1aa";
+                      }}
+                    >
+                      Connect
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     // Welcome/Dashboard view
     return (
       <div style={styles.welcomeContainer}>
@@ -953,6 +1122,8 @@ export default function App() {
                   "Créez et lancez vos campagnes Meta Ads en quelques clics. Importez vos créatives, configurez votre ciblage et générez automatiquement toutes vos publicités."}
                 {item.id === "media-buyer" &&
                   "Gérez et optimisez vos campagnes existantes. Analysez les performances et appliquez des optimisations intelligentes en un clic."}
+                {item.id === "integrations" &&
+                  "Connectez vos outils préférés : Google Drive, Dropbox, Frame.io, Discord, Slack et plus encore."}
                 {item.id === "creative-strategist" &&
                   "Analysez vos créatives avec l'IA pour identifier les éléments performants et obtenir des recommandations stratégiques."}
                 {item.id === "ad-creator" &&
