@@ -1649,10 +1649,11 @@ export default function CreativeImporterPro(props = {}) {
 
         if (groupHashes.length === 0) continue;
 
-        // If only ONE file in group, treat it as unmapped (push to all placements)
-        if (groupHashes.length === 1) {
-          console.log(`📦 Single file in group #${groupIndex + 1}, treating as regular ad (all placements)`);
-          unmappedHashes.push(groupHashes[0]);
+        // If only ONE file in group OR no Instagram account, treat as unmapped (separate ads)
+        // Meta requires Instagram account for asset_customization_rules
+        if (groupHashes.length === 1 || !hasInstagramAccount) {
+          console.log(`📦 Group #${groupIndex + 1}: Creating separate ads (${!hasInstagramAccount ? 'no Instagram account' : 'single file'})`);
+          groupHashes.forEach(h => unmappedHashes.push(h));
           continue;
         }
 
