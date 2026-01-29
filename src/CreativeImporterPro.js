@@ -1640,7 +1640,7 @@ export default function CreativeImporterPro(props = {}) {
 
       // Separate mapped files (in adGroups) from unmapped files
       const mappedFileIds = adGroups.flatMap(g => g.fileIds);
-      const unmappedHashes = validHashes.filter(h => !mappedFileIds.includes(h.fileId));
+      let unmappedHashes = validHashes.filter(h => !mappedFileIds.includes(h.fileId));
 
       // Process mapped groups first (create ONE ad per group with asset_feed_spec)
       for (let groupIndex = 0; groupIndex < adGroups.length; groupIndex++) {
@@ -1648,6 +1648,13 @@ export default function CreativeImporterPro(props = {}) {
         const groupHashes = validHashes.filter(h => group.fileIds.includes(h.fileId));
 
         if (groupHashes.length === 0) continue;
+
+        // If only ONE file in group, treat it as unmapped (push to all placements)
+        if (groupHashes.length === 1) {
+          console.log(`📦 Single file in group #${groupIndex + 1}, treating as regular ad (all placements)`);
+          unmappedHashes.push(groupHashes[0]);
+          continue;
+        }
 
         const adName = nomenclature.ad(groupIndex + 1, "multi");
         console.log(`📦 Creating multi-format ad for group #${groupIndex + 1} with ${groupHashes.length} assets`);
