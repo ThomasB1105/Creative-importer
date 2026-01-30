@@ -1658,13 +1658,24 @@ export default function CreativeImporterPro(props = {}) {
       let adsetId;
       const isAbo1x1 = budgetType === "abo" && aboMode === "1:1:1";
 
-      if (budgetType === "cbo" && cboMode === "existing_adset") {
+      // For Multi-Placement mode, we MUST create a new adset with is_dynamic_creative
+      // because asset_feed_spec requires it, and we can't modify existing adsets
+      const needsNewAdsetForMulti = adType === "multi" && budgetType === "cbo" && cboMode === "existing_adset";
+
+      if (needsNewAdsetForMulti) {
+        // Create new adset in the same campaign for Multi-Placement
+        console.log(`⚠️ Multi-Placement mode requires is_dynamic_creative - creating new adset in campaign`);
+        adsetId = await createAdset(`${nomenclature.adset}_multi`, null, true);
+        results.adsets.push({ id: adsetId, name: `${nomenclature.adset}_multi` });
+      } else if (budgetType === "cbo" && cboMode === "existing_adset") {
+        // For single ads, use existing adset (no is_dynamic_creative needed)
         adsetId = selectedAdset?.id;
         console.log(`✅ Using existing adset: ${adsetId}`);
       } else if (!isAbo1x1) {
         // Create single adset for CBO or ABO multi modes
-        // Always enable dynamic creative since all ads use asset_feed_spec
-        adsetId = await createAdset(nomenclature.adset, null, true);
+        // Enable dynamic creative only for multi-placement ads
+        const needsDynamicCreative = adType === "multi";
+        adsetId = await createAdset(nomenclature.adset, null, needsDynamicCreative);
         results.adsets.push({ id: adsetId, name: nomenclature.adset });
       }
       // For ABO 1-x-1, adsets will be created in the group loop below
@@ -1913,8 +1924,9 @@ export default function CreativeImporterPro(props = {}) {
             ? `${nomenclature.adset}_${group.baseName}`
             : `${nomenclature.adset}_${groupIndex + 1}`;
           try {
-            // Always enable dynamic creative since all ads use asset_feed_spec
-            currentAdsetId = await createAdset(adsetName, group.files, true);
+            // Enable dynamic creative only for multi-placement ads (using asset_feed_spec)
+            const needsDynamicCreative = adType === "multi";
+            currentAdsetId = await createAdset(adsetName, group.files, needsDynamicCreative);
             results.adsets.push({ id: currentAdsetId, name: adsetName });
           } catch (err) {
             console.error(`❌ Failed to create adset for group ${groupIndex + 1}:`, err);
