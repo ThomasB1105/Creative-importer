@@ -1169,7 +1169,10 @@ export default function App() {
           sharedAdAccount={selectedAdAccount}
           sharedPage={selectedPage}
           sharedPixel={selectedPixel}
-          sharedInstagramAccountId={selectedProject?.instagramAccountId}
+          sharedInstagramAccountId={
+            // Only pass ID if it's in the ad account's instagram_accounts list
+            instagramAccounts?.find(ig => ig.id === selectedProject?.instagramAccountId)?.id || null
+          }
           usePageForInstagram={selectedProject?.usePageForInstagram ?? true}
         />
       );

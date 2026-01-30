@@ -690,23 +690,12 @@ export default function CreativeImporterPro(props = {}) {
     );
   }, [existingAdsets, adsetSearch]);
 
-  // Instagram account priority:
-  // 1. sharedInstagramAccountId from project settings (user selected)
-  // 2. instagram_business_account linked to the page
-  const instagramAccount = selectedPage?.instagram_business_account || null;
-  // Only use real Instagram account - not page_id fallback (PBIA doesn't work reliably)
-  const instagramActorId = sharedInstagramAccountId || instagramAccount?.id || null;
-  // Check if we have a real Instagram account for Multi-Placement feature
-  const hasRealInstagramAccount = !!(sharedInstagramAccountId || instagramAccount?.id);
-
-  // DEBUG: Log Instagram setup
-  console.log("🔍 DEBUG Instagram:", {
-    sharedInstagramAccountId,
-    pageInstagramAccount: instagramAccount,
-    instagramActorId,
-    hasRealInstagramAccount,
-    selectedPage: selectedPage?.name,
-  });
+  // Instagram: ONLY use sharedInstagramAccountId if it's validated by App.js
+  // The ID must come from the ad account's instagram_accounts list, not from page's instagram_business_account
+  const instagramActorId = sharedInstagramAccountId || null;
+  // Multi-Placement requires a VALID Instagram account from the ad account's list
+  // sharedInstagramAccountId is only set when App.js finds a match in instagram_accounts
+  const hasRealInstagramAccount = !!sharedInstagramAccountId;
 
   const processFiles = async (files) => {
     setIsProcessing(true);
