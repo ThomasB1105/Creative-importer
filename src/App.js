@@ -393,7 +393,29 @@ export default function App() {
       try {
         setIsLoadingInstagramAccounts(true);
         const api = createMetaApi(accessToken);
-        const igAccounts = await api.fetchInstagramAccounts(selectedAdAccount.id);
+        let igAccounts = await api.fetchInstagramAccounts(selectedAdAccount.id);
+
+        // If selected page has an Instagram account, try to assign it to the ad account
+        if (selectedPage?.instagram_business_account?.id) {
+          const pageIgId = selectedPage.instagram_business_account.id;
+          const isAlreadyAssigned = igAccounts?.some(ig => ig.id === pageIgId);
+
+          if (!isAlreadyAssigned) {
+            console.log("🔄 Assigning page's Instagram account to ad account...", pageIgId);
+            await api.assignInstagramAccountToAdAccount(selectedAdAccount.id, pageIgId);
+            // Reload the list after assignment
+            igAccounts = await api.fetchInstagramAccounts(selectedAdAccount.id);
+          }
+        }
+
+        // Also try to assign PBIA if available
+        const pbiaId = selectedPage?.page_backed_instagram_accounts?.data?.[0]?.id;
+        if (pbiaId && !igAccounts?.some(ig => ig.id === pbiaId)) {
+          console.log("🔄 Assigning PBIA to ad account...", pbiaId);
+          await api.assignInstagramAccountToAdAccount(selectedAdAccount.id, pbiaId);
+          igAccounts = await api.fetchInstagramAccounts(selectedAdAccount.id);
+        }
+
         console.log("🔍 DEBUG Ad Account Instagram accounts:", {
           adAccountId: selectedAdAccount.id,
           adAccountName: selectedAdAccount.name,
@@ -409,7 +431,7 @@ export default function App() {
     };
 
     loadInstagramAccounts();
-  }, [accessToken, selectedAdAccount]);
+  }, [accessToken, selectedAdAccount, selectedPage]);
 
   // Filter accounts based on search
   const filteredAccounts = adAccounts.filter(

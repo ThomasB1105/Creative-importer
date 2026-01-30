@@ -321,6 +321,29 @@ export const createMetaApi = (accessToken) => ({
     }
   },
 
+  // Assign an Instagram account (or PBIA) to the ad account
+  async assignInstagramAccountToAdAccount(adAccountId, instagramAccountId) {
+    try {
+      const formData = new FormData();
+      formData.append("instagram_account", instagramAccountId);
+      formData.append("access_token", accessToken);
+
+      const res = await fetch(
+        `${this.baseUrl}/${adAccountId}/instagram_accounts`,
+        { method: "POST", body: formData }
+      );
+      const data = await res.json();
+      if (data.error) {
+        console.warn("assignInstagramAccountToAdAccount warning:", data.error.message);
+        return null;
+      }
+      return data;
+    } catch (error) {
+      console.error("assignInstagramAccountToAdAccount error:", error);
+      return null;
+    }
+  },
+
   async fetchPageInstagramAccount(pageId, pageAccessToken = null) {
     try {
       // Use page access token if provided, otherwise use user access token
