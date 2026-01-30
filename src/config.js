@@ -239,7 +239,7 @@ export const createMetaApi = (accessToken) => ({
   async fetchPages() {
     try {
       const res = await fetch(
-        `${this.baseUrl}/me/accounts?fields=id,name,picture,instagram_business_account{id,name,username,profile_picture_url}&limit=100&access_token=${accessToken}`
+        `${this.baseUrl}/me/accounts?fields=id,name,picture,access_token,instagram_business_account{id,name,username,profile_picture_url}&limit=100&access_token=${accessToken}`
       );
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
@@ -293,10 +293,12 @@ export const createMetaApi = (accessToken) => ({
     }
   },
 
-  async fetchPageInstagramAccount(pageId) {
+  async fetchPageInstagramAccount(pageId, pageAccessToken = null) {
     try {
+      // Use page access token if provided, otherwise use user access token
+      const token = pageAccessToken || accessToken;
       const res = await fetch(
-        `${this.baseUrl}/${pageId}?fields=instagram_business_account{id,username,profile_picture_url,name}&access_token=${accessToken}`
+        `${this.baseUrl}/${pageId}?fields=instagram_business_account{id,username,profile_picture_url,name}&access_token=${token}`
       );
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);

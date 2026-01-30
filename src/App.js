@@ -2041,11 +2041,22 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAcco
       return;
     }
 
+    // First check if page already has instagram_business_account from initial fetch
+    const page = pages.find(p => p.id === pageId);
+    if (page?.instagram_business_account) {
+      setPageInstagramAccount(page.instagram_business_account);
+      setInstagramAccountId(page.instagram_business_account.id);
+      return;
+    }
+
+    // Otherwise fetch with page access token
     const fetchPageInstagram = async () => {
       setIsLoadingPageInstagram(true);
       try {
         const api = createMetaApi(accessToken);
-        const igAccount = await api.fetchPageInstagramAccount(pageId);
+        // Use page's own access token if available
+        const pageToken = page?.access_token || null;
+        const igAccount = await api.fetchPageInstagramAccount(pageId, pageToken);
         setPageInstagramAccount(igAccount);
         // Auto-select the Instagram account if found
         if (igAccount) {
@@ -2060,7 +2071,7 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAcco
     };
 
     fetchPageInstagram();
-  }, [pageId, accessToken]);
+  }, [pageId, accessToken, pages]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
