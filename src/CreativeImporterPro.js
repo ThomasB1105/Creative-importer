@@ -417,7 +417,7 @@ export default function CreativeImporterPro(props = {}) {
   const [enableAdvantagePlus, setEnableAdvantagePlus] = useState(true);
 
   // Ad Type (Ads | Carousel | Multi-Placement)
-  const [adType, setAdType] = useState("multi"); // "single" | "carousel" | "multi"
+  const [adType, setAdType] = useState("single"); // "single" | "carousel" | "multi"
 
   // Multi-Placement manual groups (no auto-grouping)
   const [multiGroups, setMultiGroups] = useState([]); // [{ id, name, feed: fileId|null, story: fileId|null }]
@@ -1876,17 +1876,20 @@ export default function CreativeImporterPro(props = {}) {
           }));
         }
 
-        // Add unmapped files as single-file groups
-        unmappedHashes.forEach((h, idx) => {
-          const file = uploadedFiles.find(f => f.id === h.fileId);
-          effectiveGroups.push({
-            key: `single_${idx}`,
-            baseName: null,
-            files: [file],
-            fileIds: [h.fileId],
-            isMultiFormat: false,
+        // For adType === "single", keep unmapped files separate so they use object_story_spec
+        // For adType === "multi", add them to effectiveGroups to use asset_feed_spec
+        if (adType === "multi") {
+          unmappedHashes.forEach((h, idx) => {
+            const file = uploadedFiles.find(f => f.id === h.fileId);
+            effectiveGroups.push({
+              key: `single_${idx}`,
+              baseName: null,
+              files: [file],
+              fileIds: [h.fileId],
+              isMultiFormat: false,
+            });
           });
-        });
+        }
       }
 
       // Process each group: For ABO 1-x-1, create one adset per group
