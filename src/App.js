@@ -160,6 +160,10 @@ export default function App() {
   const [isLoadingPixels, setIsLoadingPixels] = useState(false);
   const [pixelSelectorOpen, setPixelSelectorOpen] = useState(false);
 
+  // Instagram accounts state
+  const [instagramAccounts, setInstagramAccounts] = useState([]);
+  const [isLoadingInstagramAccounts, setIsLoadingInstagramAccounts] = useState(false);
+
   // Projects state
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState(null);
@@ -376,6 +380,30 @@ export default function App() {
     };
 
     loadPixels();
+  }, [accessToken, selectedAdAccount]);
+
+  // Load Instagram accounts when account is selected
+  useEffect(() => {
+    if (!accessToken || !selectedAdAccount) {
+      setInstagramAccounts([]);
+      return;
+    }
+
+    const loadInstagramAccounts = async () => {
+      try {
+        setIsLoadingInstagramAccounts(true);
+        const api = createMetaApi(accessToken);
+        const igAccounts = await api.fetchInstagramAccounts(selectedAdAccount.id);
+        setInstagramAccounts(igAccounts || []);
+      } catch (error) {
+        console.error("Error loading Instagram accounts:", error);
+        setInstagramAccounts([]);
+      } finally {
+        setIsLoadingInstagramAccounts(false);
+      }
+    };
+
+    loadInstagramAccounts();
   }, [accessToken, selectedAdAccount]);
 
   // Filter accounts based on search
@@ -1962,6 +1990,7 @@ export default function App() {
               adAccounts={adAccounts}
               pages={pages}
               pixels={pixels}
+              instagramAccounts={instagramAccounts}
               selectedAdAccount={selectedAdAccount}
               onSave={(data) => {
                 if (editingProject) {
@@ -1990,7 +2019,7 @@ export default function App() {
 }
 
 // Project Settings Form Component
-function ProjectSettingsForm({ project, adAccounts, pages, pixels, selectedAdAccount, onSave, onDelete, onCancel }) {
+function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAccounts, selectedAdAccount, onSave, onDelete, onCancel }) {
   const [name, setName] = useState(project?.name || "");
   const [adAccountId, setAdAccountId] = useState(project?.adAccountId || selectedAdAccount?.id || "");
   const [pageId, setPageId] = useState(project?.pageId || "");
@@ -1999,7 +2028,9 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, selectedAdAcc
   const [pixelId, setPixelId] = useState(project?.pixelId || "");
 
   const selectedPage = pages.find(p => p.id === pageId);
-  const instagramAccount = selectedPage?.instagram_business_account;
+  // Get Instagram account from page or from instagramAccounts list
+  const instagramAccountFromPage = selectedPage?.instagram_business_account;
+  const selectedInstagramAccount = instagramAccounts?.find(ig => ig.id === instagramAccountId);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -2012,14 +2043,16 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, selectedAdAcc
     const selectedPg = pages.find(p => p.id === pageId);
     const selectedPx = pixels.find(p => p.id === pixelId);
 
+    const selectedIg = instagramAccounts?.find(ig => ig.id === instagramAccountId);
+
     onSave({
       name: name.trim(),
       adAccountId,
       adAccountName: selectedAcc?.name || "",
       pageId,
       pageName: selectedPg?.name || "",
-      instagramAccountId: usePageForInstagram ? null : instagramAccount?.id,
-      instagramAccountName: usePageForInstagram ? null : instagramAccount?.username,
+      instagramAccountId: instagramAccountId || null,
+      instagramAccountName: selectedIg?.username || "",
       usePageForInstagram,
       pixelId,
       pixelName: selectedPx?.name || "",
@@ -2097,39 +2130,28 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, selectedAdAcc
 
       <div style={fieldStyle}>
         <label style={labelStyle}>Compte Instagram</label>
-        {selectedPage && instagramAccount ? (
-          <div>
-            <label style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              cursor: "pointer",
-              marginBottom: "8px",
-            }}>
-              <input
-                type="radio"
-                checked={!usePageForInstagram}
-                onChange={() => setUsePageForInstagram(false)}
-              />
-              <span style={{ color: "#fafafa", fontSize: "14px" }}>
-                @{instagramAccount.username}
-              </span>
-            </label>
-            <label style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              cursor: "pointer",
-            }}>
-              <input
-                type="radio"
-                checked={usePageForInstagram}
-                onChange={() => setUsePageForInstagram(true)}
-              />
-              <span style={{ color: "#a1a1aa", fontSize: "14px" }}>
-                Utiliser la Page Facebook
-              </span>
-            </label>
+        {instagramAccounts && instagramAccounts.length > 0 ? (
+          <select
+            value={instagramAccountId}
+            onChange={(e) => setInstagramAccountId(e.target.value)}
+            style={{ ...inputStyle, cursor: "pointer" }}
+          >
+            <option value="">-- Utiliser la Page Facebook --</option>
+            {instagramAccounts.map((ig) => (
+              <option key={ig.id} value={ig.id}>
+                @{ig.username}
+              </option>
+            ))}
+          </select>
+        ) : instagramAccountFromPage ? (
+          <div style={{
+            padding: "10px 12px",
+            background: "#27272a",
+            borderRadius: "6px",
+            color: "#fafafa",
+            fontSize: "13px",
+          }}>
+            @{instagramAccountFromPage.username} (via Page)
           </div>
         ) : (
           <div style={{
@@ -2139,7 +2161,7 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, selectedAdAcc
             color: "#71717a",
             fontSize: "13px",
           }}>
-            {pageId ? "Aucun compte Instagram lié à cette page" : "Sélectionnez une page d'abord"}
+            {adAccountId ? "Aucun compte Instagram disponible" : "Sélectionnez un compte pub d'abord"}
           </div>
         )}
       </div>
