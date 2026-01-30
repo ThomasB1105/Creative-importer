@@ -1749,18 +1749,6 @@ export default function CreativeImporterPro(props = {}) {
           custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
         };
 
-        // console.log("📤 Adset creation params (detailed):", {
-          name: nomenclature.adset,
-          campaign_id: campaignId,
-          promoted_object_raw: promotedObject,
-          promoted_object_stringified: JSON.stringify(promotedObject),
-          targeting_raw: targeting,
-          targeting_stringified: JSON.stringify(targeting),
-          budget_type: budgetType,
-          budget_value: budgetType === "abo" ? Math.round(parseFloat(budget) * 100) : "N/A (CBO)",
-          pixel_id: selectedPixel.id,
-          event: eventMapping[optimizationEvent],
-        });
 
         const adsetData = new FormData();
         adsetData.append("name", nomenclature.adset);
