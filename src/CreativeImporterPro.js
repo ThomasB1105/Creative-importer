@@ -1828,55 +1828,53 @@ export default function CreativeImporterPro(props = {}) {
         }
       };
 
-      // Use smart auto-grouping from state when in multi-placement mode
-      // For ABO 1-x-1 + multi mode: use groupedFiles (auto-grouped by filename)
-      const useSmartGrouping = adType === "multi" && Object.keys(groupedFiles).length > 0;
+      // Grouping logic:
+      // - Multi-Placement: ALL files → ONE ad with platform_customizations
+      // - Single ads: Each file → one ad
 
       let effectiveGroups = [];
-      let unmappedHashes = []; // For legacy mode fallback
-      let effectiveAdGroups = []; // For legacy mode fallback
+      let unmappedHashes = []; // For single ads mode
 
-      if (useSmartGrouping) {
-        // Convert groupedFiles to the format expected by ad creation
-        effectiveGroups = Object.entries(groupedFiles).map(([key, group]) => ({
-          key,
-          baseName: group.baseName,
-          files: group.files,
-          fileIds: group.files.map(f => f.id),
-          isMultiFormat: group.isMultiFormat,
-        }));
-        console.log(`📦 Using smart auto-grouping: ${effectiveGroups.length} groups`);
+      if (adType === "multi") {
+        // MULTI-PLACEMENT: ALL files in ONE group = ONE ad
+        console.log(`📦 Multi-Placement mode: combining ALL ${validHashes.length} files into ONE ad`);
+        effectiveGroups = [{
+          key: 'multi_placement_group',
+          baseName: null,
+          files: uploadedFiles.filter(f => validHashes.some(h => h.fileId === f.id)),
+          fileIds: validHashes.map(h => h.fileId),
+          isMultiFormat: true,
+        }];
+      } else if (adType === "single") {
+        // SINGLE ADS: Each file becomes its own ad
+        unmappedHashes = [...validHashes];
+        effectiveGroups = []; // No groups - use unmappedHashes loop
       } else {
-        // Fallback: Separate mapped files (in adGroups) from unmapped files
-        const mappedFileIds = adGroups.flatMap(g => g.fileIds);
-        unmappedHashes = validHashes.filter(h => !mappedFileIds.includes(h.fileId));
+        // Legacy/other modes: use groupedFiles or adGroups
+        const useSmartGrouping = Object.keys(groupedFiles).length > 0;
 
-        // For adType === "single", each file becomes its own ad
-        // For adType === "multi", ALL files go into ONE group = ONE ad with platform_customizations
-        if (adType === "single") {
-          effectiveAdGroups = [];
-          unmappedHashes = [...validHashes]; // All files become individual ads
-        } else if (adType === "multi") {
-          // MULTI-PLACEMENT: ALL files in ONE group = ONE ad
-          console.log(`📦 Multi-Placement mode: combining ${validHashes.length} files into ONE ad`);
-          effectiveAdGroups = [{
-            fileIds: validHashes.map(h => h.fileId)
-          }];
-          unmappedHashes = []; // No unmapped files - all in the group
-        } else {
-          // Legacy behavior for other modes
-          effectiveAdGroups = [...adGroups];
-        }
-
-        // Create single group from legacy logic
-        if (effectiveAdGroups.length > 0) {
-          effectiveGroups = effectiveAdGroups.map((g, idx) => ({
-            key: `legacy_${idx}`,
-            baseName: null,
-            files: uploadedFiles.filter(f => g.fileIds.includes(f.id)),
-            fileIds: g.fileIds,
-            isMultiFormat: g.fileIds.length > 1,
+        if (useSmartGrouping) {
+          effectiveGroups = Object.entries(groupedFiles).map(([key, group]) => ({
+            key,
+            baseName: group.baseName,
+            files: group.files,
+            fileIds: group.files.map(f => f.id),
+            isMultiFormat: group.isMultiFormat,
           }));
+          console.log(`📦 Using smart auto-grouping: ${effectiveGroups.length} groups`);
+        } else {
+          const mappedFileIds = adGroups.flatMap(g => g.fileIds);
+          unmappedHashes = validHashes.filter(h => !mappedFileIds.includes(h.fileId));
+
+          if (adGroups.length > 0) {
+            effectiveGroups = adGroups.map((g, idx) => ({
+              key: `legacy_${idx}`,
+              baseName: null,
+              files: uploadedFiles.filter(f => g.fileIds.includes(f.id)),
+              fileIds: g.fileIds,
+              isMultiFormat: g.fileIds.length > 1,
+            }));
+          }
         }
       }
 
