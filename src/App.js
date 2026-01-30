@@ -1164,6 +1164,7 @@ export default function App() {
           sharedAdAccount={selectedAdAccount}
           sharedPage={selectedPage}
           sharedPixel={selectedPixel}
+          sharedInstagramAccountId={selectedProject?.instagramAccountId}
           usePageForInstagram={selectedProject?.usePageForInstagram ?? true}
         />
       );

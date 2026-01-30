@@ -378,6 +378,7 @@ export default function CreativeImporterPro(props = {}) {
     sharedAdAccount = null,
     sharedPage = null,
     sharedPixel = null,
+    sharedInstagramAccountId = null,
     usePageForInstagram = true, // If true, use FB Page ID for Instagram placements
   } = props;
 
@@ -689,11 +690,14 @@ export default function CreativeImporterPro(props = {}) {
     );
   }, [existingAdsets, adsetSearch]);
 
-  // Instagram account: prefer real Instagram Business account, fallback to Page ID for PBIA
-  // When using page_id as instagram_actor_id, Meta automatically uses the Page-Backed Instagram Account
+  // Instagram account priority:
+  // 1. sharedInstagramAccountId from project settings (user selected)
+  // 2. instagram_business_account linked to the page
   const instagramAccount = selectedPage?.instagram_business_account || null;
-  // Use real Instagram account if available, otherwise use page_id (Meta will use PBIA automatically)
-  const instagramActorId = instagramAccount?.id || selectedPage?.id || null;
+  // Only use real Instagram account - not page_id fallback (PBIA doesn't work reliably)
+  const instagramActorId = sharedInstagramAccountId || instagramAccount?.id || null;
+  // Check if we have a real Instagram account for Multi-Placement feature
+  const hasRealInstagramAccount = !!(sharedInstagramAccountId || instagramAccount?.id);
 
   const processFiles = async (files) => {
     setIsProcessing(true);
@@ -4398,8 +4402,8 @@ export default function CreativeImporterPro(props = {}) {
                 }}>
                   {[
                     { id: "single", name: "Ads", count: uploadedFiles.length },
-                    { id: "carousel", name: "Carousel", count: 0, disabled: true },
-                    { id: "multi", name: "Multi-Placement", count: multiGroups.length },
+                    { id: "carousel", name: "Carousel", count: 0, disabled: true, soon: true },
+                    { id: "multi", name: "Multi-Placement", count: multiGroups.length, disabled: !hasRealInstagramAccount, requiresInstagram: !hasRealInstagramAccount },
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -4434,7 +4438,7 @@ export default function CreativeImporterPro(props = {}) {
                           {tab.count}
                         </span>
                       )}
-                      {tab.disabled && (
+                      {tab.soon && (
                         <span style={{
                           padding: "2px 6px",
                           borderRadius: "4px",
@@ -4444,6 +4448,17 @@ export default function CreativeImporterPro(props = {}) {
                           textTransform: "uppercase",
                         }}>
                           Soon
+                        </span>
+                      )}
+                      {tab.requiresInstagram && (
+                        <span style={{
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          background: "rgba(239,68,68,0.2)",
+                          fontSize: "9px",
+                          color: "#ef4444",
+                        }}>
+                          Instagram requis
                         </span>
                       )}
                     </button>
