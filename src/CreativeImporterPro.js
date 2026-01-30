@@ -1878,21 +1878,6 @@ export default function CreativeImporterPro(props = {}) {
             isMultiFormat: g.fileIds.length > 1,
           }));
         }
-
-        // For adType === "single", keep unmapped files separate so they use object_story_spec
-        // For adType === "multi", add them to effectiveGroups to use asset_feed_spec
-        if (adType === "multi") {
-          unmappedHashes.forEach((h, idx) => {
-            const file = uploadedFiles.find(f => f.id === h.fileId);
-            effectiveGroups.push({
-              key: `single_${idx}`,
-              baseName: null,
-              files: [file],
-              fileIds: [h.fileId],
-              isMultiFormat: false,
-            });
-          });
-        }
       }
 
       // Process each group: For ABO 1-x-1, create one adset per group
