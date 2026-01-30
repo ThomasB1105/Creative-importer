@@ -1663,9 +1663,8 @@ export default function CreativeImporterPro(props = {}) {
         console.log(`✅ Using existing adset: ${adsetId}`);
       } else if (!isAbo1x1) {
         // Create single adset for CBO or ABO multi modes
-        // Enable dynamic creative for multi-placement ads
-        const needsDynamicCreative = adType === "multi";
-        adsetId = await createAdset(nomenclature.adset, null, needsDynamicCreative);
+        // Always enable dynamic creative since all ads use asset_feed_spec
+        adsetId = await createAdset(nomenclature.adset, null, true);
         results.adsets.push({ id: adsetId, name: nomenclature.adset });
       }
       // For ABO 1-x-1, adsets will be created in the group loop below
@@ -1904,9 +1903,8 @@ export default function CreativeImporterPro(props = {}) {
             ? `${nomenclature.adset}_${group.baseName}`
             : `${nomenclature.adset}_${groupIndex + 1}`;
           try {
-            // Enable dynamic creative for multi-placement ads
-            const needsDynamicCreative = adType === "multi";
-            currentAdsetId = await createAdset(adsetName, group.files, needsDynamicCreative);
+            // Always enable dynamic creative since all ads use asset_feed_spec
+            currentAdsetId = await createAdset(adsetName, group.files, true);
             results.adsets.push({ id: currentAdsetId, name: adsetName });
           } catch (err) {
             console.error(`❌ Failed to create adset for group ${groupIndex + 1}:`, err);
