@@ -1846,22 +1846,29 @@ export default function CreativeImporterPro(props = {}) {
         const mappedFileIds = adGroups.flatMap(g => g.fileIds);
         unmappedHashes = validHashes.filter(h => !mappedFileIds.includes(h.fileId));
 
-        // AUTO-GROUP: If no groups created and multiple files with different formats,
-        // create ONE ad with all files mapped to their respective placements
-        effectiveAdGroups = [...adGroups];
-        if (effectiveAdGroups.length === 0 && validHashes.length > 1) {
-          const formats = new Set(validHashes.map(h => {
-            const file = uploadedFiles.find(f => f.id === h.fileId);
-            return file?.format;
-          }));
+        // For adType === "single", ignore all groups and treat each file as individual ad
+        // This ensures single ads use object_story_spec (not asset_feed_spec)
+        if (adType === "single") {
+          effectiveAdGroups = [];
+          unmappedHashes = [...validHashes]; // All files become individual ads
+        } else {
+          // AUTO-GROUP: If no groups created and multiple files with different formats,
+          // create ONE ad with all files mapped to their respective placements
+          effectiveAdGroups = [...adGroups];
+          if (effectiveAdGroups.length === 0 && validHashes.length > 1) {
+            const formats = new Set(validHashes.map(h => {
+              const file = uploadedFiles.find(f => f.id === h.fileId);
+              return file?.format;
+            }));
 
-          // If we have different formats (e.g., story AND feed), auto-group them
-          if (formats.size > 1) {
-            console.log(`📦 Auto-grouping ${validHashes.length} files with ${formats.size} different formats`);
-            effectiveAdGroups = [{
-              fileIds: validHashes.map(h => h.fileId)
-            }];
-            unmappedHashes = [];
+            // If we have different formats (e.g., story AND feed), auto-group them
+            if (formats.size > 1) {
+              console.log(`📦 Auto-grouping ${validHashes.length} files with ${formats.size} different formats`);
+              effectiveAdGroups = [{
+                fileIds: validHashes.map(h => h.fileId)
+              }];
+              unmappedHashes = [];
+            }
           }
         }
 
