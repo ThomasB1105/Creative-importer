@@ -419,6 +419,10 @@ export default function CreativeImporterPro(props = {}) {
   // Ad Type (Ads | Carousel | Multi-Placement)
   const [adType, setAdType] = useState("multi"); // "single" | "carousel" | "multi"
 
+  // Multi-Placement manual groups (no auto-grouping)
+  const [multiGroups, setMultiGroups] = useState([]); // [{ id, name, feed: fileId|null, story: fileId|null }]
+  const [draggedFileId, setDraggedFileId] = useState(null); // For drag & drop
+
   // Config
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -4204,7 +4208,7 @@ export default function CreativeImporterPro(props = {}) {
                   {[
                     { id: "single", name: "Ads", count: uploadedFiles.length },
                     { id: "carousel", name: "Carousel", count: 0, disabled: true },
-                    { id: "multi", name: "Multi-Placement", count: Object.keys(autoGroupedFiles).length },
+                    { id: "multi", name: "Multi-Placement", count: multiGroups.length },
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -4255,40 +4259,372 @@ export default function CreativeImporterPro(props = {}) {
                   ))}
                 </div>
 
-                {/* Auto-grouping info banner */}
-                {adType === "multi" && Object.keys(autoGroupedFiles).length > 0 && (
-                  <div style={{
-                    marginTop: "12px",
-                    padding: "12px 16px",
-                    background: "rgba(34,197,94,0.1)",
-                    border: "1px solid rgba(34,197,94,0.3)",
-                    borderRadius: "8px",
+              </div>
+            )}
+
+            {/* Multi-Placement Mode - New Drag & Drop UI */}
+            {uploadedFiles.length > 0 && adType === "multi" && (
+              <div style={{ marginBottom: "24px" }}>
+                {/* Import Options Bar */}
+                <div style={{
+                  display: "flex",
+                  gap: "8px",
+                  marginBottom: "16px",
+                  padding: "12px",
+                  background: "rgba(17,24,39,0.6)",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                }}>
+                  <label style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "10px",
+                    gap: "8px",
+                    padding: "8px 16px",
+                    background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                    color: "#fff",
                   }}>
-                    <span style={{ fontSize: "16px" }}>✨</span>
-                    <div>
-                      <div style={{ fontSize: "13px", fontWeight: "600", color: "#22c55e" }}>
-                        Auto-Grouping activé
+                    <span>📁</span> Local
+                    <input type="file" multiple accept="image/*,video/*" style={{ display: "none" }}
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        files.forEach(file => {
+                          const reader = new FileReader();
+                          reader.onload = (ev) => {
+                            const isVideo = file.type.startsWith("video/");
+                            const img = isVideo ? null : new Image();
+                            if (!isVideo && img) {
+                              img.onload = () => {
+                                const ratio = img.width / img.height;
+                                let format = "feed_square";
+                                if (ratio < 0.7) format = "story";
+                                else if (ratio < 0.9) format = "feed_portrait";
+                                else if (ratio > 1.3) format = "feed_landscape";
+                                setUploadedFiles(prev => [...prev, {
+                                  id: Date.now() + Math.random(),
+                                  file,
+                                  name: file.name,
+                                  type: "image",
+                                  preview: ev.target?.result,
+                                  format,
+                                  adName: file.name.replace(/\.[^/.]+$/, ""),
+                                }]);
+                              };
+                              img.src = ev.target?.result;
+                            } else {
+                              setUploadedFiles(prev => [...prev, {
+                                id: Date.now() + Math.random(),
+                                file,
+                                name: file.name,
+                                type: "video",
+                                preview: ev.target?.result,
+                                format: "story",
+                                adName: file.name.replace(/\.[^/.]+$/, ""),
+                              }]);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        });
+                      }}
+                    />
+                  </label>
+                  <button disabled style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 16px",
+                    background: "rgba(255,255,255,0.05)",
+                    borderRadius: "8px",
+                    border: "none",
+                    fontSize: "13px",
+                    color: "#71717a",
+                    cursor: "not-allowed",
+                  }}>
+                    <span>📦</span> Dropbox
+                    <span style={{ fontSize: "9px", padding: "2px 6px", background: "rgba(251,146,60,0.2)", color: "#fb923c", borderRadius: "4px" }}>SOON</span>
+                  </button>
+                  <button disabled style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "8px 16px",
+                    background: "rgba(255,255,255,0.05)",
+                    borderRadius: "8px",
+                    border: "none",
+                    fontSize: "13px",
+                    color: "#71717a",
+                    cursor: "not-allowed",
+                  }}>
+                    <span>🔷</span> Drive
+                    <span style={{ fontSize: "9px", padding: "2px 6px", background: "rgba(251,146,60,0.2)", color: "#fb923c", borderRadius: "4px" }}>SOON</span>
+                  </button>
+                </div>
+
+                {/* File Pool - All uploaded files */}
+                <div style={{
+                  marginBottom: "20px",
+                  padding: "16px",
+                  background: "rgba(17,24,39,0.4)",
+                  borderRadius: "12px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                    <span style={{ fontSize: "14px", fontWeight: "600", color: "#fafafa" }}>
+                      📂 Fichiers ({uploadedFiles.filter(f => !multiGroups.some(g => g.feed === f.id || g.story === f.id)).length})
+                    </span>
+                    <span style={{ fontSize: "11px", color: "#71717a" }}>Glissez les fichiers vers les zones ci-dessous</span>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    {uploadedFiles.filter(f => !multiGroups.some(g => g.feed === f.id || g.story === f.id)).map(file => (
+                      <div
+                        key={file.id}
+                        draggable
+                        onDragStart={() => setDraggedFileId(file.id)}
+                        onDragEnd={() => setDraggedFileId(null)}
+                        style={{
+                          width: "80px",
+                          padding: "8px",
+                          background: draggedFileId === file.id ? "rgba(99,102,241,0.3)" : "rgba(255,255,255,0.05)",
+                          borderRadius: "8px",
+                          cursor: "grab",
+                          border: draggedFileId === file.id ? "2px solid #6366f1" : "2px solid transparent",
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        <div style={{ width: "64px", height: "64px", borderRadius: "6px", overflow: "hidden", marginBottom: "4px" }}>
+                          {file.type === "video" ? (
+                            <video src={file.preview} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            <img src={file.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          )}
+                        </div>
+                        <div style={{ fontSize: "9px", color: "#a1a1aa", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {file.name.length > 10 ? file.name.slice(0, 10) + "..." : file.name}
+                        </div>
+                        <div style={{
+                          marginTop: "4px",
+                          padding: "2px 4px",
+                          background: file.format === "story" ? "rgba(168,85,247,0.2)" : "rgba(34,197,94,0.2)",
+                          borderRadius: "4px",
+                          fontSize: "8px",
+                          textAlign: "center",
+                          color: file.format === "story" ? "#a855f7" : "#22c55e",
+                        }}>
+                          {file.format === "story" ? "9:16" : "1:1"}
+                        </div>
                       </div>
-                      <div style={{ fontSize: "11px", color: "#71717a" }}>
-                        {Object.keys(autoGroupedFiles).length} groupe(s) détecté(s) par nom de fichier •
-                        Formats 9:16 → Stories/Reels, 4:5/1:1 → Feed
+                    ))}
+                    {uploadedFiles.filter(f => !multiGroups.some(g => g.feed === f.id || g.story === f.id)).length === 0 && (
+                      <div style={{ padding: "20px", color: "#71717a", fontSize: "13px", textAlign: "center", width: "100%" }}>
+                        Tous les fichiers sont assignés aux groupes
                       </div>
-                    </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Multi-Placement Groups */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                  <span style={{ fontSize: "14px", fontWeight: "600", color: "#fafafa" }}>
+                    🎯 Multi-Placement Ads ({multiGroups.length})
+                  </span>
+                  <button
+                    onClick={() => setMultiGroups(prev => [...prev, { id: Date.now(), name: `Ad ${prev.length + 1}`, feed: null, story: null }])}
+                    style={{
+                      padding: "8px 16px",
+                      background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                      border: "none",
+                      borderRadius: "8px",
+                      color: "#fff",
+                      fontSize: "13px",
+                      fontWeight: "500",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <span>+</span> Nouveau groupe
+                  </button>
+                </div>
+
+                {multiGroups.length === 0 ? (
+                  <div style={{
+                    padding: "40px",
+                    background: "rgba(17,24,39,0.4)",
+                    borderRadius: "12px",
+                    border: "2px dashed rgba(255,255,255,0.2)",
+                    textAlign: "center",
+                  }}>
+                    <div style={{ fontSize: "32px", marginBottom: "12px" }}>🎨</div>
+                    <div style={{ fontSize: "14px", color: "#a1a1aa", marginBottom: "8px" }}>Aucun groupe créé</div>
+                    <div style={{ fontSize: "12px", color: "#71717a" }}>Cliquez sur "Nouveau groupe" pour créer une pub multi-placement</div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    {multiGroups.map((group, idx) => {
+                      const feedFile = uploadedFiles.find(f => f.id === group.feed);
+                      const storyFile = uploadedFiles.find(f => f.id === group.story);
+                      return (
+                        <div key={group.id} style={{
+                          padding: "16px",
+                          background: "rgba(17,24,39,0.6)",
+                          borderRadius: "12px",
+                          border: "1px solid rgba(99,102,241,0.3)",
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                            <input
+                              value={group.name}
+                              onChange={(e) => setMultiGroups(prev => prev.map(g => g.id === group.id ? { ...g, name: e.target.value } : g))}
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                fontSize: "14px",
+                                fontWeight: "600",
+                                color: "#fafafa",
+                                outline: "none",
+                              }}
+                            />
+                            <button
+                              onClick={() => setMultiGroups(prev => prev.filter(g => g.id !== group.id))}
+                              style={{
+                                background: "rgba(239,68,68,0.2)",
+                                border: "none",
+                                borderRadius: "6px",
+                                color: "#ef4444",
+                                padding: "4px 8px",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                              }}
+                            >
+                              Supprimer
+                            </button>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                            {/* Feed Zone */}
+                            <div
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={() => {
+                                if (draggedFileId) {
+                                  setMultiGroups(prev => prev.map(g => g.id === group.id ? { ...g, feed: draggedFileId } : g));
+                                  setDraggedFileId(null);
+                                }
+                              }}
+                              style={{
+                                padding: "12px",
+                                background: feedFile ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.03)",
+                                borderRadius: "8px",
+                                border: feedFile ? "2px solid rgba(34,197,94,0.5)" : "2px dashed rgba(255,255,255,0.2)",
+                                minHeight: "100px",
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <div style={{ fontSize: "11px", color: "#22c55e", fontWeight: "600", marginBottom: "8px" }}>
+                                📱 Feed (1:1 / 4:5)
+                              </div>
+                              {feedFile ? (
+                                <div style={{ position: "relative" }}>
+                                  <div style={{ width: "60px", height: "60px", borderRadius: "6px", overflow: "hidden" }}>
+                                    {feedFile.type === "video" ? (
+                                      <video src={feedFile.preview} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                    ) : (
+                                      <img src={feedFile.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => setMultiGroups(prev => prev.map(g => g.id === group.id ? { ...g, feed: null } : g))}
+                                    style={{
+                                      position: "absolute",
+                                      top: "-8px",
+                                      right: "-8px",
+                                      width: "20px",
+                                      height: "20px",
+                                      borderRadius: "50%",
+                                      background: "#ef4444",
+                                      border: "none",
+                                      color: "#fff",
+                                      fontSize: "12px",
+                                      cursor: "pointer",
+                                    }}
+                                  >×</button>
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: "11px", color: "#71717a" }}>Glissez ici</div>
+                              )}
+                            </div>
+                            {/* Story Zone */}
+                            <div
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={() => {
+                                if (draggedFileId) {
+                                  setMultiGroups(prev => prev.map(g => g.id === group.id ? { ...g, story: draggedFileId } : g));
+                                  setDraggedFileId(null);
+                                }
+                              }}
+                              style={{
+                                padding: "12px",
+                                background: storyFile ? "rgba(168,85,247,0.1)" : "rgba(255,255,255,0.03)",
+                                borderRadius: "8px",
+                                border: storyFile ? "2px solid rgba(168,85,247,0.5)" : "2px dashed rgba(255,255,255,0.2)",
+                                minHeight: "100px",
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <div style={{ fontSize: "11px", color: "#a855f7", fontWeight: "600", marginBottom: "8px" }}>
+                                📲 Story (9:16)
+                              </div>
+                              {storyFile ? (
+                                <div style={{ position: "relative" }}>
+                                  <div style={{ width: "40px", height: "70px", borderRadius: "6px", overflow: "hidden" }}>
+                                    {storyFile.type === "video" ? (
+                                      <video src={storyFile.preview} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                    ) : (
+                                      <img src={storyFile.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => setMultiGroups(prev => prev.map(g => g.id === group.id ? { ...g, story: null } : g))}
+                                    style={{
+                                      position: "absolute",
+                                      top: "-8px",
+                                      right: "-8px",
+                                      width: "20px",
+                                      height: "20px",
+                                      borderRadius: "50%",
+                                      background: "#ef4444",
+                                      border: "none",
+                                      color: "#fff",
+                                      fontSize: "12px",
+                                      cursor: "pointer",
+                                    }}
+                                  >×</button>
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: "11px", color: "#71717a" }}>Glissez ici</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
             )}
 
-            {uploadedFiles.length > 0 && (
+            {/* Single Ads Mode - Original grouped display */}
+            {uploadedFiles.length > 0 && adType === "single" && (
               <div style={{ marginBottom: "24px" }}>
                 {Object.entries(groupedFiles).map(([key, group], groupIdx) => {
-                  const isMultiFormat = group.isMultiFormat;
-                  const p = isMultiFormat
-                    ? { name: `Multi ${groupIdx + 1}`, abbrev: "M", color: "#22c55e", bgColor: "rgba(34,197,94,0.15)" }
-                    : META_PLACEMENTS[group.format] || {
+                  const p = META_PLACEMENTS[group.format] || {
                     name: "Mixed",
                     abbrev: "F",
                     color: "#71717a",
@@ -4296,129 +4632,50 @@ export default function CreativeImporterPro(props = {}) {
                   };
                   return (
                     <div key={key} style={{ marginBottom: "16px" }}>
-                      <div
-                        style={{
-                          padding: "12px 14px",
-                          background: p.bgColor,
-                          borderRadius: "8px",
-                          marginBottom: "10px",
-                          border: isMultiFormat ? `1px solid ${p.color}40` : "none",
-                        }}
-                      >
+                      <div style={{
+                        padding: "12px 14px",
+                        background: p.bgColor,
+                        borderRadius: "8px",
+                        marginBottom: "10px",
+                      }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                            <span style={{ fontWeight: "600", color: p.color, fontSize: "14px" }}>
-                              {isMultiFormat ? `Multi ${groupIdx + 1}` : p.name}
-                            </span>
-                            {group.baseName && (
-                              <span style={{ fontSize: "11px", color: "#71717a", fontStyle: "italic" }}>
-                                {group.baseName}
-                              </span>
-                            )}
-                            {/* Format badges for multi-format groups */}
-                            {isMultiFormat && (
-                              <div style={{ display: "flex", gap: "4px", marginLeft: "8px" }}>
-                                {group.files.map((f) => {
-                                  const placement = META_PLACEMENTS[f.format];
-                                  return (
-                                    <span
-                                      key={f.id}
-                                      style={{
-                                        padding: "2px 6px",
-                                        borderRadius: "4px",
-                                        background: placement?.bgColor || "rgba(255,255,255,0.1)",
-                                        color: placement?.color || "#71717a",
-                                        fontSize: "10px",
-                                        fontWeight: "600",
-                                      }}
-                                    >
-                                      {placement?.abbrev || f.format}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
+                          <span style={{ fontWeight: "600", color: p.color, fontSize: "14px" }}>{p.name}</span>
                           <span style={{ color: "#71717a", fontSize: "12px" }}>
                             {group.files.length} fichier{group.files.length > 1 ? "s" : ""}
                           </span>
                         </div>
                       </div>
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns:
-                            "repeat(auto-fill,minmax(200px,1fr))",
-                          gap: "8px",
-                          paddingLeft: "12px",
-                        }}
-                      >
+                      <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))",
+                        gap: "8px",
+                        paddingLeft: "12px",
+                      }}>
                         {group.files.map((file) => (
-                          <div
-                            key={file.id}
-                            style={{
-                              background: "rgba(255,255,255,0.03)",
-                              borderRadius: "8px",
-                              padding: "10px",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "10px",
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: "40px",
-                                height: "40px",
-                                borderRadius: "6px",
-                                overflow: "hidden",
-                              }}
-                            >
+                          <div key={file.id} style={{
+                            background: "rgba(255,255,255,0.03)",
+                            borderRadius: "8px",
+                            padding: "10px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
+                          }}>
+                            <div style={{ width: "40px", height: "40px", borderRadius: "6px", overflow: "hidden" }}>
                               {file.type === "video" ? (
-                                <video
-                                  src={file.preview}
-                                  style={{
-                                    width: "100%",
-                                    height: "100%",
-                                    objectFit: "cover",
-                                  }}
-                                />
+                                <video src={file.preview} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               ) : (
-                                <img
-                                  src={file.preview}
-                                  alt=""
-                                  style={{
-                                    width: "100%",
-                                    height: "100%",
-                                    objectFit: "cover",
-                                  }}
-                                />
+                                <img src={file.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               )}
                             </div>
                             <div style={{ flex: 1 }}>
                               <input
                                 value={file.adName}
-                                onChange={(e) =>
-                                  setUploadedFiles((p) =>
-                                    p.map((x) =>
-                                      x.id === file.id
-                                        ? { ...x, adName: e.target.value }
-                                        : x
-                                    )
-                                  )
-                                }
-                                style={{
-                                  ...inp,
-                                  fontSize: "11px",
-                                  padding: "6px",
-                                }}
+                                onChange={(e) => setUploadedFiles((p) => p.map((x) => x.id === file.id ? { ...x, adName: e.target.value } : x))}
+                                style={{ ...inp, fontSize: "11px", padding: "6px" }}
                               />
                             </div>
                             <button
-                              onClick={() =>
-                                setUploadedFiles((p) =>
-                                  p.filter((x) => x.id !== file.id)
-                                )
-                              }
+                              onClick={() => setUploadedFiles((p) => p.filter((x) => x.id !== file.id))}
                               style={{
                                 background: "rgba(239,68,68,0.2)",
                                 color: "#ef4444",
@@ -4428,9 +4685,7 @@ export default function CreativeImporterPro(props = {}) {
                                 height: "28px",
                                 cursor: "pointer",
                               }}
-                            >
-                              ×
-                            </button>
+                            >×</button>
                           </div>
                         ))}
                       </div>
