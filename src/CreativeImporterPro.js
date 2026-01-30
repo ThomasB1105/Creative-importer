@@ -689,11 +689,11 @@ export default function CreativeImporterPro(props = {}) {
     );
   }, [existingAdsets, adsetSearch]);
 
-  // Instagram account: prefer real Instagram Business account, fallback to Page-Backed Instagram Account (PBIA)
+  // Instagram account: only use real Instagram Business account
+  // PBIA (Page-Backed Instagram Account) doesn't work reliably with all ad accounts
   const instagramAccount = selectedPage?.instagram_business_account || null;
-  const pageBackedInstagramAccount = selectedPage?.page_backed_instagram_accounts?.data?.[0] || null;
-  // Use PBIA as instagram_actor_id when no real Instagram account is linked
-  const instagramActorId = instagramAccount?.id || pageBackedInstagramAccount?.id || null;
+  // Only use real Instagram account ID - Instagram placements will be excluded if no real account
+  const instagramActorId = instagramAccount?.id || null;
 
   const processFiles = async (files) => {
     setIsProcessing(true);
