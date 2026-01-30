@@ -1967,29 +1967,33 @@ export default function CreativeImporterPro(props = {}) {
           // console.log(`🎨 Using asset_feed_spec with asset_customization_rules`);
 
           // Build asset_customization_rules for story vs feed placements
-          // Include Instagram if we have an instagramActorId (real account or PBIA)
+          // Include Instagram only if we have a real Instagram account
           const assetCustomizationRules = [];
 
           // Rule for story/reels placements (vertical 9:16)
           const storyRule = {
             customization_spec: {
-              publisher_platforms: ["facebook", "instagram"],
+              publisher_platforms: hasInstagramCapability ? ["facebook", "instagram"] : ["facebook"],
               facebook_positions: ["story", "facebook_reels"],
-              instagram_positions: ["story", "reels"],
             },
             image_label: { name: "STORY_IMG" }
           };
+          if (hasInstagramCapability) {
+            storyRule.customization_spec.instagram_positions = ["story", "reels"];
+          }
           assetCustomizationRules.push(storyRule);
 
           // Rule for feed placements (square/portrait)
           const feedRule = {
             customization_spec: {
-              publisher_platforms: ["facebook", "instagram"],
+              publisher_platforms: hasInstagramCapability ? ["facebook", "instagram"] : ["facebook"],
               facebook_positions: ["feed", "marketplace"],
-              instagram_positions: ["stream", "explore", "profile_feed"],
             },
             image_label: { name: "FEED_IMG" }
           };
+          if (hasInstagramCapability) {
+            feedRule.customization_spec.instagram_positions = ["stream", "explore", "profile_feed"];
+          }
           assetCustomizationRules.push(feedRule);
 
           // Build images array with labels
