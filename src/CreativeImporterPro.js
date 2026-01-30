@@ -1843,10 +1843,10 @@ export default function CreativeImporterPro(props = {}) {
       }
 
       // Helper to get placement positions based on format
-      // For Multi-Placement: use Facebook only to avoid Instagram actor_id validation issues
-      // Instagram requires the account to be explicitly associated with the ad account
-      const hasInstagramCapability = false; // Disabled for now - Facebook placements only
-      console.log(`📸 Multi-Placement mode: Facebook only (Instagram disabled to avoid validation errors)`);
+      // Include Instagram placements - Meta auto-uses page's connected IG account
+      // We DON'T send instagram_actor_id in object_story_spec (causes validation errors)
+      const hasInstagramCapability = true;
+      console.log(`📸 Multi-Placement: FB + IG placements (no instagram_actor_id in request)`);
 
       const getPlacementForFormat = (format) => {
         if (format === 'story') {
