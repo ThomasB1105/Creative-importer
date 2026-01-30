@@ -1980,19 +1980,18 @@ export default function CreativeImporterPro(props = {}) {
         console.log(`📝 Creating multi-format creative with asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
         console.log(`📸 Instagram account:`, instagramAccount);
         console.log(`📸 Instagram ID:`, instagramAccount?.id);
-        console.log(`📸 Use Page for Instagram:`, usePageForInstagram);
+        console.log(`📸 Has Instagram account:`, hasInstagramAccount);
 
-        // Determine instagram_actor_id based on project settings
-        // If usePageForInstagram is true, always use Facebook Page ID (like Meta's "Use Facebook Page" option)
-        // Otherwise, use Instagram account if linked, or fallback to Page ID
-        const instagramActorId = usePageForInstagram
-          ? selectedPage.id
-          : (hasInstagramAccount ? instagramAccount.id : selectedPage.id);
-
+        // Only include instagram_actor_id if we have a valid Instagram account
+        // Otherwise, Meta API will reject with "instagram_actor_id must be a valid Instagram account id"
         const objectStorySpecForFeed = {
           page_id: selectedPage.id,
-          instagram_actor_id: instagramActorId,
         };
+
+        // Only add instagram_actor_id when we have an Instagram account linked
+        if (hasInstagramAccount && instagramAccount?.id) {
+          objectStorySpecForFeed.instagram_actor_id = instagramAccount.id;
+        }
 
         console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpecForFeed, null, 2));
 
@@ -2166,13 +2165,11 @@ export default function CreativeImporterPro(props = {}) {
           };
         }
 
-        // Add instagram_actor_id based on project settings
-        // If usePageForInstagram is true, use Facebook Page ID
-        // Otherwise, use Instagram account if linked, or Page ID as fallback
-        const singleAdInstagramActorId = usePageForInstagram
-          ? selectedPage.id
-          : (instagramAccount?.id || selectedPage.id);
-        objectStorySpec.instagram_actor_id = singleAdInstagramActorId;
+        // Only add instagram_actor_id when we have an Instagram account linked
+        // Otherwise, Meta API will reject with "instagram_actor_id must be a valid Instagram account id"
+        if (instagramAccount?.id) {
+          objectStorySpec.instagram_actor_id = instagramAccount.id;
+        }
 
         console.log(`📝 Creating creative for ${file.name}:`, JSON.stringify(objectStorySpec, null, 2));
 
@@ -4086,6 +4083,7 @@ export default function CreativeImporterPro(props = {}) {
             >
               03 — Upload
             </h2>
+            {/* Import Bar */}
             <div
               onDragEnter={(e) => {
                 e.preventDefault();
@@ -4102,40 +4100,67 @@ export default function CreativeImporterPro(props = {}) {
                 processFiles([...e.dataTransfer.files]);
               }}
               style={{
-                border: `2px dashed ${
-                  isDragging ? "#e879f9" : "rgba(255,255,255,0.15)"
-                }`,
-                borderRadius: "16px",
-                padding: "40px",
-                textAlign: "center",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                padding: "16px",
+                background: isDragging ? "rgba(232,121,249,0.1)" : "rgba(17,24,39,0.6)",
+                borderRadius: "12px",
+                border: `2px dashed ${isDragging ? "#e879f9" : "rgba(255,255,255,0.1)"}`,
                 marginBottom: "24px",
+                transition: "all 0.2s",
               }}
             >
-              {isProcessing ? (
-                <p>Analyse...</p>
-              ) : (
-                <div>
-                  <div style={{ width: "48px", height: "48px", background: "rgba(129,140,248,0.12)", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px", fontWeight: "700", color: "#818cf8", margin: "0 auto 12px" }}>+</div>
-                  <p>Glisser vos fichiers</p>
-                  <label
-                    style={{
-                      padding: "10px 20px",
-                      borderRadius: "8px",
-                      background: "rgba(255,255,255,0.1)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Parcourir
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*,video/*"
-                      onChange={(e) => processFiles([...e.target.files])}
-                      style={{ display: "none" }}
-                    />
-                  </label>
-                </div>
-              )}
+              <label style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "10px 20px",
+                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: "500",
+                color: "#fff",
+              }}>
+                <span>📁</span> Local
+                <input type="file" multiple accept="image/*,video/*" style={{ display: "none" }}
+                  onChange={(e) => processFiles([...e.target.files])}
+                />
+              </label>
+              <button disabled style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "10px 20px",
+                background: "rgba(255,255,255,0.05)",
+                borderRadius: "8px",
+                border: "none",
+                fontSize: "13px",
+                color: "#71717a",
+                cursor: "not-allowed",
+              }}>
+                <span>📦</span> Dropbox
+                <span style={{ fontSize: "9px", padding: "2px 6px", background: "rgba(251,146,60,0.2)", color: "#fb923c", borderRadius: "4px" }}>SOON</span>
+              </button>
+              <button disabled style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "10px 20px",
+                background: "rgba(255,255,255,0.05)",
+                borderRadius: "8px",
+                border: "none",
+                fontSize: "13px",
+                color: "#71717a",
+                cursor: "not-allowed",
+              }}>
+                <span>🔷</span> Drive
+                <span style={{ fontSize: "9px", padding: "2px 6px", background: "rgba(251,146,60,0.2)", color: "#fb923c", borderRadius: "4px" }}>SOON</span>
+              </button>
+              <div style={{ marginLeft: "auto", fontSize: "12px", color: "#71717a" }}>
+                {isProcessing ? "Analyse..." : "ou glissez vos fichiers ici"}
+              </div>
             </div>
 
             {/* Option Advantage+ Creative */}
@@ -4265,104 +4290,6 @@ export default function CreativeImporterPro(props = {}) {
             {/* Multi-Placement Mode - New Drag & Drop UI */}
             {uploadedFiles.length > 0 && adType === "multi" && (
               <div style={{ marginBottom: "24px" }}>
-                {/* Import Options Bar */}
-                <div style={{
-                  display: "flex",
-                  gap: "8px",
-                  marginBottom: "16px",
-                  padding: "12px",
-                  background: "rgba(17,24,39,0.6)",
-                  borderRadius: "10px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                }}>
-                  <label style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "8px 16px",
-                    background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontSize: "13px",
-                    fontWeight: "500",
-                    color: "#fff",
-                  }}>
-                    <span>📁</span> Local
-                    <input type="file" multiple accept="image/*,video/*" style={{ display: "none" }}
-                      onChange={(e) => {
-                        const files = Array.from(e.target.files || []);
-                        files.forEach(file => {
-                          const reader = new FileReader();
-                          reader.onload = (ev) => {
-                            const isVideo = file.type.startsWith("video/");
-                            const img = isVideo ? null : new Image();
-                            if (!isVideo && img) {
-                              img.onload = () => {
-                                const ratio = img.width / img.height;
-                                let format = "feed_square";
-                                if (ratio < 0.7) format = "story";
-                                else if (ratio < 0.9) format = "feed_portrait";
-                                else if (ratio > 1.3) format = "feed_landscape";
-                                setUploadedFiles(prev => [...prev, {
-                                  id: Date.now() + Math.random(),
-                                  file,
-                                  name: file.name,
-                                  type: "image",
-                                  preview: ev.target?.result,
-                                  format,
-                                  adName: file.name.replace(/\.[^/.]+$/, ""),
-                                }]);
-                              };
-                              img.src = ev.target?.result;
-                            } else {
-                              setUploadedFiles(prev => [...prev, {
-                                id: Date.now() + Math.random(),
-                                file,
-                                name: file.name,
-                                type: "video",
-                                preview: ev.target?.result,
-                                format: "story",
-                                adName: file.name.replace(/\.[^/.]+$/, ""),
-                              }]);
-                            }
-                          };
-                          reader.readAsDataURL(file);
-                        });
-                      }}
-                    />
-                  </label>
-                  <button disabled style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "8px 16px",
-                    background: "rgba(255,255,255,0.05)",
-                    borderRadius: "8px",
-                    border: "none",
-                    fontSize: "13px",
-                    color: "#71717a",
-                    cursor: "not-allowed",
-                  }}>
-                    <span>📦</span> Dropbox
-                    <span style={{ fontSize: "9px", padding: "2px 6px", background: "rgba(251,146,60,0.2)", color: "#fb923c", borderRadius: "4px" }}>SOON</span>
-                  </button>
-                  <button disabled style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "8px 16px",
-                    background: "rgba(255,255,255,0.05)",
-                    borderRadius: "8px",
-                    border: "none",
-                    fontSize: "13px",
-                    color: "#71717a",
-                    cursor: "not-allowed",
-                  }}>
-                    <span>🔷</span> Drive
-                    <span style={{ fontSize: "9px", padding: "2px 6px", background: "rgba(251,146,60,0.2)", color: "#fb923c", borderRadius: "4px" }}>SOON</span>
-                  </button>
-                </div>
-
                 {/* File Pool - All uploaded files */}
                 <div style={{
                   marginBottom: "20px",
@@ -4695,374 +4622,6 @@ export default function CreativeImporterPro(props = {}) {
               </div>
             )}
 
-            {/* Mapping Mode */}
-            {uploadedFiles.length > 0 && (() => {
-              const formats = [...new Set(uploadedFiles.map(f => f.format))];
-              const hasMultipleFormats = formats.length > 1;
-
-              if (!hasMultipleFormats) return null;
-
-              return (
-                <div style={{ ...box, marginBottom: "24px" }}>
-                  <div style={{ display: "flex", alignItems: "center", marginBottom: "16px" }}>
-                    <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "600" }}>
-                      Mapping des formats
-                    </h3>
-                    <button
-                      onClick={() => setMappingMode(!mappingMode)}
-                      style={{
-                        marginLeft: "auto",
-                        padding: "6px 12px",
-                        borderRadius: "6px",
-                        border: "none",
-                        background: mappingMode ? "rgba(34,197,94,0.2)" : "rgba(99,102,241,0.2)",
-                        color: mappingMode ? "#22c55e" : "#6366f1",
-                        cursor: "pointer",
-                        fontSize: "11px",
-                        fontWeight: "500",
-                      }}
-                    >
-                      {mappingMode ? "✓ Mode actif" : "Activer"}
-                    </button>
-                  </div>
-
-                  {!mappingMode ? (
-                    <div style={{ fontSize: "12px", color: "#71717a", lineHeight: "1.6" }}>
-                      Plusieurs formats détectés ({formats.length} formats). Activez le mapping pour grouper des créatives de formats différents dans la même ad (ex: story + carré).
-                    </div>
-                  ) : (
-                    <div>
-                      {/* Instructions */}
-                      <div style={{
-                        padding: "12px",
-                        background: "rgba(99,102,241,0.1)",
-                        borderRadius: "8px",
-                        marginBottom: "16px",
-                        fontSize: "11px",
-                        lineHeight: "1.6",
-                      }}>
-                        <strong>Tip:</strong> <strong>Glissez-déposez</strong> des créatives pour les grouper ensemble. Chaque groupe deviendra une ad avec plusieurs formats.
-                      </div>
-
-                      {/* Existing Groups */}
-                      {adGroups.length > 0 && (
-                        <div style={{ marginBottom: "16px" }}>
-                          <div style={{ fontSize: "12px", fontWeight: "600", marginBottom: "10px", color: "#a5b4fc" }}>
-                            📦 Groupes créés ({adGroups.length})
-                          </div>
-                          {adGroups.map((group, groupIndex) => (
-                            <div
-                              key={groupIndex}
-                              style={{
-                                padding: "12px",
-                                background: "rgba(34,197,94,0.05)",
-                                border: "1px solid rgba(34,197,94,0.2)",
-                                borderRadius: "8px",
-                                marginBottom: "10px",
-                              }}
-                              onDragOver={(e) => e.preventDefault()}
-                              onDrop={(e) => {
-                                e.preventDefault();
-                                if (draggedFile && !group.fileIds.includes(draggedFile.id)) {
-                                  setAdGroups(prev => prev.map((g, i) =>
-                                    i === groupIndex
-                                      ? { ...g, fileIds: [...g.fileIds, draggedFile.id] }
-                                      : { ...g, fileIds: g.fileIds.filter(id => id !== draggedFile.id) }
-                                  ));
-                                }
-                                setDraggedFile(null);
-                              }}
-                            >
-                              <div style={{ display: "flex", alignItems: "center", marginBottom: "8px" }}>
-                                <span style={{ fontSize: "11px", fontWeight: "600", color: "#22c55e" }}>
-                                  Groupe #{groupIndex + 1}
-                                </span>
-                                <button
-                                  onClick={() => {
-                                    setAdGroups(prev => prev.filter((_, i) => i !== groupIndex));
-                                  }}
-                                  style={{
-                                    marginLeft: "auto",
-                                    padding: "2px 6px",
-                                    fontSize: "10px",
-                                    border: "none",
-                                    background: "rgba(239,68,68,0.2)",
-                                    color: "#ef4444",
-                                    borderRadius: "4px",
-                                    cursor: "pointer",
-                                  }}
-                                >
-                                  Supprimer
-                                </button>
-                              </div>
-                              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                                {group.fileIds.map(fileId => {
-                                  const file = uploadedFiles.find(f => f.id === fileId);
-                                  if (!file) return null;
-                                  const placement = META_PLACEMENTS[file.format];
-                                  return (
-                                    <div
-                                      key={fileId}
-                                      style={{
-                                        position: "relative",
-                                        background: "rgba(255,255,255,0.05)",
-                                        border: `1px solid ${placement?.color || "rgba(255,255,255,0.1)"}`,
-                                        borderRadius: "8px",
-                                        overflow: "hidden",
-                                        width: "100px",
-                                      }}
-                                    >
-                                      {/* Thumbnail */}
-                                      <div style={{
-                                        width: "100%",
-                                        height: "100px",
-                                        background: "#18181b",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        overflow: "hidden",
-                                        position: "relative",
-                                      }}>
-                                        {file.type === "video" ? (
-                                          <>
-                                            <video
-                                              src={file.preview}
-                                              style={{
-                                                width: "100%",
-                                                height: "100%",
-                                                objectFit: "cover",
-                                              }}
-                                              muted
-                                            />
-                                            <div style={{
-                                              position: "absolute",
-                                              top: "50%",
-                                              left: "50%",
-                                              transform: "translate(-50%, -50%)",
-                                              background: "rgba(0,0,0,0.6)",
-                                              borderRadius: "50%",
-                                              width: "24px",
-                                              height: "24px",
-                                              display: "flex",
-                                              alignItems: "center",
-                                              justifyContent: "center",
-                                              fontSize: "10px",
-                                            }}>
-                                              ▶
-                                            </div>
-                                          </>
-                                        ) : (
-                                          <img
-                                            src={file.preview}
-                                            alt={file.name}
-                                            style={{
-                                              width: "100%",
-                                              height: "100%",
-                                              objectFit: "cover",
-                                            }}
-                                          />
-                                        )}
-                                      </div>
-
-                                      {/* Format Badge */}
-                                      <div style={{
-                                        padding: "4px 6px",
-                                        background: placement?.bgColor || "rgba(99,102,241,0.2)",
-                                        fontSize: "8px",
-                                        fontWeight: "600",
-                                        color: placement?.color || "#6366f1",
-                                        textAlign: "center",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        gap: "3px",
-                                      }}>
-                                        <span>{placement?.abbrev || "F"}</span>
-                                        <span>{placement?.name || file.format}</span>
-                                      </div>
-
-                                      {/* Remove Button */}
-                                      <button
-                                        onClick={() => {
-                                          setAdGroups(prev => prev.map((g, i) =>
-                                            i === groupIndex
-                                              ? { ...g, fileIds: g.fileIds.filter(id => id !== fileId) }
-                                              : g
-                                          ).filter(g => g.fileIds.length > 0));
-                                        }}
-                                        style={{
-                                          position: "absolute",
-                                          top: "4px",
-                                          right: "4px",
-                                          background: "rgba(239,68,68,0.9)",
-                                          border: "none",
-                                          color: "#fff",
-                                          borderRadius: "4px",
-                                          width: "20px",
-                                          height: "20px",
-                                          cursor: "pointer",
-                                          fontSize: "12px",
-                                          display: "flex",
-                                          alignItems: "center",
-                                          justifyContent: "center",
-                                          fontWeight: "bold",
-                                        }}
-                                      >
-                                        ×
-                                      </button>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Create New Group */}
-                      <button
-                        onClick={() => {
-                          setAdGroups(prev => [...prev, { fileIds: [] }]);
-                        }}
-                        style={{
-                          width: "100%",
-                          padding: "10px",
-                          borderRadius: "8px",
-                          border: "1px dashed rgba(99,102,241,0.3)",
-                          background: "transparent",
-                          color: "#6366f1",
-                          cursor: "pointer",
-                          fontSize: "12px",
-                          marginBottom: "16px",
-                        }}
-                      >
-                        + Créer un nouveau groupe
-                      </button>
-
-                      {/* Available Files */}
-                      <div style={{ fontSize: "12px", fontWeight: "600", marginBottom: "10px", color: "#a5b4fc" }}>
-                        Créatives disponibles
-                      </div>
-                      <div style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))",
-                        gap: "12px",
-                      }}>
-                        {uploadedFiles
-                          .filter(file => !adGroups.some(g => g.fileIds.includes(file.id)))
-                          .map(file => {
-                            const placement = META_PLACEMENTS[file.format];
-                            return (
-                              <div
-                                key={file.id}
-                                draggable
-                                onDragStart={() => setDraggedFile(file)}
-                                onDragEnd={() => setDraggedFile(null)}
-                                style={{
-                                  background: "rgba(255,255,255,0.05)",
-                                  border: `2px solid ${placement?.color || "rgba(255,255,255,0.1)"}`,
-                                  borderRadius: "10px",
-                                  cursor: "grab",
-                                  overflow: "hidden",
-                                  transition: "all 0.2s",
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.transform = "scale(1.02)";
-                                  e.currentTarget.style.borderColor = placement?.color || "#6366f1";
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.transform = "scale(1)";
-                                  e.currentTarget.style.borderColor = placement?.color || "rgba(255,255,255,0.1)";
-                                }}
-                              >
-                                {/* Thumbnail */}
-                                <div style={{
-                                  width: "100%",
-                                  height: "140px",
-                                  background: "#18181b",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  overflow: "hidden",
-                                  position: "relative",
-                                }}>
-                                  {file.type === "video" ? (
-                                    <>
-                                      <video
-                                        src={file.preview}
-                                        style={{
-                                          width: "100%",
-                                          height: "100%",
-                                          objectFit: "cover",
-                                        }}
-                                        muted
-                                      />
-                                      <div style={{
-                                        position: "absolute",
-                                        top: "50%",
-                                        left: "50%",
-                                        transform: "translate(-50%, -50%)",
-                                        background: "rgba(0,0,0,0.6)",
-                                        borderRadius: "50%",
-                                        width: "32px",
-                                        height: "32px",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        fontSize: "14px",
-                                      }}>
-                                        ▶
-                                      </div>
-                                    </>
-                                  ) : (
-                                    <img
-                                      src={file.preview}
-                                      alt={file.name}
-                                      style={{
-                                        width: "100%",
-                                        height: "100%",
-                                        objectFit: "cover",
-                                      }}
-                                    />
-                                  )}
-                                </div>
-
-                                {/* Info */}
-                                <div style={{ padding: "8px" }}>
-                                  <div style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "4px",
-                                    padding: "3px 8px",
-                                    background: placement?.bgColor || "rgba(99,102,241,0.2)",
-                                    borderRadius: "4px",
-                                    fontSize: "9px",
-                                    fontWeight: "600",
-                                    color: placement?.color || "#6366f1",
-                                    marginBottom: "4px",
-                                  }}>
-                                    <span>{placement?.abbrev || "F"}</span>
-                                    <span>{placement?.name || file.format}</span>
-                                  </div>
-                                  <div style={{
-                                    fontSize: "10px",
-                                    color: "#71717a",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                  }}>
-                                    {file.name}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
 
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={() => setStep(2)} style={btn2}>
