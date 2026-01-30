@@ -288,7 +288,6 @@ const createMetaApi = (accessToken) => ({
               const pbiaData = await pbiaRes.json();
               if (pbiaData.data && pbiaData.data.length > 0) {
                 page.page_backed_instagram_accounts = pbiaData;
-                console.log(`📸 Found PBIA for page ${page.name}:`, pbiaData.data[0].id);
               }
             }
           } catch (e) {
@@ -326,35 +325,19 @@ const createMetaApi = (accessToken) => ({
 
   async fetchCampaigns(adAccountId) {
     try {
-      console.log("🔍 Fetching campaigns for account:", adAccountId);
-
-      // Simplified: no filtering, we'll filter client-side
       const url = `${this.baseUrl}/${adAccountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget&limit=100&access_token=${accessToken}`;
-      console.log("📡 API URL:", url.replace(accessToken, "***TOKEN***"));
-
       const res = await fetch(url);
       if (!res.ok) {
-        const errorText = await res.text();
-        console.error("❌ HTTP error response:", errorText);
         throw new Error(`HTTP error! status: ${res.status}`);
       }
       const data = await res.json();
-      console.log("📦 Raw API response:", data);
-
       if (data.error) {
-        console.error("❌ API returned error:", data.error);
         throw new Error(data.error.message || "Erreur lors de la récupération des campagnes");
       }
-      console.log("✅ Total campaigns found:", data.data?.length || 0);
-
-      // Filter ACTIVE and PAUSED campaigns in JavaScript
-      const activeCampaigns = (data.data || []).filter(c =>
-        c.status === "ACTIVE" || c.status === "PAUSED"
-      );
-      console.log("✅ Active/Paused campaigns:", activeCampaigns.length);
-      return activeCampaigns;
+      // Filter ACTIVE and PAUSED campaigns
+      return (data.data || []).filter(c => c.status === "ACTIVE" || c.status === "PAUSED");
     } catch (error) {
-      console.error("💥 fetchCampaigns error:", error);
+      console.error("fetchCampaigns error:", error);
       throw error;
     }
   },
@@ -609,7 +592,6 @@ export default function CreativeImporterPro(props = {}) {
     api
       .fetchCampaigns(selectedAdAccount.id)
       .then((campaigns) => {
-        console.log("✅ Campaigns loaded:", campaigns.length, "campaigns");
         setExistingCampaigns(campaigns);
       })
       .catch((error) => {
@@ -712,7 +694,6 @@ export default function CreativeImporterPro(props = {}) {
   const pageBackedInstagramAccount = selectedPage?.page_backed_instagram_accounts?.data?.[0] || null;
   // Use PBIA as instagram_actor_id when no real Instagram account is linked
   const instagramActorId = instagramAccount?.id || pageBackedInstagramAccount?.id || null;
-  console.log(`📸 Instagram setup: real account=${instagramAccount?.id}, PBIA=${pageBackedInstagramAccount?.id}, using=${instagramActorId}`);
 
   const processFiles = async (files) => {
     setIsProcessing(true);
@@ -1137,8 +1118,6 @@ export default function CreativeImporterPro(props = {}) {
     setCreationError(null);
 
     try {
-      console.log("🚀 Starting campaign creation...");
-
       // Validate required fields
       if (!selectedPixel?.id && objective === "conversions") {
         throw new Error("Pixel requis pour les conversions. Veuillez sélectionner un pixel dans l'étape 1.");
@@ -1152,8 +1131,6 @@ export default function CreativeImporterPro(props = {}) {
       };
 
       // Step 1: Upload images/videos and get hash IDs
-      console.log("📤 Uploading creatives...");
-
       // Helper: extract first frame of a video as a Blob (JPEG)
       const extractVideoThumbnail = (videoFile) => new Promise((resolve) => {
         const video = document.createElement("video");
@@ -1215,7 +1192,7 @@ export default function CreativeImporterPro(props = {}) {
         const startTime = Date.now();
         const pollIntervalMs = 5000; // Check every 5 seconds
 
-        console.log(`⏳ Waiting for video ${videoId} to be processed...`);
+        // console.log(`⏳ Waiting for video ${videoId} to be processed...`);
 
         while (Date.now() - startTime < maxWaitMs) {
           try {
@@ -1228,10 +1205,10 @@ export default function CreativeImporterPro(props = {}) {
               // Continue waiting even if status check fails
             } else if (data.status) {
               const videoStatus = data.status.video_status;
-              console.log(`📹 Video ${videoId} status: ${videoStatus}`);
+              // console.log(`📹 Video ${videoId} status: ${videoStatus}`);
 
               if (videoStatus === 'ready') {
-                console.log(`✅ Video ${videoId} is ready!`);
+                // console.log(`✅ Video ${videoId} is ready!`);
                 return true;
               } else if (videoStatus === 'error') {
                 console.error(`❌ Video ${videoId} processing failed`);
@@ -1269,11 +1246,11 @@ export default function CreativeImporterPro(props = {}) {
         while (!uploadSuccess && retryCount < maxRetries) {
           try {
             if (retryCount > 0) {
-              console.log(`🔄 Retry ${retryCount}/${maxRetries - 1} for ${file.name}...`);
+              // console.log(`🔄 Retry ${retryCount}/${maxRetries - 1} for ${file.name}...`);
               await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3s before retry
             }
 
-            console.log(`📤 Uploading ${file.type}: ${file.name} (${fileSizeMB.toFixed(2)} MB)`);
+            // console.log(`📤 Uploading ${file.type}: ${file.name} (${fileSizeMB.toFixed(2)} MB)`);
 
             // Update progress: starting upload
             setUploadProgress(prev => ({
@@ -1285,7 +1262,7 @@ export default function CreativeImporterPro(props = {}) {
 
             // Use resumable upload for large videos (>50MB)
             if (file.type === "video" && fileSizeMB > 50) {
-              console.log(`📹 Using resumable upload for large video: ${file.name} (${fileSizeMB.toFixed(1)} MB)`);
+              // console.log(`📹 Using resumable upload for large video: ${file.name} (${fileSizeMB.toFixed(1)} MB)`);
 
               // Upload directly to Facebook (no proxy) - Facebook's video endpoint supports CORS
               const videoUploadUrl = `https://graph-video.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`;
@@ -1296,7 +1273,7 @@ export default function CreativeImporterPro(props = {}) {
               startData.append("file_size", file.file.size.toString());
               startData.append("access_token", accessToken);
 
-              console.log(`📤 Starting upload session...`);
+              // console.log(`📤 Starting upload session...`);
               const startResponse = await fetch(videoUploadUrl, {
                 method: "POST",
                 body: startData
@@ -1314,7 +1291,7 @@ export default function CreativeImporterPro(props = {}) {
               }
 
               const { upload_session_id, video_id } = startResult;
-              console.log(`📦 Upload session created: ${upload_session_id}, video_id: ${video_id}`);
+              // console.log(`📦 Upload session created: ${upload_session_id}, video_id: ${video_id}`);
 
               // Update progress: 20%
               setUploadProgress(prev => ({
@@ -1329,14 +1306,14 @@ export default function CreativeImporterPro(props = {}) {
               let chunkNum = 0;
               const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
 
-              console.log(`📦 Uploading in ${totalChunks} chunks of ${CHUNK_SIZE / 1024 / 1024}MB`);
+              // console.log(`📦 Uploading in ${totalChunks} chunks of ${CHUNK_SIZE / 1024 / 1024}MB`);
 
               while (startOffset < fileSize) {
                 const endOffset = Math.min(startOffset + CHUNK_SIZE, fileSize);
                 const chunk = file.file.slice(startOffset, endOffset);
                 chunkNum++;
 
-                console.log(`📤 Uploading chunk ${chunkNum}/${totalChunks} (${startOffset}-${endOffset})`);
+                // console.log(`📤 Uploading chunk ${chunkNum}/${totalChunks} (${startOffset}-${endOffset})`);
 
                 const transferData = new FormData();
                 transferData.append("upload_phase", "transfer");
@@ -1370,7 +1347,7 @@ export default function CreativeImporterPro(props = {}) {
                 }));
               }
 
-              console.log(`📤 All chunks uploaded`);
+              // console.log(`📤 All chunks uploaded`);
 
               // Phase 3: Finish upload
               const finishData = new FormData();
@@ -1393,7 +1370,7 @@ export default function CreativeImporterPro(props = {}) {
               }
 
               hash = video_id;
-              console.log(`✅ Resumable upload completed: ${hash}`);
+              // console.log(`✅ Resumable upload completed: ${hash}`);
 
               // Wait for Facebook to process the video before continuing
               setUploadProgress(prev => ({
@@ -1436,7 +1413,7 @@ export default function CreativeImporterPro(props = {}) {
 
               hash = file.type === "video" ? data.id : data.images[Object.keys(data.images)[0]].hash;
             }
-            console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
+            // console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
 
             // For small/medium videos (10-50MB), wait for Facebook to finish processing
             // Large videos (>50MB) already wait in the resumable upload section
@@ -1458,12 +1435,12 @@ export default function CreativeImporterPro(props = {}) {
             // For videos, extract first frame and upload as thumbnail (REQUIRED by Facebook)
             let thumbnailHash = null;
             if (file.type === "video") {
-              console.log(`🖼️ Extracting thumbnail for ${file.name}...`);
+              // console.log(`🖼️ Extracting thumbnail for ${file.name}...`);
               try {
                 const thumbBlob = await extractVideoThumbnail(file.file);
                 if (thumbBlob) {
                   thumbnailHash = await uploadThumbnail(thumbBlob, file.name);
-                  console.log(`✅ Thumbnail uploaded for ${file.name}, hash: ${thumbnailHash}`);
+                  // console.log(`✅ Thumbnail uploaded for ${file.name}, hash: ${thumbnailHash}`);
                 } else {
                   console.warn(`⚠️ Could not extract thumbnail for ${file.name}, creating default thumbnail...`);
                   // Create a simple colored canvas as fallback thumbnail
@@ -1480,7 +1457,7 @@ export default function CreativeImporterPro(props = {}) {
                   const fallbackBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
                   if (fallbackBlob) {
                     thumbnailHash = await uploadThumbnail(fallbackBlob, file.name);
-                    console.log(`✅ Fallback thumbnail uploaded for ${file.name}, hash: ${thumbnailHash}`);
+                    // console.log(`✅ Fallback thumbnail uploaded for ${file.name}, hash: ${thumbnailHash}`);
                   }
                 }
               } catch (thumbErr) {
@@ -1496,7 +1473,7 @@ export default function CreativeImporterPro(props = {}) {
                   const fallbackBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
                   if (fallbackBlob) {
                     thumbnailHash = await uploadThumbnail(fallbackBlob, file.name);
-                    console.log(`✅ Fallback thumbnail uploaded for ${file.name}, hash: ${thumbnailHash}`);
+                    // console.log(`✅ Fallback thumbnail uploaded for ${file.name}, hash: ${thumbnailHash}`);
                   }
                 } catch (fallbackErr) {
                   console.error(`❌ Even fallback thumbnail failed for ${file.name}:`, fallbackErr.message);
@@ -1557,9 +1534,9 @@ export default function CreativeImporterPro(props = {}) {
       let campaignId;
       if (budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) {
         campaignId = selectedCampaign?.id;
-        console.log(`✅ Using existing campaign: ${campaignId}`);
+        // console.log(`✅ Using existing campaign: ${campaignId}`);
       } else {
-        console.log("📦 Creating new campaign...");
+        // console.log("📦 Creating new campaign...");
         const campaignData = new FormData();
         campaignData.append("name", nomenclature.campaign);
         campaignData.append("objective", "OUTCOME_SALES");
@@ -1568,7 +1545,7 @@ export default function CreativeImporterPro(props = {}) {
 
         // Apply bid strategy
         campaignData.append("bid_strategy", bidStrategy);
-        console.log(`💰 Using bid strategy: ${bidStrategy}`);
+        // console.log(`💰 Using bid strategy: ${bidStrategy}`);
 
         if (budgetType === "cbo") {
           campaignData.append("daily_budget", Math.round(parseFloat(budget) * 100));
@@ -1589,12 +1566,12 @@ export default function CreativeImporterPro(props = {}) {
 
         campaignId = campaignResult.id;
         results.campaigns.push({ id: campaignId, name: nomenclature.campaign });
-        console.log(`✅ Campaign created: ${campaignId}`);
+        // console.log(`✅ Campaign created: ${campaignId}`);
       }
 
       // Helper function to create a single adset
       const createAdset = async (adsetName, groupFiles = null, isDynamicCreative = false) => {
-        console.log(`📦 Creating adset: ${adsetName}... (dynamic_creative: ${isDynamicCreative})`);
+        // console.log(`📦 Creating adset: ${adsetName}... (dynamic_creative: ${isDynamicCreative})`);
 
         // Map optimization event to correct Meta format
         const eventMapping = {
@@ -1627,7 +1604,7 @@ export default function CreativeImporterPro(props = {}) {
         if (isDynamicCreative) {
           // Multi-placement mode: explicitly enable ALL placements (Facebook + Instagram)
           // This ensures we don't accidentally restrict placements
-          console.log("🌐 Multi-placement mode: All placements enabled (Facebook + Instagram)");
+          // console.log("🌐 Multi-placement mode: All placements enabled (Facebook + Instagram)");
         } else if (hasStoryOnly) {
           targeting.publisher_platforms = ['facebook', 'instagram'];
           targeting.facebook_positions = ['story'];
@@ -1658,14 +1635,14 @@ export default function CreativeImporterPro(props = {}) {
         // Enable dynamic creative for multi-format ads (asset_feed_spec)
         if (isDynamicCreative) {
           adsetData.append("is_dynamic_creative", "true");
-          console.log(`🎨 Dynamic creative enabled for this adset`);
+          // console.log(`🎨 Dynamic creative enabled for this adset`);
         }
 
         // Budget for ABO
         if (budgetType === "abo") {
           const dailyBudget = Math.max(1000, Math.round(parseFloat(budget) * 100));
           adsetData.append("daily_budget", dailyBudget);
-          console.log(`💰 Budget: ${dailyBudget} cents (${dailyBudget/100} EUR/day)`);
+          // console.log(`💰 Budget: ${dailyBudget} cents (${dailyBudget/100} EUR/day)`);
         }
 
         adsetData.append("access_token", accessToken);
@@ -1681,7 +1658,7 @@ export default function CreativeImporterPro(props = {}) {
           throw new Error(`Adset: ${adsetResult.error.message}`);
         }
 
-        console.log(`✅ Adset created: ${adsetResult.id}`);
+        // console.log(`✅ Adset created: ${adsetResult.id}`);
         return adsetResult.id;
       };
 
@@ -1700,14 +1677,14 @@ export default function CreativeImporterPro(props = {}) {
       const hasFeedFormat = allFormats.some(f => f !== 'story');
       const hasStoryFormat = allFormats.some(f => f === 'story');
       const globalNeedsDynamicCreative = adType === "multi" && hasFeedFormat && hasStoryFormat;
-      console.log(`🎨 Global needs dynamic creative: ${globalNeedsDynamicCreative} (hasFeed: ${hasFeedFormat}, hasStory: ${hasStoryFormat})`);
+      // console.log(`🎨 Global needs dynamic creative: ${globalNeedsDynamicCreative} (hasFeed: ${hasFeedFormat}, hasStory: ${hasStoryFormat})`);
 
       if (budgetType === "cbo" && cboMode === "existing_adset") {
         // Use existing adset
         // WARNING: If we need dynamic creative and existing adset doesn't support it,
         // the API will return an error
         adsetId = selectedAdset?.id;
-        console.log(`✅ Using existing adset: ${adsetId}`);
+        // console.log(`✅ Using existing adset: ${adsetId}`);
         if (globalNeedsDynamicCreative) {
           console.warn(`⚠️ Multi-placement with different formats requires is_dynamic_creative on the adset. Existing adset may not support this.`);
         }
@@ -1721,7 +1698,7 @@ export default function CreativeImporterPro(props = {}) {
 
       // Skip old adset creation code for non-1x1 modes
       if (false) {
-        console.log("📦 Creating new adset...");
+        // console.log("📦 Creating new adset...");
 
         // Map optimization event to correct Meta format
         const eventMapping = {
@@ -1754,16 +1731,16 @@ export default function CreativeImporterPro(props = {}) {
           targeting.publisher_platforms = ['facebook', 'instagram'];
           targeting.facebook_positions = ['story'];
           targeting.instagram_positions = ['story'];
-          console.log("📱 Placements limited to Stories (9:16 format detected)");
+          // console.log("📱 Placements limited to Stories (9:16 format detected)");
         } else if (hasFeedOnly) {
           // Only feed placements for square/landscape formats
           targeting.publisher_platforms = ['facebook', 'instagram'];
           targeting.facebook_positions = ['feed'];
           targeting.instagram_positions = ['stream'];
-          console.log("📰 Placements limited to Feed (square/landscape format detected)");
+          // console.log("📰 Placements limited to Feed (square/landscape format detected)");
         } else {
           // Mixed formats: allow all placements
-          console.log("🌐 All placements enabled (mixed formats detected)");
+          // console.log("🌐 All placements enabled (mixed formats detected)");
         }
 
         // Build promoted object
@@ -1772,7 +1749,7 @@ export default function CreativeImporterPro(props = {}) {
           custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
         };
 
-        console.log("📤 Adset creation params (detailed):", {
+        // console.log("📤 Adset creation params (detailed):", {
           name: nomenclature.adset,
           campaign_id: campaignId,
           promoted_object_raw: promotedObject,
@@ -1804,7 +1781,7 @@ export default function CreativeImporterPro(props = {}) {
         if (budgetType === "abo") {
           const dailyBudget = Math.max(1000, Math.round(parseFloat(budget) * 100));
           adsetData.append("daily_budget", dailyBudget);
-          console.log(`💰 Budget: ${dailyBudget} cents (${dailyBudget/100} EUR/day)`);
+          // console.log(`💰 Budget: ${dailyBudget} cents (${dailyBudget/100} EUR/day)`);
         }
 
         adsetData.append("access_token", accessToken);
@@ -1830,11 +1807,11 @@ export default function CreativeImporterPro(props = {}) {
 
         adsetId = adsetResult.id;
         results.adsets.push({ id: adsetId, name: nomenclature.adset });
-        console.log(`✅ Adset created: ${adsetId}`);
+        // console.log(`✅ Adset created: ${adsetId}`);
       } // End of if(false) block for legacy adset creation
 
       // Step 4: Create ads
-      console.log("📦 Creating ads...");
+      // console.log("📦 Creating ads...");
       const filteredTexts = primaryTexts.filter(t => t && t.trim());
       const filteredHeadlines = headlines.filter(h => h && h.trim());
 
@@ -1849,7 +1826,7 @@ export default function CreativeImporterPro(props = {}) {
       // Helper to get placement positions based on format
       // Include Instagram if we have either a real Instagram account or a PBIA
       const hasInstagramCapability = !!instagramActorId;
-      console.log(`📸 Has Instagram capability: ${hasInstagramCapability} (actorId: ${instagramActorId})`);
+      // console.log(`📸 Has Instagram capability: ${hasInstagramCapability} (actorId: ${instagramActorId})`);
 
       const getPlacementForFormat = (format) => {
         if (format === 'story') {
@@ -1882,7 +1859,7 @@ export default function CreativeImporterPro(props = {}) {
 
       if (adType === "multi") {
         // MULTI-PLACEMENT: ALL files in ONE group = ONE ad
-        console.log(`📦 Multi-Placement mode: combining ALL ${validHashes.length} files into ONE ad`);
+        // console.log(`📦 Multi-Placement mode: combining ALL ${validHashes.length} files into ONE ad`);
         effectiveGroups = [{
           key: 'multi_placement_group',
           baseName: null,
@@ -1906,7 +1883,7 @@ export default function CreativeImporterPro(props = {}) {
             fileIds: group.files.map(f => f.id),
             isMultiFormat: group.isMultiFormat,
           }));
-          console.log(`📦 Using smart auto-grouping: ${effectiveGroups.length} groups`);
+          // console.log(`📦 Using smart auto-grouping: ${effectiveGroups.length} groups`);
         } else {
           const mappedFileIds = adGroups.flatMap(g => g.fileIds);
           unmappedHashes = validHashes.filter(h => !mappedFileIds.includes(h.fileId));
@@ -1968,7 +1945,7 @@ export default function CreativeImporterPro(props = {}) {
           ? nomenclature.ad(groupIndex + 1, group.baseName)
           : nomenclature.ad(groupIndex + 1, groupHashes.length > 1 ? "multi" : "single");
 
-        console.log(`📦 Creating ad for group #${groupIndex + 1} (${group.baseName || 'unnamed'}) with ${groupHashes.length} asset(s)`);
+        // console.log(`📦 Creating ad for group #${groupIndex + 1} (${group.baseName || 'unnamed'}) with ${groupHashes.length} asset(s)`);
 
         // Update progress for all files in group
         groupHashes.forEach(h => {
@@ -1984,10 +1961,10 @@ export default function CreativeImporterPro(props = {}) {
         const storyAsset = storyFiles[0] || feedFiles[0];
         const isVideo = primaryAsset.hashData.type === "video";
 
-        console.log(`📸 Primary asset (feed):`, primaryAsset?.file?.name, primaryAsset?.hashData?.hash);
-        console.log(`📸 Story asset:`, storyAsset?.file?.name, storyAsset?.hashData?.hash);
-        console.log(`📸 Instagram actor ID:`, instagramActorId);
-        console.log(`🎨 Needs dynamic creative:`, needsDynamicCreative);
+        // console.log(`📸 Primary asset (feed):`, primaryAsset?.file?.name, primaryAsset?.hashData?.hash);
+        // console.log(`📸 Story asset:`, storyAsset?.file?.name, storyAsset?.hashData?.hash);
+        // console.log(`📸 Instagram actor ID:`, instagramActorId);
+        // console.log(`🎨 Needs dynamic creative:`, needsDynamicCreative);
 
         const creativeData = new FormData();
         creativeData.append("name", adName);
@@ -1999,7 +1976,7 @@ export default function CreativeImporterPro(props = {}) {
         if (needsDynamicCreative && !isVideo) {
           // APPROACH 1: asset_feed_spec with asset_customization_rules
           // This is the proper Meta API way to do placement asset customization
-          console.log(`🎨 Using asset_feed_spec with asset_customization_rules`);
+          // console.log(`🎨 Using asset_feed_spec with asset_customization_rules`);
 
           // Build asset_customization_rules for story vs feed placements
           // Include Instagram if we have an instagramActorId (real account or PBIA)
@@ -2050,7 +2027,7 @@ export default function CreativeImporterPro(props = {}) {
             call_to_action_types: [callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"],
           };
 
-          console.log(`📝 asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
+          // console.log(`📝 asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
 
           creativeData.append("asset_feed_spec", JSON.stringify(assetFeedSpec));
 
@@ -2062,12 +2039,12 @@ export default function CreativeImporterPro(props = {}) {
           if (instagramActorId) {
             objectStorySpec.instagram_actor_id = instagramActorId;
           }
-          console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
+          // console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
           creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
 
         } else {
           // APPROACH 2: Simple object_story_spec for single asset
-          console.log(`📝 Using simple object_story_spec (no placement customization needed)`);
+          // console.log(`📝 Using simple object_story_spec (no placement customization needed)`);
 
           let objectStorySpec;
           if (isVideo) {
@@ -2107,7 +2084,7 @@ export default function CreativeImporterPro(props = {}) {
             objectStorySpec.instagram_actor_id = instagramActorId;
           }
 
-          console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
+          // console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
           creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
         }
 
@@ -2184,7 +2161,7 @@ export default function CreativeImporterPro(props = {}) {
           });
         } else {
           results.ads.push({ id: adResult.id, name: adName });
-          console.log(`✅ Multi-format ad created: ${adResult.id}`);
+          // console.log(`✅ Multi-format ad created: ${adResult.id}`);
           groupHashes.forEach(h => {
             setUploadProgress(prev => ({
               ...prev,
@@ -2280,7 +2257,7 @@ export default function CreativeImporterPro(props = {}) {
           objectStorySpec.instagram_actor_id = instagramActorId;
         }
 
-        console.log(`📝 Creating creative for ${file.name}:`, JSON.stringify(objectStorySpec, null, 2));
+        // console.log(`📝 Creating creative for ${file.name}:`, JSON.stringify(objectStorySpec, null, 2));
 
         creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
 
@@ -2302,7 +2279,7 @@ export default function CreativeImporterPro(props = {}) {
             }
           };
           creativeData.append("degrees_of_freedom_spec", JSON.stringify(degreesOfFreedomSpec));
-          console.log(`🚫 Advantage+ Creative disabled for ${file.name}`);
+          // console.log(`🚫 Advantage+ Creative disabled for ${file.name}`);
         }
 
         creativeData.append("access_token", accessToken);
@@ -2357,7 +2334,7 @@ export default function CreativeImporterPro(props = {}) {
           }));
         } else {
           results.ads.push({ id: adResult.id, name: adName });
-          console.log(`✅ Ad created: ${adResult.id}`);
+          // console.log(`✅ Ad created: ${adResult.id}`);
 
           // Update progress: complete
           setUploadProgress(prev => ({
@@ -2369,7 +2346,7 @@ export default function CreativeImporterPro(props = {}) {
 
       setCreationResult(results);
       setStep(5);
-      console.log("🎉 Campaign creation completed!", results);
+      // console.log("🎉 Campaign creation completed!", results);
 
     } catch (error) {
       console.error("❌ Campaign creation failed:", error);

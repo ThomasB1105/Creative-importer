@@ -344,35 +344,19 @@ export const createMetaApi = (accessToken) => ({
 
   async fetchCampaigns(adAccountId) {
     try {
-      console.log("🔍 Fetching campaigns for account:", adAccountId);
-
-      // Simplified: no filtering, we'll filter client-side
       const url = `${this.baseUrl}/${adAccountId}/campaigns?fields=id,name,status,objective,daily_budget,lifetime_budget&limit=100&access_token=${accessToken}`;
-      console.log("📡 API URL:", url.replace(accessToken, "***TOKEN***"));
-
       const res = await fetch(url);
       if (!res.ok) {
-        const errorText = await res.text();
-        console.error("❌ HTTP error response:", errorText);
         throw new Error(`HTTP error! status: ${res.status}`);
       }
       const data = await res.json();
-      console.log("📦 Raw API response:", data);
-
       if (data.error) {
-        console.error("❌ API returned error:", data.error);
         throw new Error(data.error.message || "Erreur lors de la récupération des campagnes");
       }
-      console.log("✅ Total campaigns found:", data.data?.length || 0);
-
-      // Filter ACTIVE and PAUSED campaigns in JavaScript
-      const activeCampaigns = (data.data || []).filter(c =>
-        c.status === "ACTIVE" || c.status === "PAUSED"
-      );
-      console.log("✅ Active/Paused campaigns:", activeCampaigns.length);
-      return activeCampaigns;
+      // Filter ACTIVE and PAUSED campaigns
+      return (data.data || []).filter(c => c.status === "ACTIVE" || c.status === "PAUSED");
     } catch (error) {
-      console.error("💥 fetchCampaigns error:", error);
+      console.error("fetchCampaigns error:", error);
       throw error;
     }
   },
