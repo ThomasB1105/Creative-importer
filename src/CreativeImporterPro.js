@@ -694,6 +694,8 @@ export default function CreativeImporterPro(props = {}) {
   const instagramActorId = sharedInstagramAccountId || null;
   // Multi-Placement requires an Instagram account (real IG or PBIA)
   const hasRealInstagramAccount = !!sharedInstagramAccountId;
+  // Instagram account object for display (username, profile_picture_url)
+  const instagramAccount = selectedPage?.instagram_business_account || null;
 
   // Debug: Log Instagram ID on mount
   console.log("📸 Instagram actor ID:", instagramActorId, "hasRealInstagramAccount:", hasRealInstagramAccount);
