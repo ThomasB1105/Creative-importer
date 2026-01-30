@@ -1968,42 +1968,35 @@ export default function CreativeImporterPro(props = {}) {
           // This is the proper Meta API way to do placement asset customization
           console.log(`🎨 Using asset_feed_spec with asset_customization_rules`);
 
-          // Check if we have a REAL Instagram Business/Creator account (not Page-Backed)
-          // Page-Backed Instagram accounts are not supported for asset_feed_spec
-          const hasValidInstagramForAssetFeed = hasInstagramAccount && instagramAccount?.id && instagramAccount?.username;
-          console.log(`📸 Has valid Instagram for asset_feed_spec:`, hasValidInstagramForAssetFeed, instagramAccount);
+          // For Instagram placements without a dedicated Instagram account,
+          // we can use the Facebook Page as the instagram_actor_id ("Utiliser la Page Facebook" option in Meta Ads Manager)
+          const instagramActorId = instagramAccount?.id || selectedPage.id;
+          console.log(`📸 Instagram actor ID:`, instagramActorId, `(using ${instagramAccount?.id ? 'Instagram account' : 'Facebook Page'})`);
 
           // Build asset_customization_rules for story vs feed placements
+          // Always include both Facebook and Instagram placements
           const assetCustomizationRules = [];
 
           // Rule for story/reels placements (vertical 9:16)
           const storyRule = {
             customization_spec: {
-              publisher_platforms: ["facebook"],
+              publisher_platforms: ["facebook", "instagram"],
               facebook_positions: ["story", "facebook_reels"],
+              instagram_positions: ["story", "reels"],
             },
             image_label: { name: "STORY_IMG" }
           };
-          // Add Instagram only if we have a valid Instagram Business/Creator account
-          if (hasValidInstagramForAssetFeed) {
-            storyRule.customization_spec.publisher_platforms.push("instagram");
-            storyRule.customization_spec.instagram_positions = ["story", "reels"];
-          }
           assetCustomizationRules.push(storyRule);
 
           // Rule for feed placements (square/portrait)
           const feedRule = {
             customization_spec: {
-              publisher_platforms: ["facebook"],
+              publisher_platforms: ["facebook", "instagram"],
               facebook_positions: ["feed", "marketplace"],
+              instagram_positions: ["stream", "explore", "profile_feed"],
             },
             image_label: { name: "FEED_IMG" }
           };
-          // Add Instagram only if we have a valid Instagram Business/Creator account
-          if (hasValidInstagramForAssetFeed) {
-            feedRule.customization_spec.publisher_platforms.push("instagram");
-            feedRule.customization_spec.instagram_positions = ["stream", "explore", "profile_feed"];
-          }
           assetCustomizationRules.push(feedRule);
 
           // Build images array with labels
@@ -2034,13 +2027,11 @@ export default function CreativeImporterPro(props = {}) {
           creativeData.append("asset_feed_spec", JSON.stringify(assetFeedSpec));
 
           // object_story_spec is still needed for page_id and instagram_actor_id
+          // Use the Instagram account if available, otherwise use the Facebook Page ("Utiliser la Page Facebook")
           const objectStorySpec = {
             page_id: selectedPage.id,
+            instagram_actor_id: instagramActorId,
           };
-          // Only add instagram_actor_id if we have a valid Instagram Business/Creator account
-          if (hasValidInstagramForAssetFeed) {
-            objectStorySpec.instagram_actor_id = instagramAccount.id;
-          }
           creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
 
         } else {
