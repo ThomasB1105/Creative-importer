@@ -1605,16 +1605,18 @@ export default function CreativeImporterPro(props = {}) {
         };
 
         // Add placement restrictions based on creative formats
-        // Only include Instagram if we have a real Instagram account
+        // Use instagramActorId to check if we have Instagram capability (defined earlier in component)
+        const canUseInstagram = !!instagramActorId;
+
         if (isDynamicCreative) {
           // Multi-placement mode: Facebook only, or Facebook + Instagram if we have an account
-          if (hasInstagramCapability) {
+          if (canUseInstagram) {
             targeting.publisher_platforms = ['facebook', 'instagram'];
           } else {
             targeting.publisher_platforms = ['facebook'];
           }
         } else if (hasStoryOnly) {
-          if (hasInstagramCapability) {
+          if (canUseInstagram) {
             targeting.publisher_platforms = ['facebook', 'instagram'];
             targeting.facebook_positions = ['story'];
             targeting.instagram_positions = ['story'];
@@ -1623,7 +1625,7 @@ export default function CreativeImporterPro(props = {}) {
             targeting.facebook_positions = ['story'];
           }
         } else if (hasFeedOnly) {
-          if (hasInstagramCapability) {
+          if (canUseInstagram) {
             targeting.publisher_platforms = ['facebook', 'instagram'];
             targeting.facebook_positions = ['feed'];
             targeting.instagram_positions = ['stream'];
@@ -1633,7 +1635,7 @@ export default function CreativeImporterPro(props = {}) {
           }
         } else {
           // Default: Facebook only without Instagram account
-          if (!hasInstagramCapability) {
+          if (!canUseInstagram) {
             targeting.publisher_platforms = ['facebook'];
           }
         }
