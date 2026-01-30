@@ -181,8 +181,6 @@ export const authHelpers = {
       "business_management",
       "pages_read_engagement",
       "pages_show_list",
-      "instagram_basic",
-      "instagram_content_publish",
     ].join(",");
 
     return (
