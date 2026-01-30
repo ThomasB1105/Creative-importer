@@ -2006,7 +2006,7 @@ export default function CreativeImporterPro(props = {}) {
           const storyRule = {
             customization_spec: {
               publisher_platforms: hasInstagramCapability ? ["facebook", "instagram"] : ["facebook"],
-              facebook_positions: ["story", "reels"],
+              facebook_positions: ["story", "facebook_reels"],
             },
             image_label: { name: "STORY_IMG" }
           };
@@ -2024,7 +2024,7 @@ export default function CreativeImporterPro(props = {}) {
             image_label: { name: "FEED_IMG" }
           };
           if (hasInstagramCapability) {
-            feedRule.customization_spec.instagram_positions = ["stream"];
+            feedRule.customization_spec.instagram_positions = ["stream", "explore"];
           }
           assetCustomizationRules.push(feedRule);
 
