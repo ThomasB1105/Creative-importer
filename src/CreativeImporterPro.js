@@ -2230,10 +2230,10 @@ export default function CreativeImporterPro(props = {}) {
           [file.id]: { progress: 80, status: 'creating' }
         }));
 
-        // Create ad
+        // Create ad (unmapped files always use the main adsetId)
         const adData = new FormData();
         adData.append("name", adName);
-        adData.append("adset_id", currentAdsetId || adsetId);
+        adData.append("adset_id", adsetId);
         adData.append("creative", JSON.stringify({ creative_id: creativeResult.id }));
         adData.append("status", "ACTIVE");
         adData.append("access_token", accessToken);
