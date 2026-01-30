@@ -1600,21 +1600,38 @@ export default function CreativeImporterPro(props = {}) {
         };
 
         // Add placement restrictions based on creative formats
-        // For multi-placement (isDynamicCreative), don't restrict - use all placements
+        // Only include Instagram if we have a real Instagram account
         if (isDynamicCreative) {
-          // Multi-placement mode: explicitly enable ALL placements (Facebook + Instagram)
-          // This ensures we don't accidentally restrict placements
-          // console.log("🌐 Multi-placement mode: All placements enabled (Facebook + Instagram)");
+          // Multi-placement mode: Facebook only, or Facebook + Instagram if we have an account
+          if (hasInstagramCapability) {
+            targeting.publisher_platforms = ['facebook', 'instagram'];
+          } else {
+            targeting.publisher_platforms = ['facebook'];
+          }
         } else if (hasStoryOnly) {
-          targeting.publisher_platforms = ['facebook', 'instagram'];
-          targeting.facebook_positions = ['story'];
-          targeting.instagram_positions = ['story'];
+          if (hasInstagramCapability) {
+            targeting.publisher_platforms = ['facebook', 'instagram'];
+            targeting.facebook_positions = ['story'];
+            targeting.instagram_positions = ['story'];
+          } else {
+            targeting.publisher_platforms = ['facebook'];
+            targeting.facebook_positions = ['story'];
+          }
         } else if (hasFeedOnly) {
-          targeting.publisher_platforms = ['facebook', 'instagram'];
-          targeting.facebook_positions = ['feed'];
-          targeting.instagram_positions = ['stream'];
+          if (hasInstagramCapability) {
+            targeting.publisher_platforms = ['facebook', 'instagram'];
+            targeting.facebook_positions = ['feed'];
+            targeting.instagram_positions = ['stream'];
+          } else {
+            targeting.publisher_platforms = ['facebook'];
+            targeting.facebook_positions = ['feed'];
+          }
+        } else {
+          // Default: Facebook only without Instagram account
+          if (!hasInstagramCapability) {
+            targeting.publisher_platforms = ['facebook'];
+          }
         }
-        // If none of the above: all placements are available by default
 
         // Build promoted object
         const promotedObject = {
@@ -1726,21 +1743,30 @@ export default function CreativeImporterPro(props = {}) {
         };
 
         // Add placement restrictions based on creative formats
+        // Only include Instagram if we have a real Instagram account
         if (hasStoryOnly) {
-          // Only story placements for vertical videos/images
-          targeting.publisher_platforms = ['facebook', 'instagram'];
-          targeting.facebook_positions = ['story'];
-          targeting.instagram_positions = ['story'];
-          // console.log("📱 Placements limited to Stories (9:16 format detected)");
+          if (hasInstagramCapability) {
+            targeting.publisher_platforms = ['facebook', 'instagram'];
+            targeting.facebook_positions = ['story'];
+            targeting.instagram_positions = ['story'];
+          } else {
+            targeting.publisher_platforms = ['facebook'];
+            targeting.facebook_positions = ['story'];
+          }
         } else if (hasFeedOnly) {
-          // Only feed placements for square/landscape formats
-          targeting.publisher_platforms = ['facebook', 'instagram'];
-          targeting.facebook_positions = ['feed'];
-          targeting.instagram_positions = ['stream'];
-          // console.log("📰 Placements limited to Feed (square/landscape format detected)");
+          if (hasInstagramCapability) {
+            targeting.publisher_platforms = ['facebook', 'instagram'];
+            targeting.facebook_positions = ['feed'];
+            targeting.instagram_positions = ['stream'];
+          } else {
+            targeting.publisher_platforms = ['facebook'];
+            targeting.facebook_positions = ['feed'];
+          }
         } else {
-          // Mixed formats: allow all placements
-          // console.log("🌐 All placements enabled (mixed formats detected)");
+          // Mixed formats: Facebook only without Instagram account
+          if (!hasInstagramCapability) {
+            targeting.publisher_platforms = ['facebook'];
+          }
         }
 
         // Build promoted object
