@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-
+// v2.1 - Multi-Placement fix
 // META APP CONFIG - Configuration de l'app Facebook
 // Pour configurer votre propre app:
 // 1. Allez sur https://developers.facebook.com/apps
