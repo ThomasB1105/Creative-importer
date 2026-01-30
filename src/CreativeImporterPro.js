@@ -449,6 +449,31 @@ export default function CreativeImporterPro(props = {}) {
   const [destinationUrl, setDestinationUrl] = useState("");
   const [bidStrategy, setBidStrategy] = useState("LOWEST_COST_WITHOUT_CAP"); // Bid strategy selection
 
+  // Scheduling (Programmation)
+  const [enableScheduling, setEnableScheduling] = useState(false);
+  const [scheduleStartDate, setScheduleStartDate] = useState("");
+  const [scheduleStartTime, setScheduleStartTime] = useState("00:00");
+  const [enableEndDate, setEnableEndDate] = useState(false);
+  const [scheduleEndDate, setScheduleEndDate] = useState("");
+  const [scheduleEndTime, setScheduleEndTime] = useState("23:59");
+
+  // Nomenclature templates with dynamic fields
+  const [nomenclatureFields, setNomenclatureFields] = useState({
+    product: "",
+    strategy: "testing", // testing | scaling
+    customField1: "",
+    customField2: "",
+  });
+  const [nomenclatureTemplate, setNomenclatureTemplate] = useState({
+    campaign: "{CLIENT}_{COUNTRY}_{BUDGET}_{OBJECTIVE}_{CAMPAIGN}",
+    adset: "{CAMPAIGN}_Broad",
+    ad: "Ads{NUM}_{MEDIA}_{DATE}",
+  });
+  const [savedTemplates, setSavedTemplates] = useState(() => {
+    const saved = localStorage.getItem("nomenclatureTemplates");
+    return saved ? JSON.parse(saved) : [];
+  });
+
   // Campaign creation states
   const [isCreating, setIsCreating] = useState(false);
   const [creationError, setCreationError] = useState(null);
@@ -790,37 +815,56 @@ export default function CreativeImporterPro(props = {}) {
     return groups;
   }, [uploadedFiles, splitByMediaType, adType, autoGroupedFiles]);
 
-  // Nomenclature dynamique
+  // Nomenclature dynamique avec templates
   const nomenclature = useMemo(() => {
     const countries = selectedCountries
       .map((c) => GEO_ZONES[c]?.code)
       .join("")
       .toUpperCase();
-    const budget = budgetType.toUpperCase();
+    const budgetStr = budgetType.toUpperCase();
     const obj = OBJECTIVES[objective]?.name || "Conversions";
-
-    const campaign = [
-      clientCode || "XXX",
-      countries || "FR",
-      budget,
-      obj,
-      campaignName || "campagne",
-    ]
-      .filter(Boolean)
-      .join("_");
-
-    const adset = `${campaignName || "campagne"}_Broad`;
 
     const today = new Date();
     const dateStr = `${String(today.getDate()).padStart(2, "0")}${String(
       today.getMonth() + 1
     ).padStart(2, "0")}${String(today.getFullYear()).slice(-2)}`;
 
-    const ad = (num, mediaType) =>
-      `Ads${num}_${mediaType}_${dateStr}`;
+    // Token replacements
+    const tokens = {
+      "{CLIENT}": clientCode || "XXX",
+      "{COUNTRY}": countries || "FR",
+      "{BUDGET}": budgetStr,
+      "{OBJECTIVE}": obj,
+      "{CAMPAIGN}": campaignName || "campagne",
+      "{DATE}": dateStr,
+      "{PRODUCT}": nomenclatureFields.product || "",
+      "{STRATEGY}": nomenclatureFields.strategy?.toUpperCase() || "TESTING",
+      "{CUSTOM1}": nomenclatureFields.customField1 || "",
+      "{CUSTOM2}": nomenclatureFields.customField2 || "",
+    };
+
+    // Replace tokens in template
+    const replaceTokens = (template) => {
+      let result = template;
+      Object.entries(tokens).forEach(([token, value]) => {
+        result = result.replace(new RegExp(token.replace(/[{}]/g, "\\$&"), "g"), value);
+      });
+      // Clean up multiple underscores and trailing/leading underscores
+      return result.replace(/_+/g, "_").replace(/^_|_$/g, "");
+    };
+
+    const campaign = replaceTokens(nomenclatureTemplate.campaign);
+    const adset = replaceTokens(nomenclatureTemplate.adset);
+
+    const ad = (num, mediaType) => {
+      let adTemplate = nomenclatureTemplate.ad;
+      return replaceTokens(adTemplate)
+        .replace("{NUM}", num)
+        .replace("{MEDIA}", mediaType);
+    };
 
     return { campaign, adset, ad };
-  }, [clientCode, selectedCountries, budgetType, objective, campaignName]);
+  }, [clientCode, selectedCountries, budgetType, objective, campaignName, nomenclatureFields, nomenclatureTemplate]);
 
   const isStep2Valid =
     primaryTexts[0]?.trim() && headlines[0]?.trim() && destinationUrl?.startsWith("http");
@@ -1668,6 +1712,18 @@ export default function CreativeImporterPro(props = {}) {
           const dailyBudget = Math.max(1000, Math.round(parseFloat(budget) * 100));
           adsetData.append("daily_budget", dailyBudget);
           // console.log(`💰 Budget: ${dailyBudget} cents (${dailyBudget/100} EUR/day)`);
+        }
+
+        // Scheduling (start_time / end_time) - ISO 8601 format
+        if (enableScheduling && scheduleStartDate) {
+          const startDateTime = new Date(`${scheduleStartDate}T${scheduleStartTime || "00:00"}:00`);
+          adsetData.append("start_time", startDateTime.toISOString());
+          console.log(`📅 Scheduled start: ${startDateTime.toISOString()}`);
+        }
+        if (enableScheduling && enableEndDate && scheduleEndDate) {
+          const endDateTime = new Date(`${scheduleEndDate}T${scheduleEndTime || "23:59"}:00`);
+          adsetData.append("end_time", endDateTime.toISOString());
+          console.log(`📅 Scheduled end: ${endDateTime.toISOString()}`);
         }
 
         adsetData.append("access_token", accessToken);
@@ -3749,6 +3805,99 @@ export default function CreativeImporterPro(props = {}) {
                     );
                   })()}
                 </div>
+
+                {/* Programmation (Scheduling) */}
+                <div style={box}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: enableScheduling ? "16px" : "0",
+                    }}
+                  >
+                    <p style={{ margin: 0, fontWeight: "600" }}>
+                      📅 Programmation
+                    </p>
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        cursor: "pointer",
+                        fontSize: "12px",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={enableScheduling}
+                        onChange={(e) => setEnableScheduling(e.target.checked)}
+                        style={{ cursor: "pointer" }}
+                      />
+                      Activer
+                    </label>
+                  </div>
+                  {enableScheduling && (
+                    <>
+                      <div style={{ marginBottom: "12px" }}>
+                        <span style={{ fontSize: "11px", color: "#71717a" }}>
+                          Date de début
+                        </span>
+                        <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                          <input
+                            type="date"
+                            value={scheduleStartDate}
+                            onChange={(e) => setScheduleStartDate(e.target.value)}
+                            style={{ ...inp, flex: 2 }}
+                          />
+                          <input
+                            type="time"
+                            value={scheduleStartTime}
+                            onChange={(e) => setScheduleStartTime(e.target.value)}
+                            style={{ ...inp, flex: 1 }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            cursor: "pointer",
+                            fontSize: "12px",
+                            marginBottom: "8px",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={enableEndDate}
+                            onChange={(e) => setEnableEndDate(e.target.checked)}
+                            style={{ cursor: "pointer" }}
+                          />
+                          Définir une date de fin
+                        </label>
+                        {enableEndDate && (
+                          <div style={{ display: "flex", gap: "8px" }}>
+                            <input
+                              type="date"
+                              value={scheduleEndDate}
+                              onChange={(e) => setScheduleEndDate(e.target.value)}
+                              style={{ ...inp, flex: 2 }}
+                            />
+                            <input
+                              type="time"
+                              value={scheduleEndTime}
+                              onChange={(e) => setScheduleEndTime(e.target.value)}
+                              style={{ ...inp, flex: 1 }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 <div style={box}>
                   <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
                     Zones
@@ -4175,17 +4324,47 @@ export default function CreativeImporterPro(props = {}) {
                   <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
                     Nomenclature
                   </p>
+
+                  {/* Templates préenregistrés */}
+                  {savedTemplates.length > 0 && (
+                    <div style={{ marginBottom: "16px" }}>
+                      <span style={{ fontSize: "11px", color: "#71717a" }}>
+                        Templates sauvegardés
+                      </span>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "4px" }}>
+                        {savedTemplates.map((template, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setNomenclatureTemplate(template.template)}
+                            style={{
+                              padding: "4px 10px",
+                              borderRadius: "6px",
+                              border: "1px solid rgba(99,102,241,0.3)",
+                              background: "rgba(99,102,241,0.1)",
+                              color: "#a5b4fc",
+                              cursor: "pointer",
+                              fontSize: "11px",
+                            }}
+                          >
+                            {template.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Champs de base */}
                   <div
                     style={{
                       display: "grid",
                       gridTemplateColumns: "1fr 1fr",
                       gap: "10px",
-                      marginBottom: "16px",
+                      marginBottom: "12px",
                     }}
                   >
                     <div>
                       <span style={{ fontSize: "11px", color: "#71717a" }}>
-                        Code client
+                        Code client {"{CLIENT}"}
                       </span>
                       <input
                         value={clientCode}
@@ -4196,11 +4375,10 @@ export default function CreativeImporterPro(props = {}) {
                         style={{ ...inp, marginTop: "4px" }}
                       />
                     </div>
-                    {/* Only show campaign name if creating new campaign */}
                     {!(budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) && (
                       <div>
                         <span style={{ fontSize: "11px", color: "#71717a" }}>
-                          Nom de campagne
+                          Nom campagne {"{CAMPAIGN}"}
                         </span>
                         <input
                           value={campaignName}
@@ -4210,6 +4388,149 @@ export default function CreativeImporterPro(props = {}) {
                         />
                       </div>
                     )}
+                  </div>
+
+                  {/* Champs dynamiques supplémentaires */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "10px",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#71717a" }}>
+                        Produit {"{PRODUCT}"}
+                      </span>
+                      <input
+                        value={nomenclatureFields.product}
+                        onChange={(e) =>
+                          setNomenclatureFields(prev => ({ ...prev, product: e.target.value }))
+                        }
+                        placeholder="Ex: serum"
+                        style={{ ...inp, marginTop: "4px" }}
+                      />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#71717a" }}>
+                        Stratégie {"{STRATEGY}"}
+                      </span>
+                      <select
+                        value={nomenclatureFields.strategy}
+                        onChange={(e) =>
+                          setNomenclatureFields(prev => ({ ...prev, strategy: e.target.value }))
+                        }
+                        style={{ ...inp, marginTop: "4px" }}
+                      >
+                        <option value="testing">Testing</option>
+                        <option value="scaling">Scaling</option>
+                        <option value="retargeting">Retargeting</option>
+                        <option value="lookalike">Lookalike</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Champs personnalisés */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "10px",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#71717a" }}>
+                        Custom 1 {"{CUSTOM1}"}
+                      </span>
+                      <input
+                        value={nomenclatureFields.customField1}
+                        onChange={(e) =>
+                          setNomenclatureFields(prev => ({ ...prev, customField1: e.target.value }))
+                        }
+                        placeholder="Optionnel"
+                        style={{ ...inp, marginTop: "4px" }}
+                      />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#71717a" }}>
+                        Custom 2 {"{CUSTOM2}"}
+                      </span>
+                      <input
+                        value={nomenclatureFields.customField2}
+                        onChange={(e) =>
+                          setNomenclatureFields(prev => ({ ...prev, customField2: e.target.value }))
+                        }
+                        placeholder="Optionnel"
+                        style={{ ...inp, marginTop: "4px" }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Éditeur de templates */}
+                  <div
+                    style={{
+                      background: "rgba(0,0,0,0.2)",
+                      borderRadius: "8px",
+                      padding: "12px",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <div style={{ fontSize: "11px", color: "#a5b4fc", marginBottom: "8px" }}>
+                      Templates (tokens: {"{CLIENT}"} {"{COUNTRY}"} {"{BUDGET}"} {"{OBJECTIVE}"} {"{CAMPAIGN}"} {"{PRODUCT}"} {"{STRATEGY}"} {"{DATE}"} {"{CUSTOM1}"} {"{CUSTOM2}"})
+                    </div>
+                    <div style={{ marginBottom: "8px" }}>
+                      <span style={{ fontSize: "10px", color: "#71717a" }}>Campagne</span>
+                      <input
+                        value={nomenclatureTemplate.campaign}
+                        onChange={(e) =>
+                          setNomenclatureTemplate(prev => ({ ...prev, campaign: e.target.value }))
+                        }
+                        style={{ ...inp, marginTop: "2px", fontSize: "11px" }}
+                      />
+                    </div>
+                    <div style={{ marginBottom: "8px" }}>
+                      <span style={{ fontSize: "10px", color: "#71717a" }}>Adset</span>
+                      <input
+                        value={nomenclatureTemplate.adset}
+                        onChange={(e) =>
+                          setNomenclatureTemplate(prev => ({ ...prev, adset: e.target.value }))
+                        }
+                        style={{ ...inp, marginTop: "2px", fontSize: "11px" }}
+                      />
+                    </div>
+                    <div style={{ marginBottom: "8px" }}>
+                      <span style={{ fontSize: "10px", color: "#71717a" }}>Ad (utiliser {"{NUM}"} et {"{MEDIA}"})</span>
+                      <input
+                        value={nomenclatureTemplate.ad}
+                        onChange={(e) =>
+                          setNomenclatureTemplate(prev => ({ ...prev, ad: e.target.value }))
+                        }
+                        style={{ ...inp, marginTop: "2px", fontSize: "11px" }}
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
+                        const name = prompt("Nom du template:");
+                        if (name) {
+                          const newTemplates = [...savedTemplates, { name, template: nomenclatureTemplate }];
+                          setSavedTemplates(newTemplates);
+                          localStorage.setItem("nomenclatureTemplates", JSON.stringify(newTemplates));
+                        }
+                      }}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: "6px",
+                        border: "1px solid rgba(34,197,94,0.3)",
+                        background: "rgba(34,197,94,0.1)",
+                        color: "#22c55e",
+                        cursor: "pointer",
+                        fontSize: "11px",
+                      }}
+                    >
+                      💾 Sauvegarder ce template
+                    </button>
                   </div>
 
                   {/* Preview de la nomenclature */}
@@ -4225,7 +4546,6 @@ export default function CreativeImporterPro(props = {}) {
                       Aperçu de la structure
                     </div>
                     <div style={{ fontSize: "11px", lineHeight: "1.6" }}>
-                      {/* Show campaign name only if creating new campaign */}
                       {!(budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) && (
                         <div style={{ marginBottom: "4px" }}>
                           <span style={{ color: "#71717a" }}>Campagne:</span>{" "}
@@ -4234,7 +4554,6 @@ export default function CreativeImporterPro(props = {}) {
                           </span>
                         </div>
                       )}
-                      {/* Show adset name only if creating new adset */}
                       {!(budgetType === "cbo" && cboMode === "existing_adset") && (
                         <div style={{ marginBottom: "4px" }}>
                           <span style={{ color: "#71717a" }}>Adset:</span>{" "}
@@ -4243,7 +4562,6 @@ export default function CreativeImporterPro(props = {}) {
                           </span>
                         </div>
                       )}
-                      {/* Always show ad name */}
                       <div>
                         <span style={{ color: "#71717a" }}>Ad (exemple):</span>{" "}
                         <span style={{ color: "#f59e0b", fontWeight: "500" }}>
