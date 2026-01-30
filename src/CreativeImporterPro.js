@@ -1701,15 +1701,15 @@ export default function CreativeImporterPro(props = {}) {
       const globalNeedsDynamicCreative = adType === "multi" && hasFeedFormat && hasStoryFormat;
       // console.log(`🎨 Global needs dynamic creative: ${globalNeedsDynamicCreative} (hasFeed: ${hasFeedFormat}, hasStory: ${hasStoryFormat})`);
 
-      if (budgetType === "cbo" && cboMode === "existing_adset") {
-        // Use existing adset
-        // WARNING: If we need dynamic creative and existing adset doesn't support it,
-        // the API will return an error
+      if (budgetType === "cbo" && cboMode === "existing_adset" && !globalNeedsDynamicCreative) {
+        // Use existing adset ONLY if we don't need dynamic creative
         adsetId = selectedAdset?.id;
-        // console.log(`✅ Using existing adset: ${adsetId}`);
-        if (globalNeedsDynamicCreative) {
-          console.warn(`⚠️ Multi-placement with different formats requires is_dynamic_creative on the adset. Existing adset may not support this.`);
-        }
+        console.log(`✅ Using existing adset: ${adsetId}`);
+      } else if (budgetType === "cbo" && cboMode === "existing_adset" && globalNeedsDynamicCreative) {
+        // Multi-placement needs is_dynamic_creative - must create NEW adset
+        console.log(`🎨 Multi-placement requires new adset with is_dynamic_creative=true`);
+        adsetId = await createAdset(nomenclature.adset + "_multi", null, true);
+        results.adsets.push({ id: adsetId, name: nomenclature.adset + "_multi" });
       } else if (!isAbo1x1) {
         // Create single adset for CBO or ABO multi modes
         // Enable is_dynamic_creative when we have multi-placement with different formats
