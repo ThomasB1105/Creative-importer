@@ -2006,7 +2006,7 @@ export default function CreativeImporterPro(props = {}) {
           const storyRule = {
             customization_spec: {
               publisher_platforms: hasInstagramCapability ? ["facebook", "instagram"] : ["facebook"],
-              facebook_positions: ["story", "facebook_reels"],
+              facebook_positions: ["story", "reels"],
             },
             image_label: { name: "STORY_IMG" }
           };
@@ -2019,12 +2019,12 @@ export default function CreativeImporterPro(props = {}) {
           const feedRule = {
             customization_spec: {
               publisher_platforms: hasInstagramCapability ? ["facebook", "instagram"] : ["facebook"],
-              facebook_positions: ["feed", "marketplace"],
+              facebook_positions: ["feed"],
             },
             image_label: { name: "FEED_IMG" }
           };
           if (hasInstagramCapability) {
-            feedRule.customization_spec.instagram_positions = ["stream", "explore", "profile_feed"];
+            feedRule.customization_spec.instagram_positions = ["stream"];
           }
           assetCustomizationRules.push(feedRule);
 
@@ -2051,17 +2051,15 @@ export default function CreativeImporterPro(props = {}) {
             call_to_action_types: [callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"],
           };
 
-          // console.log(`📝 asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
+          console.log(`📝 asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
 
           creativeData.append("asset_feed_spec", JSON.stringify(assetFeedSpec));
 
           // object_story_spec is needed for page_id
-          // NOTE: We don't include instagram_actor_id for Multi-Placement to avoid validation errors
-          // Instagram requires the account to be explicitly associated with the ad account in Business Manager
           const objectStorySpec = {
             page_id: selectedPage.id,
           };
-          // instagram_actor_id removed - causes errors if not properly associated with ad account
+          console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
           creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
 
         } else {
