@@ -690,12 +690,13 @@ export default function CreativeImporterPro(props = {}) {
     );
   }, [existingAdsets, adsetSearch]);
 
-  // Instagram: ONLY use sharedInstagramAccountId if it's validated by App.js
-  // The ID must come from the ad account's instagram_accounts list, not from page's instagram_business_account
+  // Instagram: Use page's instagram_business_account or PBIA passed from App.js
   const instagramActorId = sharedInstagramAccountId || null;
-  // Multi-Placement requires a VALID Instagram account from the ad account's list
-  // sharedInstagramAccountId is only set when App.js finds a match in instagram_accounts
+  // Multi-Placement requires an Instagram account (real IG or PBIA)
   const hasRealInstagramAccount = !!sharedInstagramAccountId;
+
+  // Debug: Log Instagram ID on mount
+  console.log("📸 Instagram actor ID:", instagramActorId, "hasRealInstagramAccount:", hasRealInstagramAccount);
 
   const processFiles = async (files) => {
     setIsProcessing(true);

@@ -1181,6 +1181,16 @@ export default function App() {
   // Render active module with sidebar
   const renderModule = () => {
     if (activeModule === "creative-importer") {
+      // Compute Instagram ID to pass (real IG or PBIA fallback)
+      const igId = selectedPage?.instagram_business_account?.id ||
+        selectedPage?.page_backed_instagram_accounts?.data?.[0]?.id ||
+        null;
+      console.log("🔍 Passing Instagram ID to CreativeImporterPro:", {
+        igId,
+        pageName: selectedPage?.name,
+        hasRealIG: !!selectedPage?.instagram_business_account?.id,
+        hasPBIA: !!selectedPage?.page_backed_instagram_accounts?.data?.[0]?.id,
+      });
       return (
         <CreativeImporterPro
           accessToken={accessToken}
@@ -1191,10 +1201,7 @@ export default function App() {
           sharedAdAccount={selectedAdAccount}
           sharedPage={selectedPage}
           sharedPixel={selectedPixel}
-          sharedInstagramAccountId={
-            // Use page's instagram_business_account ID directly
-            selectedPage?.instagram_business_account?.id || null
-          }
+          sharedInstagramAccountId={igId}
           usePageForInstagram={selectedProject?.usePageForInstagram ?? true}
         />
       );
