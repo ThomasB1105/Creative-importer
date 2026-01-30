@@ -699,6 +699,15 @@ export default function CreativeImporterPro(props = {}) {
   // Check if we have a real Instagram account for Multi-Placement feature
   const hasRealInstagramAccount = !!(sharedInstagramAccountId || instagramAccount?.id);
 
+  // DEBUG: Log Instagram setup
+  console.log("🔍 DEBUG Instagram:", {
+    sharedInstagramAccountId,
+    pageInstagramAccount: instagramAccount,
+    instagramActorId,
+    hasRealInstagramAccount,
+    selectedPage: selectedPage?.name,
+  });
+
   const processFiles = async (files) => {
     setIsProcessing(true);
     const valid = files.filter(
