@@ -2098,13 +2098,13 @@ export default function CreativeImporterPro(props = {}) {
         }
       }
 
-      // Process unmapped files (original logic - one ad per file)
-      // Skip if using smart grouping (all files are already in groups)
-      for (let i = 0; !useSmartGrouping && i < unmappedHashes.length; i++) {
+      // Process unmapped files (for single ads mode - one ad per file)
+      // For multi-placement mode, unmappedHashes is empty so this loop won't run
+      for (let i = 0; i < unmappedHashes.length; i++) {
         const hashData = unmappedHashes[i];
         const file = uploadedFiles.find(f => f.id === hashData.fileId);
 
-        const adName = nomenclature.ad(effectiveAdGroups.length + i + 1, file.format);
+        const adName = nomenclature.ad(effectiveGroups.length + i + 1, file.format);
 
         // Update progress: creating creative
         setUploadProgress(prev => ({
