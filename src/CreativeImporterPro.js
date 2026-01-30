@@ -267,7 +267,7 @@ const createMetaApi = (accessToken) => ({
   async fetchPages() {
     try {
       const res = await fetch(
-        `${this.baseUrl}/me/accounts?fields=id,name,picture,instagram_business_account{id,name,username,profile_picture_url}&limit=100&access_token=${accessToken}`
+        `${this.baseUrl}/me/accounts?fields=id,name,picture,instagram_business_account{id,name,username,profile_picture_url},page_backed_instagram_accounts{id}&limit=100&access_token=${accessToken}`
       );
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
@@ -685,7 +685,12 @@ export default function CreativeImporterPro(props = {}) {
     );
   }, [existingAdsets, adsetSearch]);
 
+  // Instagram account: prefer real Instagram Business account, fallback to Page-Backed Instagram Account (PBIA)
   const instagramAccount = selectedPage?.instagram_business_account || null;
+  const pageBackedInstagramAccount = selectedPage?.page_backed_instagram_accounts?.data?.[0] || null;
+  // Use PBIA as instagram_actor_id when no real Instagram account is linked
+  const instagramActorId = instagramAccount?.id || pageBackedInstagramAccount?.id || null;
+  console.log(`📸 Instagram setup: real account=${instagramAccount?.id}, PBIA=${pageBackedInstagramAccount?.id}, using=${instagramActorId}`);
 
   const processFiles = async (files) => {
     setIsProcessing(true);
@@ -1820,9 +1825,9 @@ export default function CreativeImporterPro(props = {}) {
       }
 
       // Helper to get placement positions based on format
-      // Only include Instagram if account is linked (Page-Backed Instagram not supported via API)
-      const hasInstagramAccount = !!instagramAccount?.id;
-      console.log(`📸 Has Instagram account: ${hasInstagramAccount}`);
+      // Include Instagram if we have either a real Instagram account or a PBIA
+      const hasInstagramCapability = !!instagramActorId;
+      console.log(`📸 Has Instagram capability: ${hasInstagramCapability} (actorId: ${instagramActorId})`);
 
       const getPlacementForFormat = (format) => {
         if (format === 'story') {
@@ -1830,7 +1835,7 @@ export default function CreativeImporterPro(props = {}) {
           const placements = {
             facebook_positions: ["story", "facebook_reels"],
           };
-          if (hasInstagramAccount) {
+          if (hasInstagramCapability) {
             placements.instagram_positions = ["story", "reels"];
           }
           return placements;
@@ -1839,7 +1844,7 @@ export default function CreativeImporterPro(props = {}) {
           const placements = {
             facebook_positions: ["feed"],
           };
-          if (hasInstagramAccount) {
+          if (hasInstagramCapability) {
             placements.instagram_positions = ["stream"];
           }
           return placements;
@@ -1959,7 +1964,7 @@ export default function CreativeImporterPro(props = {}) {
 
         console.log(`📸 Primary asset (feed):`, primaryAsset?.file?.name, primaryAsset?.hashData?.hash);
         console.log(`📸 Story asset:`, storyAsset?.file?.name, storyAsset?.hashData?.hash);
-        console.log(`📸 Has Instagram account:`, hasInstagramAccount);
+        console.log(`📸 Instagram actor ID:`, instagramActorId);
         console.log(`🎨 Needs dynamic creative:`, needsDynamicCreative);
 
         const creativeData = new FormData();
@@ -1974,14 +1979,8 @@ export default function CreativeImporterPro(props = {}) {
           // This is the proper Meta API way to do placement asset customization
           console.log(`🎨 Using asset_feed_spec with asset_customization_rules`);
 
-          // Check if we have a real Instagram account
-          // If not, we'll still include Instagram placements but NOT send instagram_actor_id
-          // Meta will automatically use the Page-Backed Instagram Account (PBIA)
-          const hasRealInstagramAccount = !!instagramAccount?.id;
-          console.log(`📸 Has real Instagram account:`, hasRealInstagramAccount, instagramAccount?.id);
-
           // Build asset_customization_rules for story vs feed placements
-          // Always include both Facebook AND Instagram placements
+          // Include Instagram if we have an instagramActorId (real account or PBIA)
           const assetCustomizationRules = [];
 
           // Rule for story/reels placements (vertical 9:16)
@@ -2033,16 +2032,14 @@ export default function CreativeImporterPro(props = {}) {
 
           creativeData.append("asset_feed_spec", JSON.stringify(assetFeedSpec));
 
-          // object_story_spec is needed for page_id
-          // For Instagram: if we have a real Instagram account, include instagram_actor_id
-          // If not, DON'T include it - Meta will use the Page-Backed Instagram Account (PBIA) automatically
+          // object_story_spec is needed for page_id and instagram_actor_id
+          // instagram_actor_id can be a real Instagram account OR a Page-Backed Instagram Account (PBIA)
           const objectStorySpec = {
             page_id: selectedPage.id,
           };
-          if (hasRealInstagramAccount) {
-            objectStorySpec.instagram_actor_id = instagramAccount.id;
+          if (instagramActorId) {
+            objectStorySpec.instagram_actor_id = instagramActorId;
           }
-          // Note: NOT including instagram_actor_id when no real account = Meta uses PBIA ("Utiliser la Page Facebook")
           console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
           creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
 
@@ -2083,9 +2080,9 @@ export default function CreativeImporterPro(props = {}) {
             };
           }
 
-          // Add Instagram actor if available
-          if (hasInstagramAccount && instagramAccount?.id) {
-            objectStorySpec.instagram_actor_id = instagramAccount.id;
+          // Add Instagram actor if available (real account or PBIA)
+          if (instagramActorId) {
+            objectStorySpec.instagram_actor_id = instagramActorId;
           }
 
           console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
@@ -2256,9 +2253,9 @@ export default function CreativeImporterPro(props = {}) {
           };
         }
 
-        // Only add instagram_actor_id if we have a linked Instagram account
-        if (instagramAccount?.id) {
-          objectStorySpec.instagram_actor_id = instagramAccount.id;
+        // Add instagram_actor_id if we have a linked Instagram account or PBIA
+        if (instagramActorId) {
+          objectStorySpec.instagram_actor_id = instagramActorId;
         }
 
         console.log(`📝 Creating creative for ${file.name}:`, JSON.stringify(objectStorySpec, null, 2));
