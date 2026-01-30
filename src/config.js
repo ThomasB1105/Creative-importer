@@ -174,13 +174,15 @@ export const authHelpers = {
 
   // Generate OAuth URL
   getOAuthUrl() {
-    // Permissions de base qui ne nécessitent pas d'App Review Facebook
+    // Permissions pour l'app
     const permissions = [
       "ads_management",
       "ads_read",
       "business_management",
       "pages_read_engagement",
       "pages_show_list",
+      "pages_read_user_content",  // Dépendance de instagram_basic
+      "instagram_basic",          // Pour lire les comptes Instagram liés aux pages
     ].join(",");
 
     return (

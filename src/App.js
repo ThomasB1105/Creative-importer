@@ -2030,8 +2030,12 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAcco
 
   const selectedPage = pages.find(p => p.id === pageId);
 
-  // Find selected Instagram account from the list
+  // Get Instagram from page (via instagram_business_account) or from instagramAccounts list
+  const pageInstagramAccount = selectedPage?.instagram_business_account;
   const selectedInstagramAccount = instagramAccounts?.find(ig => ig.id === instagramAccountId);
+
+  // Prioritize page's Instagram account
+  const effectiveInstagramAccount = pageInstagramAccount || selectedInstagramAccount;
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -2050,8 +2054,8 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAcco
       adAccountName: selectedAcc?.name || "",
       pageId,
       pageName: selectedPg?.name || "",
-      instagramAccountId: instagramAccountId || null,
-      instagramAccountName: selectedInstagramAccount?.username || "",
+      instagramAccountId: effectiveInstagramAccount?.id || instagramAccountId || null,
+      instagramAccountName: effectiveInstagramAccount?.username || "",
       usePageForInstagram,
       pixelId,
       pixelName: selectedPx?.name || "",
@@ -2129,22 +2133,40 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAcco
 
       <div style={fieldStyle}>
         <label style={labelStyle}>Compte Instagram</label>
-        <select
-          value={instagramAccountId}
-          onChange={(e) => setInstagramAccountId(e.target.value)}
-          style={{ ...inputStyle, cursor: "pointer" }}
-        >
-          <option value="">-- Utiliser la Page Facebook --</option>
-          {instagramAccounts?.map((ig) => (
-            <option key={ig.id} value={ig.id}>
-              @{ig.username}
-            </option>
-          ))}
-        </select>
-        {(!instagramAccounts || instagramAccounts.length === 0) && adAccountId && (
-          <p style={{ margin: "6px 0 0", fontSize: "12px", color: "#71717a" }}>
-            Aucun compte Instagram disponible pour ce compte pub
-          </p>
+        {pageInstagramAccount ? (
+          <div style={{
+            padding: "10px 12px",
+            background: "#27272a",
+            borderRadius: "6px",
+            color: "#fafafa",
+            fontSize: "13px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}>
+            <span style={{ color: "#e879f9" }}>@{pageInstagramAccount.username}</span>
+            <span style={{ color: "#22c55e", fontSize: "11px" }}>✓ Lié à la page</span>
+          </div>
+        ) : (
+          <>
+            <select
+              value={instagramAccountId}
+              onChange={(e) => setInstagramAccountId(e.target.value)}
+              style={{ ...inputStyle, cursor: "pointer" }}
+            >
+              <option value="">-- Utiliser la Page Facebook --</option>
+              {instagramAccounts?.map((ig) => (
+                <option key={ig.id} value={ig.id}>
+                  @{ig.username}
+                </option>
+              ))}
+            </select>
+            {(!instagramAccounts || instagramAccounts.length === 0) && pageId && (
+              <p style={{ margin: "6px 0 0", fontSize: "12px", color: "#71717a" }}>
+                Aucun compte Instagram lié à cette page
+              </p>
+            )}
+          </>
         )}
       </div>
 
