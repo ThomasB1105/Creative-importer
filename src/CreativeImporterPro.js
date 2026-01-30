@@ -3201,7 +3201,7 @@ export default function CreativeImporterPro(props = {}) {
                     {
                       id: "1:1:1",
                       name: "1️⃣ Structure 1:1:1 (Nouvelle campagne)",
-                      desc: "1 campagne par créa → 1 adset → 1 ad",
+                      desc: "1 campagne → X adsets → X ads",
                     },
                     {
                       id: "multi",
