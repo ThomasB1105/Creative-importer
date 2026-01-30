@@ -1192,8 +1192,8 @@ export default function App() {
           sharedPage={selectedPage}
           sharedPixel={selectedPixel}
           sharedInstagramAccountId={
-            // Only pass ID if it's in the ad account's instagram_accounts list
-            instagramAccounts?.find(ig => ig.id === selectedProject?.instagramAccountId)?.id || null
+            // Use page's instagram_business_account ID directly
+            selectedPage?.instagram_business_account?.id || null
           }
           usePageForInstagram={selectedProject?.usePageForInstagram ?? true}
         />
