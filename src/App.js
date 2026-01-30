@@ -1457,43 +1457,106 @@ export default function App() {
           </div>
         )}
 
-        {/* Project Selector */}
+        {/* Project Selector - AdManage.ai style */}
         {user && (
-          <div style={styles.projectSection}>
+          <div style={{
+            padding: sidebarCollapsed ? "8px" : "12px",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+          }}>
             <div style={{ position: "relative" }}>
+              {/* Current Project Button */}
               <button
-                style={styles.projectSelectorBtn}
+                style={{
+                  width: "100%",
+                  padding: sidebarCollapsed ? "10px 8px" : "12px",
+                  background: selectedProject ? "rgba(99,102,241,0.1)" : "transparent",
+                  border: selectedProject ? "1px solid rgba(99,102,241,0.3)" : "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  cursor: "pointer",
+                  color: "#fafafa",
+                  transition: "all 0.2s ease",
+                }}
                 onClick={() => {
                   setProjectSelectorOpen(!projectSelectorOpen);
                   setAccountSelectorOpen(false);
                   setPageSelectorOpen(false);
                   setPixelSelectorOpen(false);
                 }}
+                onMouseOver={(e) => e.currentTarget.style.background = selectedProject ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.05)"}
+                onMouseOut={(e) => e.currentTarget.style.background = selectedProject ? "rgba(99,102,241,0.1)" : "transparent"}
               >
-                <div style={styles.projectIcon}>
+                <div style={{
+                  width: sidebarCollapsed ? "32px" : "40px",
+                  height: sidebarCollapsed ? "32px" : "40px",
+                  background: selectedProject
+                    ? "linear-gradient(135deg, #6366f1, #8b5cf6)"
+                    : "rgba(255,255,255,0.1)",
+                  borderRadius: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: sidebarCollapsed ? "11px" : "13px",
+                  fontWeight: "700",
+                  color: "#fff",
+                  flexShrink: 0,
+                }}>
                   {selectedProject ? selectedProject.name.substring(0, 2).toUpperCase() : "+"}
                 </div>
-                <div style={styles.projectInfo}>
-                  <div style={styles.projectName}>
-                    {selectedProject ? selectedProject.name : "Nouveau projet"}
-                  </div>
-                  <div style={styles.projectMeta}>
-                    {selectedProject
-                      ? `${projects.length} projet${projects.length > 1 ? 's' : ''}`
-                      : "Cliquez pour créer"}
-                  </div>
-                </div>
-                <div style={{ color: "#71717a", fontSize: "10px" }}>
-                  {projectSelectorOpen ? "▲" : "▼"}
-                </div>
+                {!sidebarCollapsed && (
+                  <>
+                    <div style={{ flex: 1, textAlign: "left" }}>
+                      <div style={{ fontSize: "14px", fontWeight: "600" }}>
+                        {selectedProject ? selectedProject.name : "Nouveau projet"}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#71717a" }}>
+                        {selectedProject
+                          ? `${projects.length} projet${projects.length > 1 ? 's' : ''}`
+                          : "Cliquez pour créer"}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: "10px", color: "#71717a" }}>
+                      {projectSelectorOpen ? "▲" : "▼"}
+                    </span>
+                  </>
+                )}
               </button>
 
-              {projectSelectorOpen && (
-                <div style={styles.projectDropdown}>
+              {/* Project Dropdown */}
+              {projectSelectorOpen && !sidebarCollapsed && (
+                <div style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  marginTop: "4px",
+                  background: "#1f1f23",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  borderRadius: "10px",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+                  zIndex: 100,
+                  maxHeight: "300px",
+                  overflow: "auto",
+                }}>
+                  {/* Project List - Simple */}
                   {projects.map((project) => (
                     <div
                       key={project.id}
-                      style={styles.projectListItem(selectedProject?.id === project.id)}
+                      style={{
+                        padding: "10px 12px",
+                        cursor: "pointer",
+                        background: selectedProject?.id === project.id
+                          ? "rgba(99,102,241,0.15)"
+                          : "transparent",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        borderLeft: selectedProject?.id === project.id
+                          ? "3px solid #6366f1"
+                          : "3px solid transparent",
+                      }}
                       onClick={() => selectProject(project)}
                       onMouseOver={(e) => {
                         if (selectedProject?.id !== project.id) {
@@ -1506,36 +1569,46 @@ export default function App() {
                         }
                       }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div>
-                          <div style={styles.projectListItemName}>{project.name}</div>
-                          <div style={styles.projectListItemMeta}>
-                            {project.adAccountName || "Compte non défini"}
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingProject(project);
-                            setShowProjectSettings(true);
-                            setProjectSelectorOpen(false);
-                          }}
-                          style={{
-                            background: "transparent",
-                            border: "none",
-                            color: "#71717a",
-                            cursor: "pointer",
-                            padding: "4px 8px",
-                            fontSize: "12px",
-                          }}
-                        >
-                          ✏️
-                        </button>
-                      </div>
+                      <span style={{
+                        fontSize: "13px",
+                        fontWeight: selectedProject?.id === project.id ? "600" : "500",
+                        color: selectedProject?.id === project.id ? "#fafafa" : "#a1a1aa",
+                      }}>
+                        {project.name}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingProject(project);
+                          setShowProjectSettings(true);
+                          setProjectSelectorOpen(false);
+                        }}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "#52525b",
+                          cursor: "pointer",
+                          padding: "4px",
+                          fontSize: "10px",
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.color = "#fafafa"}
+                        onMouseOut={(e) => e.currentTarget.style.color = "#52525b"}
+                      >
+                        ✏️
+                      </button>
                     </div>
                   ))}
+
+                  {/* Create Project Button */}
                   <div
-                    style={styles.projectAddBtn}
+                    style={{
+                      padding: "12px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      color: "#22c55e",
+                    }}
                     onClick={() => {
                       setEditingProject(null);
                       setShowProjectSettings(true);
@@ -2314,6 +2387,102 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, selectedAdAcc
             Sélectionnez un compte pub pour voir les pixels
           </p>
         )}
+      </div>
+
+      {/* Integrations Section */}
+      <div style={{
+        marginTop: "20px",
+        paddingTop: "20px",
+        borderTop: "1px solid rgba(255,255,255,0.1)",
+      }}>
+        <label style={{ ...labelStyle, fontSize: "14px", fontWeight: "600", color: "#fafafa" }}>
+          Intégrations
+        </label>
+        <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+          {/* Google Drive */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px",
+            background: "#27272a",
+            borderRadius: "8px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "18px" }}>📁</span>
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: "500", color: "#fafafa" }}>Google Drive</div>
+                <div style={{ fontSize: "11px", color: "#71717a" }}>Sync des créatives</div>
+              </div>
+            </div>
+            <span style={{
+              padding: "4px 8px",
+              borderRadius: "4px",
+              fontSize: "10px",
+              fontWeight: "600",
+              background: "rgba(251,146,60,0.2)",
+              color: "#fb923c",
+            }}>
+              SOON
+            </span>
+          </div>
+
+          {/* Dropbox */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px",
+            background: "#27272a",
+            borderRadius: "8px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "18px" }}>📦</span>
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: "500", color: "#fafafa" }}>Dropbox</div>
+                <div style={{ fontSize: "11px", color: "#71717a" }}>Import automatique</div>
+              </div>
+            </div>
+            <span style={{
+              padding: "4px 8px",
+              borderRadius: "4px",
+              fontSize: "10px",
+              fontWeight: "600",
+              background: "rgba(251,146,60,0.2)",
+              color: "#fb923c",
+            }}>
+              SOON
+            </span>
+          </div>
+
+          {/* Slack */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px",
+            background: "#27272a",
+            borderRadius: "8px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "18px" }}>💬</span>
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: "500", color: "#fafafa" }}>Slack</div>
+                <div style={{ fontSize: "11px", color: "#71717a" }}>Notifications</div>
+              </div>
+            </div>
+            <span style={{
+              padding: "4px 8px",
+              borderRadius: "4px",
+              fontSize: "10px",
+              fontWeight: "600",
+              background: "rgba(251,146,60,0.2)",
+              color: "#fb923c",
+            }}>
+              SOON
+            </span>
+          </div>
+        </div>
       </div>
 
       <div style={{
