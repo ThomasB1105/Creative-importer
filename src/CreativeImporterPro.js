@@ -1968,6 +1968,11 @@ export default function CreativeImporterPro(props = {}) {
           // This is the proper Meta API way to do placement asset customization
           console.log(`🎨 Using asset_feed_spec with asset_customization_rules`);
 
+          // Check if we have a REAL Instagram Business/Creator account (not Page-Backed)
+          // Page-Backed Instagram accounts are not supported for asset_feed_spec
+          const hasValidInstagramForAssetFeed = hasInstagramAccount && instagramAccount?.id && instagramAccount?.username;
+          console.log(`📸 Has valid Instagram for asset_feed_spec:`, hasValidInstagramForAssetFeed, instagramAccount);
+
           // Build asset_customization_rules for story vs feed placements
           const assetCustomizationRules = [];
 
@@ -1979,8 +1984,8 @@ export default function CreativeImporterPro(props = {}) {
             },
             image_label: { name: "STORY_IMG" }
           };
-          // Add Instagram if available
-          if (hasInstagramAccount) {
+          // Add Instagram only if we have a valid Instagram Business/Creator account
+          if (hasValidInstagramForAssetFeed) {
             storyRule.customization_spec.publisher_platforms.push("instagram");
             storyRule.customization_spec.instagram_positions = ["story", "reels"];
           }
@@ -1994,8 +1999,8 @@ export default function CreativeImporterPro(props = {}) {
             },
             image_label: { name: "FEED_IMG" }
           };
-          // Add Instagram if available
-          if (hasInstagramAccount) {
+          // Add Instagram only if we have a valid Instagram Business/Creator account
+          if (hasValidInstagramForAssetFeed) {
             feedRule.customization_spec.publisher_platforms.push("instagram");
             feedRule.customization_spec.instagram_positions = ["stream", "explore", "profile_feed"];
           }
@@ -2032,7 +2037,8 @@ export default function CreativeImporterPro(props = {}) {
           const objectStorySpec = {
             page_id: selectedPage.id,
           };
-          if (hasInstagramAccount && instagramAccount?.id) {
+          // Only add instagram_actor_id if we have a valid Instagram Business/Creator account
+          if (hasValidInstagramForAssetFeed) {
             objectStorySpec.instagram_actor_id = instagramAccount.id;
           }
           creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
