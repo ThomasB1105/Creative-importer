@@ -1790,29 +1790,24 @@ export default function CreativeImporterPro(props = {}) {
       }
 
       // Helper to get placement positions based on format
-      // Only include Instagram if account is linked
+      // Always include Instagram placements - use Page as identity if no Instagram account linked
       const hasInstagramAccount = !!instagramAccount?.id;
       console.log(`📸 Has Instagram account: ${hasInstagramAccount}`);
+      console.log(`📸 Will use Page-Backed Instagram (Page as identity): ${!hasInstagramAccount}`);
 
       const getPlacementForFormat = (format) => {
         if (format === 'story') {
           // 9:16 vertical format - Stories et Reels uniquement
-          const placements = {
+          return {
             facebook_positions: ["story", "facebook_reels"],
+            instagram_positions: ["story", "reels"],
           };
-          if (hasInstagramAccount) {
-            placements.instagram_positions = ["story", "reels"];
-          }
-          return placements;
         } else {
           // 1:1, 4:5, 16:9 formats - Feed uniquement
-          const placements = {
+          return {
             facebook_positions: ["feed"],
+            instagram_positions: ["stream"],
           };
-          if (hasInstagramAccount) {
-            placements.instagram_positions = ["stream"];
-          }
-          return placements;
         }
       };
 
@@ -1930,8 +1925,8 @@ export default function CreativeImporterPro(props = {}) {
           const labelName = `asset_${idx}_${file.format}`;
           const placements = getPlacementForFormat(file.format);
 
-          // Only include Instagram if account is linked
-          const publisherPlatforms = hasInstagramAccount ? ["facebook", "instagram"] : ["facebook"];
+          // Always include Instagram - use Page as identity if no Instagram account (Page-Backed Instagram)
+          const publisherPlatforms = ["facebook", "instagram"];
 
           if (hashData.type === "video") {
             videos.push({
@@ -1974,9 +1969,9 @@ export default function CreativeImporterPro(props = {}) {
           ...(filteredHeadlines.length > 0 && { titles: filteredHeadlines.map(t => ({ text: t })) }),
           link_urls: [{ website_url: destinationUrl.trim() }],
           call_to_action_types: [callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"],
-          // Only include asset_customization_rules when we have Instagram
-          // Without Instagram, Meta doesn't support customization rules (single platform)
-          ...(hasInstagramAccount && assetCustomizationRules.length > 0 && { asset_customization_rules: assetCustomizationRules })
+          // Always include asset_customization_rules for multi-placement ads
+          // Page-Backed Instagram allows Instagram placements even without a linked account
+          ...(assetCustomizationRules.length > 0 && { asset_customization_rules: assetCustomizationRules })
         };
 
         console.log(`📝 Creating multi-format creative with asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
@@ -1984,16 +1979,18 @@ export default function CreativeImporterPro(props = {}) {
         console.log(`📸 Instagram ID:`, instagramAccount?.id);
         console.log(`📸 Has Instagram account:`, hasInstagramAccount);
 
-        // Only include instagram_actor_id if we have a valid Instagram account
-        // Otherwise, Meta API will reject with "instagram_actor_id must be a valid Instagram account id"
+        // Use Instagram account ID if available, otherwise use Page ID (Page-Backed Instagram)
+        // This allows Instagram placements even without a linked Instagram account
+        const instagramActorId = hasInstagramAccount && instagramAccount?.id
+          ? instagramAccount.id
+          : selectedPage.id;
+
+        console.log(`📸 Using instagram_actor_id: ${instagramActorId} (${hasInstagramAccount ? 'Instagram Account' : 'Page-Backed'})`);
+
         const objectStorySpecForFeed = {
           page_id: selectedPage.id,
+          instagram_actor_id: instagramActorId,
         };
-
-        // Only add instagram_actor_id when we have an Instagram account linked
-        if (hasInstagramAccount && instagramAccount?.id) {
-          objectStorySpecForFeed.instagram_actor_id = instagramAccount.id;
-        }
 
         console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpecForFeed, null, 2));
 
@@ -2167,13 +2164,12 @@ export default function CreativeImporterPro(props = {}) {
           };
         }
 
-        // Only add instagram_actor_id when we have an Instagram account linked
-        // Otherwise, Meta API will reject with "instagram_actor_id must be a valid Instagram account id"
-        if (instagramAccount?.id) {
-          objectStorySpec.instagram_actor_id = instagramAccount.id;
-        }
+        // Use Instagram account ID if available, otherwise use Page ID (Page-Backed Instagram)
+        // This allows Instagram placements even without a linked Instagram account
+        objectStorySpec.instagram_actor_id = instagramAccount?.id || selectedPage.id;
 
         console.log(`📝 Creating creative for ${file.name}:`, JSON.stringify(objectStorySpec, null, 2));
+        console.log(`📸 Using instagram_actor_id: ${objectStorySpec.instagram_actor_id} (${instagramAccount?.id ? 'Instagram Account' : 'Page-Backed'})`);
 
         creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
 
