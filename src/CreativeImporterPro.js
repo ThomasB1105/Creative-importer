@@ -2165,12 +2165,11 @@ export default function CreativeImporterPro(props = {}) {
           };
         }
 
-        // Only add instagram_actor_id when we have an Instagram account linked
-        if (instagramAccount?.id) {
-          objectStorySpec.instagram_actor_id = instagramAccount.id;
-        }
+        // For single ads, Page-Backed Instagram works (use Page ID if no Instagram account)
+        objectStorySpec.instagram_actor_id = instagramAccount?.id || selectedPage.id;
 
         console.log(`📝 Creating creative for ${file.name}:`, JSON.stringify(objectStorySpec, null, 2));
+        console.log(`📸 instagram_actor_id: ${objectStorySpec.instagram_actor_id} (${instagramAccount?.id ? 'Instagram' : 'Page-Backed'})`);
 
         creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
 
