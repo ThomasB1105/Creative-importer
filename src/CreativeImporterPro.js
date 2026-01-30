@@ -1843,9 +1843,10 @@ export default function CreativeImporterPro(props = {}) {
       }
 
       // Helper to get placement positions based on format
-      // Include Instagram if we have either a real Instagram account or a PBIA
-      const hasInstagramCapability = !!instagramActorId;
-      // console.log(`📸 Has Instagram capability: ${hasInstagramCapability} (actorId: ${instagramActorId})`);
+      // For Multi-Placement: use Facebook only to avoid Instagram actor_id validation issues
+      // Instagram requires the account to be explicitly associated with the ad account
+      const hasInstagramCapability = false; // Disabled for now - Facebook placements only
+      console.log(`📸 Multi-Placement mode: Facebook only (Instagram disabled to avoid validation errors)`);
 
       const getPlacementForFormat = (format) => {
         if (format === 'story') {
@@ -2054,15 +2055,13 @@ export default function CreativeImporterPro(props = {}) {
 
           creativeData.append("asset_feed_spec", JSON.stringify(assetFeedSpec));
 
-          // object_story_spec is needed for page_id and instagram_actor_id
-          // instagram_actor_id can be a real Instagram account OR a Page-Backed Instagram Account (PBIA)
+          // object_story_spec is needed for page_id
+          // NOTE: We don't include instagram_actor_id for Multi-Placement to avoid validation errors
+          // Instagram requires the account to be explicitly associated with the ad account in Business Manager
           const objectStorySpec = {
             page_id: selectedPage.id,
           };
-          if (instagramActorId) {
-            objectStorySpec.instagram_actor_id = instagramActorId;
-          }
-          // console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
+          // instagram_actor_id removed - causes errors if not properly associated with ad account
           creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
 
         } else {
