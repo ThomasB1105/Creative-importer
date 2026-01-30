@@ -1851,30 +1851,21 @@ export default function CreativeImporterPro(props = {}) {
         const mappedFileIds = adGroups.flatMap(g => g.fileIds);
         unmappedHashes = validHashes.filter(h => !mappedFileIds.includes(h.fileId));
 
-        // For adType === "single", ignore all groups and treat each file as individual ad
-        // This ensures single ads use object_story_spec (not asset_feed_spec)
+        // For adType === "single", each file becomes its own ad
+        // For adType === "multi", ALL files go into ONE group = ONE ad with platform_customizations
         if (adType === "single") {
           effectiveAdGroups = [];
           unmappedHashes = [...validHashes]; // All files become individual ads
+        } else if (adType === "multi") {
+          // MULTI-PLACEMENT: ALL files in ONE group = ONE ad
+          console.log(`📦 Multi-Placement mode: combining ${validHashes.length} files into ONE ad`);
+          effectiveAdGroups = [{
+            fileIds: validHashes.map(h => h.fileId)
+          }];
+          unmappedHashes = []; // No unmapped files - all in the group
         } else {
-          // AUTO-GROUP: If no groups created and multiple files with different formats,
-          // create ONE ad with all files mapped to their respective placements
+          // Legacy behavior for other modes
           effectiveAdGroups = [...adGroups];
-          if (effectiveAdGroups.length === 0 && validHashes.length > 1) {
-            const formats = new Set(validHashes.map(h => {
-              const file = uploadedFiles.find(f => f.id === h.fileId);
-              return file?.format;
-            }));
-
-            // If we have different formats (e.g., story AND feed), auto-group them
-            if (formats.size > 1) {
-              console.log(`📦 Auto-grouping ${validHashes.length} files with ${formats.size} different formats`);
-              effectiveAdGroups = [{
-                fileIds: validHashes.map(h => h.fileId)
-              }];
-              unmappedHashes = [];
-            }
-          }
         }
 
         // Create single group from legacy logic
