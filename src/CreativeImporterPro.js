@@ -267,7 +267,7 @@ const createMetaApi = (accessToken) => ({
   async fetchPages() {
     try {
       const res = await fetch(
-        `${this.baseUrl}/me/accounts?fields=id,name,picture,instagram_business_account{id,name,username,profile_picture_url},page_backed_instagram_accounts{id}&limit=100&access_token=${accessToken}`
+        `${this.baseUrl}/me/accounts?fields=id,name,picture,access_token,instagram_business_account{id,name,username,profile_picture_url}&limit=100&access_token=${accessToken}`
       );
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
@@ -276,7 +276,29 @@ const createMetaApi = (accessToken) => ({
       if (data.error) {
         throw new Error(data.error.message || "Erreur lors de la récupération des pages");
       }
-      return data.data || [];
+
+      // For each page, try to fetch the Page-Backed Instagram Account using the page's access token
+      const pagesWithPBIA = await Promise.all((data.data || []).map(async (page) => {
+        if (page.access_token) {
+          try {
+            const pbiaRes = await fetch(
+              `${this.baseUrl}/${page.id}/page_backed_instagram_accounts?access_token=${page.access_token}`
+            );
+            if (pbiaRes.ok) {
+              const pbiaData = await pbiaRes.json();
+              if (pbiaData.data && pbiaData.data.length > 0) {
+                page.page_backed_instagram_accounts = pbiaData;
+                console.log(`📸 Found PBIA for page ${page.name}:`, pbiaData.data[0].id);
+              }
+            }
+          } catch (e) {
+            console.warn(`Could not fetch PBIA for page ${page.name}:`, e);
+          }
+        }
+        return page;
+      }));
+
+      return pagesWithPBIA;
     } catch (error) {
       console.error("fetchPages error:", error);
       throw error;
