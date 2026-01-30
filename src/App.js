@@ -2031,15 +2031,21 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAcco
 
   const selectedPage = pages.find(p => p.id === pageId);
 
-  // Get Instagram from page (via instagram_business_account) or from instagramAccounts list
+  // Get Instagram from page (via instagram_business_account)
   const pageInstagramAccount = selectedPage?.instagram_business_account;
+  // Find matching Instagram account in ad account's instagram_accounts list
+  // This is CRITICAL: we must use the ID from the ad account's list, not from the page
+  const matchingAdAccountInstagram = instagramAccounts?.find(ig =>
+    ig.id === pageInstagramAccount?.id ||
+    ig.username === pageInstagramAccount?.username
+  );
   const selectedInstagramAccount = instagramAccounts?.find(ig => ig.id === instagramAccountId);
 
   // Get Page-Backed Instagram Account (PBIA) - used when no real IG account is linked
   const pageBackedInstagramAccount = selectedPage?.page_backed_instagram_accounts?.data?.[0];
 
-  // Prioritize: 1) page's linked IG, 2) selected IG, 3) PBIA if "Use Page" selected
-  const effectiveInstagramAccount = pageInstagramAccount || selectedInstagramAccount ||
+  // Prioritize: 1) matching IG from ad account, 2) selected IG, 3) page's IG (may not work), 4) PBIA
+  const effectiveInstagramAccount = matchingAdAccountInstagram || selectedInstagramAccount || pageInstagramAccount ||
     (!instagramAccountId && pageBackedInstagramAccount ? { id: pageBackedInstagramAccount.id, username: `${selectedPage?.name || 'Page'} (PBIA)` } : null);
 
   const handleSubmit = (e) => {
