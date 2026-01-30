@@ -293,6 +293,25 @@ export const createMetaApi = (accessToken) => ({
     }
   },
 
+  async fetchPageInstagramAccount(pageId) {
+    try {
+      const res = await fetch(
+        `${this.baseUrl}/${pageId}?fields=instagram_business_account{id,username,profile_picture_url,name}&access_token=${accessToken}`
+      );
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error.message || "Erreur lors de la récupération du compte Instagram");
+      }
+      return data.instagram_business_account || null;
+    } catch (error) {
+      console.error("fetchPageInstagramAccount error:", error);
+      return null;
+    }
+  },
+
   async fetchCampaigns(adAccountId) {
     try {
       console.log("🔍 Fetching campaigns for account:", adAccountId);
