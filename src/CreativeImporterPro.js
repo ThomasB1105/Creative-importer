@@ -1968,37 +1968,36 @@ export default function CreativeImporterPro(props = {}) {
           // This is the proper Meta API way to do placement asset customization
           console.log(`🎨 Using asset_feed_spec with asset_customization_rules`);
 
-          // Check if we have a valid Instagram account (page_id doesn't work as instagram_actor_id via API)
-          const hasValidInstagram = !!instagramAccount?.id;
-          console.log(`📸 Has valid Instagram account:`, hasValidInstagram, instagramAccount?.id);
+          // Check if we have a real Instagram account
+          // If not, we'll still include Instagram placements but NOT send instagram_actor_id
+          // Meta will automatically use the Page-Backed Instagram Account (PBIA)
+          const hasRealInstagramAccount = !!instagramAccount?.id;
+          console.log(`📸 Has real Instagram account:`, hasRealInstagramAccount, instagramAccount?.id);
 
           // Build asset_customization_rules for story vs feed placements
+          // Always include both Facebook AND Instagram placements
           const assetCustomizationRules = [];
 
           // Rule for story/reels placements (vertical 9:16)
           const storyRule = {
             customization_spec: {
-              publisher_platforms: hasValidInstagram ? ["facebook", "instagram"] : ["facebook"],
+              publisher_platforms: ["facebook", "instagram"],
               facebook_positions: ["story", "facebook_reels"],
+              instagram_positions: ["story", "reels"],
             },
             image_label: { name: "STORY_IMG" }
           };
-          if (hasValidInstagram) {
-            storyRule.customization_spec.instagram_positions = ["story", "reels"];
-          }
           assetCustomizationRules.push(storyRule);
 
           // Rule for feed placements (square/portrait)
           const feedRule = {
             customization_spec: {
-              publisher_platforms: hasValidInstagram ? ["facebook", "instagram"] : ["facebook"],
+              publisher_platforms: ["facebook", "instagram"],
               facebook_positions: ["feed", "marketplace"],
+              instagram_positions: ["stream", "explore", "profile_feed"],
             },
             image_label: { name: "FEED_IMG" }
           };
-          if (hasValidInstagram) {
-            feedRule.customization_spec.instagram_positions = ["stream", "explore", "profile_feed"];
-          }
           assetCustomizationRules.push(feedRule);
 
           // Build images array with labels
@@ -2028,14 +2027,17 @@ export default function CreativeImporterPro(props = {}) {
 
           creativeData.append("asset_feed_spec", JSON.stringify(assetFeedSpec));
 
-          // object_story_spec is still needed for page_id and instagram_actor_id
+          // object_story_spec is needed for page_id
+          // For Instagram: if we have a real Instagram account, include instagram_actor_id
+          // If not, DON'T include it - Meta will use the Page-Backed Instagram Account (PBIA) automatically
           const objectStorySpec = {
             page_id: selectedPage.id,
           };
-          // Only add instagram_actor_id if we have a valid Instagram account
-          if (hasValidInstagram) {
+          if (hasRealInstagramAccount) {
             objectStorySpec.instagram_actor_id = instagramAccount.id;
           }
+          // Note: NOT including instagram_actor_id when no real account = Meta uses PBIA ("Utiliser la Page Facebook")
+          console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
           creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
 
         } else {
