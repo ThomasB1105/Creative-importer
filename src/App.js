@@ -2034,8 +2034,12 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAcco
   const pageInstagramAccount = selectedPage?.instagram_business_account;
   const selectedInstagramAccount = instagramAccounts?.find(ig => ig.id === instagramAccountId);
 
-  // Prioritize page's Instagram account
-  const effectiveInstagramAccount = pageInstagramAccount || selectedInstagramAccount;
+  // Get Page-Backed Instagram Account (PBIA) - used when no real IG account is linked
+  const pageBackedInstagramAccount = selectedPage?.page_backed_instagram_accounts?.data?.[0];
+
+  // Prioritize: 1) page's linked IG, 2) selected IG, 3) PBIA if "Use Page" selected
+  const effectiveInstagramAccount = pageInstagramAccount || selectedInstagramAccount ||
+    (!instagramAccountId && pageBackedInstagramAccount ? { id: pageBackedInstagramAccount.id, username: `${selectedPage?.name || 'Page'} (PBIA)` } : null);
 
   const handleSubmit = (e) => {
     e.preventDefault();

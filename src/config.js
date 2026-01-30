@@ -250,7 +250,33 @@ export const createMetaApi = (accessToken) => ({
       if (data.error) {
         throw new Error(data.error.message || "Erreur lors de la récupération des pages");
       }
-      return data.data || [];
+
+      // Fetch Page-Backed Instagram Account (PBIA) for each page
+      // PBIA is used when user selects "Utiliser la Page Facebook" option
+      const pagesWithPbia = await Promise.all(
+        (data.data || []).map(async (page) => {
+          try {
+            // Use page's access_token to fetch PBIA (required by Meta API)
+            const pbiaRes = await fetch(
+              `${this.baseUrl}/${page.id}/page_backed_instagram_accounts?access_token=${page.access_token}`
+            );
+            if (pbiaRes.ok) {
+              const pbiaData = await pbiaRes.json();
+              if (pbiaData.data && pbiaData.data.length > 0) {
+                return {
+                  ...page,
+                  page_backed_instagram_accounts: pbiaData
+                };
+              }
+            }
+          } catch (pbiaError) {
+            console.warn(`Could not fetch PBIA for page ${page.id}:`, pbiaError);
+          }
+          return page;
+        })
+      );
+
+      return pagesWithPbia;
     } catch (error) {
       console.error("fetchPages error:", error);
       throw error;
