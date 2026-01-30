@@ -411,6 +411,7 @@ export default function CreativeImporterPro(props = {}) {
   const [budgetType, setBudgetType] = useState("cbo");
   const [cboMode, setCboMode] = useState("new");
   const [aboMode, setAboMode] = useState("1:1:1");
+  const [maxAdsPerAdset, setMaxAdsPerAdset] = useState(5); // For ABO Multi (1-X-Y)
   const [existingCampaigns, setExistingCampaigns] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [existingAdsets, setExistingAdsets] = useState([]);
@@ -1688,9 +1689,11 @@ export default function CreativeImporterPro(props = {}) {
 
       // Step 3: Create adset(s) based on structure
       // For ABO 1-x-1: Create one adset per group (later in the loop)
+      // For ABO multi: Create multiple adsets with max Y ads per adset
       // For other modes: Create a single adset here
       let adsetId;
       const isAbo1x1 = budgetType === "abo" && aboMode === "1:1:1";
+      const isAboMulti = budgetType === "abo" && aboMode === "multi";
 
       // Multi-placement with different feed/story assets uses asset_feed_spec
       // This REQUIRES is_dynamic_creative on the adset
@@ -1703,6 +1706,29 @@ export default function CreativeImporterPro(props = {}) {
       const globalNeedsDynamicCreative = adType === "multi" && hasFeedFormat && hasStoryFormat;
       // console.log(`🎨 Global needs dynamic creative: ${globalNeedsDynamicCreative} (hasFeed: ${hasFeedFormat}, hasStory: ${hasStoryFormat})`);
 
+      // For ABO Multi: Create multiple adsets to distribute ads
+      let aboMultiAdsets = []; // Array of { id, name, adsCount }
+      if (isAboMulti) {
+        // Calculate total number of ads (groups + unmapped files)
+        const totalAds = effectiveGroups.length + unmappedHashes.length;
+        const numAdsets = Math.ceil(totalAds / maxAdsPerAdset);
+
+        console.log(`📦 ABO Multi: Creating ${numAdsets} adsets for ${totalAds} ads (max ${maxAdsPerAdset} per adset)`);
+
+        for (let adsetIndex = 0; adsetIndex < numAdsets; adsetIndex++) {
+          const adsetName = `${nomenclature.adset}_${adsetIndex + 1}`;
+          try {
+            const newAdsetId = await createAdset(adsetName, null, globalNeedsDynamicCreative);
+            aboMultiAdsets.push({ id: newAdsetId, name: adsetName, adsCount: 0 });
+            results.adsets.push({ id: newAdsetId, name: adsetName });
+            console.log(`✅ ABO Multi adset created: ${adsetName} (${newAdsetId})`);
+          } catch (err) {
+            console.error(`❌ Failed to create ABO Multi adset ${adsetIndex + 1}:`, err);
+            results.errors.push(`Adset creation failed: ${err.message}`);
+          }
+        }
+      }
+
       if (budgetType === "cbo" && cboMode === "existing_adset" && !globalNeedsDynamicCreative) {
         // Use existing adset ONLY if we don't need dynamic creative
         adsetId = selectedAdset?.id;
@@ -1712,13 +1738,14 @@ export default function CreativeImporterPro(props = {}) {
         console.log(`🎨 Multi-placement requires new adset with is_dynamic_creative=true`);
         adsetId = await createAdset(nomenclature.adset + "_multi", null, true);
         results.adsets.push({ id: adsetId, name: nomenclature.adset + "_multi" });
-      } else if (!isAbo1x1) {
-        // Create single adset for CBO or ABO multi modes
+      } else if (!isAbo1x1 && !isAboMulti) {
+        // Create single adset for CBO or ABO existing modes
         // Enable is_dynamic_creative when we have multi-placement with different formats
         adsetId = await createAdset(nomenclature.adset, null, globalNeedsDynamicCreative);
         results.adsets.push({ id: adsetId, name: nomenclature.adset });
       }
       // For ABO 1-x-1, adsets will be created in the group loop below
+      // For ABO Multi, adsets are already created above in aboMultiAdsets
 
       // Skip old adset creation code for non-1x1 modes
       if (false) {
@@ -1922,6 +1949,17 @@ export default function CreativeImporterPro(props = {}) {
         }
       }
 
+      // Global ad counter for ABO Multi distribution
+      let globalAdIndex = 0;
+
+      // Helper function to get the adset ID for ABO Multi mode
+      const getAboMultiAdsetId = () => {
+        if (!isAboMulti || aboMultiAdsets.length === 0) return adsetId;
+        const adsetIndex = Math.floor(globalAdIndex / maxAdsPerAdset);
+        const safeIndex = Math.min(adsetIndex, aboMultiAdsets.length - 1);
+        return aboMultiAdsets[safeIndex]?.id;
+      };
+
       // Process each group: For ABO 1-x-1, create one adset per group
       for (let groupIndex = 0; groupIndex < effectiveGroups.length; groupIndex++) {
         const group = effectiveGroups[groupIndex];
@@ -1946,6 +1984,7 @@ export default function CreativeImporterPro(props = {}) {
         const needsDynamicCreative = adType === "multi" && feedFiles.length > 0 && storyFiles.length > 0;
 
         // For ABO 1-x-1: Create a new adset for this group
+        // For ABO Multi: Use the pre-created adsets with distribution
         let currentAdsetId = adsetId;
         if (isAbo1x1) {
           const adsetName = group.baseName
@@ -1960,6 +1999,9 @@ export default function CreativeImporterPro(props = {}) {
             results.errors.push(`Adset creation failed for group ${groupIndex + 1}: ${err.message}`);
             continue;
           }
+        } else if (isAboMulti) {
+          // Use pre-created adsets with round-robin distribution
+          currentAdsetId = getAboMultiAdsetId();
         }
 
         // Determine ad name
@@ -2187,6 +2229,7 @@ export default function CreativeImporterPro(props = {}) {
           });
         } else {
           results.ads.push({ id: adResult.id, name: adName });
+          globalAdIndex++; // Increment for ABO Multi distribution
           // console.log(`✅ Multi-format ad created: ${adResult.id}`);
           groupHashes.forEach(h => {
             setUploadProgress(prev => ({
@@ -2335,10 +2378,11 @@ export default function CreativeImporterPro(props = {}) {
           [file.id]: { progress: 80, status: 'creating' }
         }));
 
-        // Create ad (unmapped files always use the main adsetId)
+        // Create ad (use ABO Multi adset distribution or main adsetId)
+        const unmappedAdsetId = isAboMulti ? getAboMultiAdsetId() : adsetId;
         const adData = new FormData();
         adData.append("name", adName);
-        adData.append("adset_id", adsetId);
+        adData.append("adset_id", unmappedAdsetId);
         adData.append("creative", JSON.stringify({ creative_id: creativeResult.id }));
         adData.append("status", "ACTIVE");
         adData.append("access_token", accessToken);
@@ -2360,6 +2404,7 @@ export default function CreativeImporterPro(props = {}) {
           }));
         } else {
           results.ads.push({ id: adResult.id, name: adName });
+          globalAdIndex++; // Increment for ABO Multi distribution
           // console.log(`✅ Ad created: ${adResult.id}`);
 
           // Update progress: complete
@@ -3365,6 +3410,53 @@ export default function CreativeImporterPro(props = {}) {
                     </div>
                   ))}
                 </div>
+
+                {aboMode === "multi" && (
+                  <div
+                    style={{
+                      marginTop: "16px",
+                      padding: "14px",
+                      background: "rgba(0,0,0,0.2)",
+                      borderRadius: "10px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      🎯 Max ads par adset
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={maxAdsPerAdset}
+                      onChange={(e) => setMaxAdsPerAdset(Math.max(1, parseInt(e.target.value) || 1))}
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px",
+                        borderRadius: "6px",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        background: "rgba(0,0,0,0.3)",
+                        color: "#fff",
+                        fontSize: "14px",
+                        outline: "none",
+                      }}
+                    />
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "#71717a",
+                        marginTop: "6px",
+                      }}
+                    >
+                      Les ads seront réparties automatiquement sur plusieurs adsets
+                    </div>
+                  </div>
+                )}
 
                 {aboMode === "existing" && (
                   <div
