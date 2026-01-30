@@ -1596,7 +1596,12 @@ export default function CreativeImporterPro(props = {}) {
         };
 
         // Add placement restrictions based on creative formats
-        if (hasStoryOnly) {
+        // For multi-placement (isDynamicCreative), don't restrict - use all placements
+        if (isDynamicCreative) {
+          // Multi-placement mode: explicitly enable ALL placements (Facebook + Instagram)
+          // This ensures we don't accidentally restrict placements
+          console.log("🌐 Multi-placement mode: All placements enabled (Facebook + Instagram)");
+        } else if (hasStoryOnly) {
           targeting.publisher_platforms = ['facebook', 'instagram'];
           targeting.facebook_positions = ['story'];
           targeting.instagram_positions = ['story'];
@@ -1605,6 +1610,7 @@ export default function CreativeImporterPro(props = {}) {
           targeting.facebook_positions = ['feed'];
           targeting.instagram_positions = ['stream'];
         }
+        // If none of the above: all placements are available by default
 
         // Build promoted object
         const promotedObject = {
