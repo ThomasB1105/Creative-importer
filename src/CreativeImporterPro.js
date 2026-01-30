@@ -689,11 +689,11 @@ export default function CreativeImporterPro(props = {}) {
     );
   }, [existingAdsets, adsetSearch]);
 
-  // Instagram account: only use real Instagram Business account
-  // PBIA (Page-Backed Instagram Account) doesn't work reliably with all ad accounts
+  // Instagram account: prefer real Instagram Business account, fallback to Page ID for PBIA
+  // When using page_id as instagram_actor_id, Meta automatically uses the Page-Backed Instagram Account
   const instagramAccount = selectedPage?.instagram_business_account || null;
-  // Only use real Instagram account ID - Instagram placements will be excluded if no real account
-  const instagramActorId = instagramAccount?.id || null;
+  // Use real Instagram account if available, otherwise use page_id (Meta will use PBIA automatically)
+  const instagramActorId = instagramAccount?.id || selectedPage?.id || null;
 
   const processFiles = async (files) => {
     setIsProcessing(true);
