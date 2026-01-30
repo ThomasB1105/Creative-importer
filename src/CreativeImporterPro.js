@@ -2042,14 +2042,18 @@ export default function CreativeImporterPro(props = {}) {
 
           // Build asset_feed_spec
           const assetFeedSpec = {
+            optimization_type: "ASSET_CUSTOMIZATION",
             ad_formats: ["SINGLE_IMAGE"],
             asset_customization_rules: assetCustomizationRules,
             images: images,
             bodies: [{ text: filteredTexts[0] || "" }],
-            titles: filteredHeadlines[0] ? [{ text: filteredHeadlines[0] }] : [],
             link_urls: [{ website_url: destinationUrl.trim() }],
             call_to_action_types: [callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"],
           };
+          // Add titles only if we have one (avoid empty array)
+          if (filteredHeadlines[0]) {
+            assetFeedSpec.titles = [{ text: filteredHeadlines[0] }];
+          }
 
           console.log(`📝 asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
 
