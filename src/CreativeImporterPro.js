@@ -1974,7 +1974,9 @@ export default function CreativeImporterPro(props = {}) {
           ...(filteredHeadlines.length > 0 && { titles: filteredHeadlines.map(t => ({ text: t })) }),
           link_urls: [{ website_url: destinationUrl.trim() }],
           call_to_action_types: [callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"],
-          asset_customization_rules: assetCustomizationRules
+          // Only include asset_customization_rules when we have Instagram
+          // Without Instagram, Meta doesn't support customization rules (single platform)
+          ...(hasInstagramAccount && assetCustomizationRules.length > 0 && { asset_customization_rules: assetCustomizationRules })
         };
 
         console.log(`📝 Creating multi-format creative with asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
