@@ -1658,18 +1658,30 @@ export default function CreativeImporterPro(props = {}) {
       let adsetId;
       const isAbo1x1 = budgetType === "abo" && aboMode === "1:1:1";
 
-      // NEW: Using platform_customizations instead of asset_feed_spec
-      // This does NOT require is_dynamic_creative on the adset!
-      // So we can use existing adsets for both single and multi-placement ads
+      // Multi-placement with different feed/story assets uses asset_feed_spec
+      // This REQUIRES is_dynamic_creative on the adset
+
+      // Determine upfront if we need dynamic creative for multi-placement
+      // (when we have both feed and story format files)
+      const allFormats = uploadedFiles.map(f => f.format);
+      const hasFeedFormat = allFormats.some(f => f !== 'story');
+      const hasStoryFormat = allFormats.some(f => f === 'story');
+      const globalNeedsDynamicCreative = adType === "multi" && hasFeedFormat && hasStoryFormat;
+      console.log(`🎨 Global needs dynamic creative: ${globalNeedsDynamicCreative} (hasFeed: ${hasFeedFormat}, hasStory: ${hasStoryFormat})`);
 
       if (budgetType === "cbo" && cboMode === "existing_adset") {
-        // Use existing adset for all ad types (single and multi-placement)
+        // Use existing adset
+        // WARNING: If we need dynamic creative and existing adset doesn't support it,
+        // the API will return an error
         adsetId = selectedAdset?.id;
         console.log(`✅ Using existing adset: ${adsetId}`);
+        if (globalNeedsDynamicCreative) {
+          console.warn(`⚠️ Multi-placement with different formats requires is_dynamic_creative on the adset. Existing adset may not support this.`);
+        }
       } else if (!isAbo1x1) {
         // Create single adset for CBO or ABO multi modes
-        // No need for is_dynamic_creative with platform_customizations approach
-        adsetId = await createAdset(nomenclature.adset, null, false);
+        // Enable is_dynamic_creative when we have multi-placement with different formats
+        adsetId = await createAdset(nomenclature.adset, null, globalNeedsDynamicCreative);
         results.adsets.push({ id: adsetId, name: nomenclature.adset });
       }
       // For ABO 1-x-1, adsets will be created in the group loop below
@@ -1829,7 +1841,7 @@ export default function CreativeImporterPro(props = {}) {
       };
 
       // Grouping logic:
-      // - Multi-Placement: ALL files → ONE ad with platform_customizations
+      // - Multi-Placement: ALL files → ONE ad with asset_feed_spec (placement customization)
       // - Single ads: Each file → one ad
 
       let effectiveGroups = [];
@@ -1885,6 +1897,22 @@ export default function CreativeImporterPro(props = {}) {
 
         if (groupHashes.length === 0) continue;
 
+        // Separate files by format (feed vs story) - needed for adset creation decision
+        const feedFiles = [];
+        const storyFiles = [];
+
+        groupHashes.forEach((hashData) => {
+          const file = uploadedFiles.find(f => f.id === hashData.fileId);
+          if (file.format === 'story') {
+            storyFiles.push({ hashData, file });
+          } else {
+            feedFiles.push({ hashData, file });
+          }
+        });
+
+        // Determine if we need dynamic creative (different assets for feed vs story)
+        const needsDynamicCreative = adType === "multi" && feedFiles.length > 0 && storyFiles.length > 0;
+
         // For ABO 1-x-1: Create a new adset for this group
         let currentAdsetId = adsetId;
         if (isAbo1x1) {
@@ -1892,8 +1920,8 @@ export default function CreativeImporterPro(props = {}) {
             ? `${nomenclature.adset}_${group.baseName}`
             : `${nomenclature.adset}_${groupIndex + 1}`;
           try {
-            // No need for is_dynamic_creative with platform_customizations approach
-            currentAdsetId = await createAdset(adsetName, group.files, false);
+            // Enable is_dynamic_creative when we have different assets for feed vs story
+            currentAdsetId = await createAdset(adsetName, group.files, needsDynamicCreative);
             results.adsets.push({ id: currentAdsetId, name: adsetName });
           } catch (err) {
             console.error(`❌ Failed to create adset for group ${groupIndex + 1}:`, err);
@@ -1917,102 +1945,142 @@ export default function CreativeImporterPro(props = {}) {
           }));
         });
 
-        // NEW APPROACH: Use object_story_spec + platform_customizations
-        // This does NOT require is_dynamic_creative on the adset!
-
-        // Separate files by format (feed vs story)
-        const feedFiles = [];
-        const storyFiles = [];
-
-        groupHashes.forEach((hashData) => {
-          const file = uploadedFiles.find(f => f.id === hashData.fileId);
-          if (file.format === 'story') {
-            storyFiles.push({ hashData, file });
-          } else {
-            feedFiles.push({ hashData, file });
-          }
-        });
-
         // Get the primary asset (feed) - fallback to first file if no feed format
         const primaryAsset = feedFiles[0] || storyFiles[0];
         // Get story asset if different from primary
         const storyAsset = storyFiles[0] || feedFiles[0];
+        const isVideo = primaryAsset.hashData.type === "video";
 
         console.log(`📸 Primary asset (feed):`, primaryAsset?.file?.name, primaryAsset?.hashData?.hash);
         console.log(`📸 Story asset:`, storyAsset?.file?.name, storyAsset?.hashData?.hash);
         console.log(`📸 Has Instagram account:`, hasInstagramAccount);
-
-        // Build object_story_spec with link_data (standard ad format)
-        const isVideo = primaryAsset.hashData.type === "video";
-
-        let objectStorySpec;
-        if (isVideo) {
-          // Video ad
-          objectStorySpec = {
-            page_id: selectedPage.id,
-            video_data: {
-              video_id: primaryAsset.hashData.hash,
-              message: filteredTexts[0] || "",
-              title: filteredHeadlines[0] || "",
-              call_to_action: {
-                type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
-                value: { link: destinationUrl.trim() }
-              },
-              ...(primaryAsset.hashData.thumbnailHash && { image_hash: primaryAsset.hashData.thumbnailHash })
-            }
-          };
-        } else {
-          // Image ad
-          objectStorySpec = {
-            page_id: selectedPage.id,
-            link_data: {
-              image_hash: primaryAsset.hashData.hash,
-              link: destinationUrl.trim(),
-              message: filteredTexts[0] || "",
-              name: filteredHeadlines[0] || "",
-              call_to_action: {
-                type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
-                value: { link: destinationUrl.trim() }
-              }
-            }
-          };
-        }
-
-        // Add Instagram actor if available
-        if (hasInstagramAccount && instagramAccount?.id) {
-          objectStorySpec.instagram_actor_id = instagramAccount.id;
-        }
-
-        console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
-
-        // Build platform_customizations for story placements (if we have different assets)
-        let platformCustomizations = null;
-        const hasDifferentStoryAsset = storyAsset && storyAsset !== primaryAsset && storyAsset.hashData.hash !== primaryAsset.hashData.hash;
-
-        if (hasDifferentStoryAsset && !isVideo) {
-          // Only for images - platform_customizations only supports images currently
-          platformCustomizations = {};
-
-          // Facebook story placements
-          platformCustomizations.facebook_story = { image_hash: storyAsset.hashData.hash };
-          platformCustomizations.facebook_reels = { image_hash: storyAsset.hashData.hash };
-
-          // Instagram story placements (if Instagram account linked)
-          if (hasInstagramAccount) {
-            platformCustomizations.instagram_story = { image_hash: storyAsset.hashData.hash };
-            platformCustomizations.instagram_reels = { image_hash: storyAsset.hashData.hash };
-          }
-
-          console.log(`📝 platform_customizations:`, JSON.stringify(platformCustomizations, null, 2));
-        }
+        console.log(`🎨 Needs dynamic creative:`, needsDynamicCreative);
 
         const creativeData = new FormData();
         creativeData.append("name", adName);
-        creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
 
-        // Add platform_customizations if we have different story assets
-        if (platformCustomizations) {
-          creativeData.append("platform_customizations", JSON.stringify(platformCustomizations));
+        // TWO APPROACHES:
+        // 1. If we have different assets for feed vs story: use asset_feed_spec with asset_customization_rules
+        // 2. If only one asset: use simple object_story_spec
+
+        if (needsDynamicCreative && !isVideo) {
+          // APPROACH 1: asset_feed_spec with asset_customization_rules
+          // This is the proper Meta API way to do placement asset customization
+          console.log(`🎨 Using asset_feed_spec with asset_customization_rules`);
+
+          // Build asset_customization_rules for story vs feed placements
+          const assetCustomizationRules = [];
+
+          // Rule for story/reels placements (vertical 9:16)
+          const storyRule = {
+            customization_spec: {
+              publisher_platforms: ["facebook"],
+              facebook_positions: ["story", "facebook_reels"],
+            },
+            image_label: { name: "STORY_IMG" }
+          };
+          // Add Instagram if available
+          if (hasInstagramAccount) {
+            storyRule.customization_spec.publisher_platforms.push("instagram");
+            storyRule.customization_spec.instagram_positions = ["story", "reels"];
+          }
+          assetCustomizationRules.push(storyRule);
+
+          // Rule for feed placements (square/portrait)
+          const feedRule = {
+            customization_spec: {
+              publisher_platforms: ["facebook"],
+              facebook_positions: ["feed", "marketplace"],
+            },
+            image_label: { name: "FEED_IMG" }
+          };
+          // Add Instagram if available
+          if (hasInstagramAccount) {
+            feedRule.customization_spec.publisher_platforms.push("instagram");
+            feedRule.customization_spec.instagram_positions = ["stream", "explore", "profile_feed"];
+          }
+          assetCustomizationRules.push(feedRule);
+
+          // Build images array with labels
+          const images = [
+            {
+              hash: storyAsset.hashData.hash,
+              adlabels: [{ name: "STORY_IMG" }]
+            },
+            {
+              hash: primaryAsset.hashData.hash,
+              adlabels: [{ name: "FEED_IMG" }]
+            }
+          ];
+
+          // Build asset_feed_spec
+          const assetFeedSpec = {
+            ad_formats: ["SINGLE_IMAGE"],
+            asset_customization_rules: assetCustomizationRules,
+            images: images,
+            bodies: [{ text: filteredTexts[0] || "" }],
+            titles: filteredHeadlines[0] ? [{ text: filteredHeadlines[0] }] : [],
+            link_urls: [{ website_url: destinationUrl.trim() }],
+            call_to_action_types: [callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"],
+          };
+
+          console.log(`📝 asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
+
+          creativeData.append("asset_feed_spec", JSON.stringify(assetFeedSpec));
+
+          // object_story_spec is still needed for page_id and instagram_actor_id
+          const objectStorySpec = {
+            page_id: selectedPage.id,
+          };
+          if (hasInstagramAccount && instagramAccount?.id) {
+            objectStorySpec.instagram_actor_id = instagramAccount.id;
+          }
+          creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
+
+        } else {
+          // APPROACH 2: Simple object_story_spec for single asset
+          console.log(`📝 Using simple object_story_spec (no placement customization needed)`);
+
+          let objectStorySpec;
+          if (isVideo) {
+            // Video ad
+            objectStorySpec = {
+              page_id: selectedPage.id,
+              video_data: {
+                video_id: primaryAsset.hashData.hash,
+                message: filteredTexts[0] || "",
+                title: filteredHeadlines[0] || "",
+                call_to_action: {
+                  type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
+                  value: { link: destinationUrl.trim() }
+                },
+                ...(primaryAsset.hashData.thumbnailHash && { image_hash: primaryAsset.hashData.thumbnailHash })
+              }
+            };
+          } else {
+            // Image ad
+            objectStorySpec = {
+              page_id: selectedPage.id,
+              link_data: {
+                image_hash: primaryAsset.hashData.hash,
+                link: destinationUrl.trim(),
+                message: filteredTexts[0] || "",
+                name: filteredHeadlines[0] || "",
+                call_to_action: {
+                  type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
+                  value: { link: destinationUrl.trim() }
+                }
+              }
+            };
+          }
+
+          // Add Instagram actor if available
+          if (hasInstagramAccount && instagramAccount?.id) {
+            objectStorySpec.instagram_actor_id = instagramAccount.id;
+          }
+
+          console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
+          creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
         }
 
         // Add Advantage+ Creative enhancements setting
