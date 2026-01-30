@@ -394,6 +394,11 @@ export default function App() {
         setIsLoadingInstagramAccounts(true);
         const api = createMetaApi(accessToken);
         const igAccounts = await api.fetchInstagramAccounts(selectedAdAccount.id);
+        console.log("🔍 DEBUG Ad Account Instagram accounts:", {
+          adAccountId: selectedAdAccount.id,
+          adAccountName: selectedAdAccount.name,
+          instagramAccounts: igAccounts,
+        });
         setInstagramAccounts(igAccounts || []);
       } catch (error) {
         console.error("Error loading Instagram accounts:", error);
