@@ -1790,24 +1790,29 @@ export default function CreativeImporterPro(props = {}) {
       }
 
       // Helper to get placement positions based on format
-      // Always include Instagram placements - use Page as identity if no Instagram account linked
+      // Only include Instagram if account is linked (Page-Backed Instagram not supported via API)
       const hasInstagramAccount = !!instagramAccount?.id;
       console.log(`📸 Has Instagram account: ${hasInstagramAccount}`);
-      console.log(`📸 Will use Page-Backed Instagram (Page as identity): ${!hasInstagramAccount}`);
 
       const getPlacementForFormat = (format) => {
         if (format === 'story') {
           // 9:16 vertical format - Stories et Reels uniquement
-          return {
+          const placements = {
             facebook_positions: ["story", "facebook_reels"],
-            instagram_positions: ["story", "reels"],
           };
+          if (hasInstagramAccount) {
+            placements.instagram_positions = ["story", "reels"];
+          }
+          return placements;
         } else {
           // 1:1, 4:5, 16:9 formats - Feed uniquement
-          return {
+          const placements = {
             facebook_positions: ["feed"],
-            instagram_positions: ["stream"],
           };
+          if (hasInstagramAccount) {
+            placements.instagram_positions = ["stream"];
+          }
+          return placements;
         }
       };
 
@@ -1925,8 +1930,8 @@ export default function CreativeImporterPro(props = {}) {
           const labelName = `asset_${idx}_${file.format}`;
           const placements = getPlacementForFormat(file.format);
 
-          // Always include Instagram - use Page as identity if no Instagram account (Page-Backed Instagram)
-          const publisherPlatforms = ["facebook", "instagram"];
+          // Only include Instagram if account is linked
+          const publisherPlatforms = hasInstagramAccount ? ["facebook", "instagram"] : ["facebook"];
 
           if (hashData.type === "video") {
             videos.push({
@@ -1969,9 +1974,9 @@ export default function CreativeImporterPro(props = {}) {
           ...(filteredHeadlines.length > 0 && { titles: filteredHeadlines.map(t => ({ text: t })) }),
           link_urls: [{ website_url: destinationUrl.trim() }],
           call_to_action_types: [callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"],
-          // Always include asset_customization_rules for multi-placement ads
-          // Page-Backed Instagram allows Instagram placements even without a linked account
-          ...(assetCustomizationRules.length > 0 && { asset_customization_rules: assetCustomizationRules })
+          // Only include asset_customization_rules when we have Instagram
+          // Without Instagram, Meta doesn't support customization rules (single platform)
+          ...(hasInstagramAccount && assetCustomizationRules.length > 0 && { asset_customization_rules: assetCustomizationRules })
         };
 
         console.log(`📝 Creating multi-format creative with asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
@@ -1979,18 +1984,14 @@ export default function CreativeImporterPro(props = {}) {
         console.log(`📸 Instagram ID:`, instagramAccount?.id);
         console.log(`📸 Has Instagram account:`, hasInstagramAccount);
 
-        // Use Instagram account ID if available, otherwise use Page ID (Page-Backed Instagram)
-        // This allows Instagram placements even without a linked Instagram account
-        const instagramActorId = hasInstagramAccount && instagramAccount?.id
-          ? instagramAccount.id
-          : selectedPage.id;
-
-        console.log(`📸 Using instagram_actor_id: ${instagramActorId} (${hasInstagramAccount ? 'Instagram Account' : 'Page-Backed'})`);
-
+        // Only include instagram_actor_id if we have a valid Instagram account
         const objectStorySpecForFeed = {
           page_id: selectedPage.id,
-          instagram_actor_id: instagramActorId,
         };
+
+        if (hasInstagramAccount && instagramAccount?.id) {
+          objectStorySpecForFeed.instagram_actor_id = instagramAccount.id;
+        }
 
         console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpecForFeed, null, 2));
 
@@ -2164,12 +2165,12 @@ export default function CreativeImporterPro(props = {}) {
           };
         }
 
-        // Use Instagram account ID if available, otherwise use Page ID (Page-Backed Instagram)
-        // This allows Instagram placements even without a linked Instagram account
-        objectStorySpec.instagram_actor_id = instagramAccount?.id || selectedPage.id;
+        // Only add instagram_actor_id when we have an Instagram account linked
+        if (instagramAccount?.id) {
+          objectStorySpec.instagram_actor_id = instagramAccount.id;
+        }
 
         console.log(`📝 Creating creative for ${file.name}:`, JSON.stringify(objectStorySpec, null, 2));
-        console.log(`📸 Using instagram_actor_id: ${objectStorySpec.instagram_actor_id} (${instagramAccount?.id ? 'Instagram Account' : 'Page-Backed'})`);
 
         creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
 
@@ -4081,7 +4082,7 @@ export default function CreativeImporterPro(props = {}) {
             >
               03 — Upload
             </h2>
-            {/* Import Bar */}
+            {/* Import Zone */}
             <div
               onDragEnter={(e) => {
                 e.preventDefault();
@@ -4098,67 +4099,129 @@ export default function CreativeImporterPro(props = {}) {
                 processFiles([...e.dataTransfer.files]);
               }}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                padding: "16px",
-                background: isDragging ? "rgba(232,121,249,0.1)" : "rgba(17,24,39,0.6)",
-                borderRadius: "12px",
-                border: `2px dashed ${isDragging ? "#e879f9" : "rgba(255,255,255,0.1)"}`,
+                background: isDragging ? "rgba(99,102,241,0.15)" : "rgba(17,24,39,0.6)",
+                borderRadius: "16px",
+                border: `2px dashed ${isDragging ? "#818cf8" : "rgba(255,255,255,0.15)"}`,
+                padding: "32px",
                 marginBottom: "24px",
                 transition: "all 0.2s",
+                textAlign: "center",
               }}
             >
-              <label style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "10px 20px",
-                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontSize: "13px",
-                fontWeight: "500",
-                color: "#fff",
-              }}>
-                <span>📁</span> Local
-                <input type="file" multiple accept="image/*,video/*" style={{ display: "none" }}
-                  onChange={(e) => processFiles([...e.target.files])}
-                />
-              </label>
-              <button disabled style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "10px 20px",
-                background: "rgba(255,255,255,0.05)",
-                borderRadius: "8px",
-                border: "none",
-                fontSize: "13px",
-                color: "#71717a",
-                cursor: "not-allowed",
-              }}>
-                <span>📦</span> Dropbox
-                <span style={{ fontSize: "9px", padding: "2px 6px", background: "rgba(251,146,60,0.2)", color: "#fb923c", borderRadius: "4px" }}>SOON</span>
-              </button>
-              <button disabled style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "10px 20px",
-                background: "rgba(255,255,255,0.05)",
-                borderRadius: "8px",
-                border: "none",
-                fontSize: "13px",
-                color: "#71717a",
-                cursor: "not-allowed",
-              }}>
-                <span>🔷</span> Drive
-                <span style={{ fontSize: "9px", padding: "2px 6px", background: "rgba(251,146,60,0.2)", color: "#fb923c", borderRadius: "4px" }}>SOON</span>
-              </button>
-              <div style={{ marginLeft: "auto", fontSize: "12px", color: "#71717a" }}>
-                {isProcessing ? "Analyse..." : "ou glissez vos fichiers ici"}
-              </div>
+              {isProcessing ? (
+                <div style={{ color: "#a5b4fc", fontSize: "14px" }}>
+                  <div style={{ marginBottom: "8px", fontSize: "24px" }}>⏳</div>
+                  Analyse en cours...
+                </div>
+              ) : (
+                <>
+                  <div style={{
+                    width: "56px",
+                    height: "56px",
+                    background: "rgba(99,102,241,0.15)",
+                    borderRadius: "14px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "24px",
+                    margin: "0 auto 16px"
+                  }}>
+                    📤
+                  </div>
+                  <p style={{ fontSize: "15px", fontWeight: "500", color: "#fafafa", margin: "0 0 8px" }}>
+                    Glissez vos fichiers ici
+                  </p>
+                  <p style={{ fontSize: "13px", color: "#71717a", margin: "0 0 20px" }}>
+                    ou importez depuis
+                  </p>
+                  <div style={{ display: "flex", justifyContent: "center", gap: "12px", flexWrap: "wrap" }}>
+                    <label style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "12px 24px",
+                      background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                      borderRadius: "10px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      color: "#fff",
+                      boxShadow: "0 4px 12px rgba(99,102,241,0.3)",
+                      transition: "transform 0.2s, box-shadow 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.boxShadow = "0 6px 16px rgba(99,102,241,0.4)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(99,102,241,0.3)";
+                    }}
+                    >
+                      <span>💻</span> Mon ordinateur
+                      <input type="file" multiple accept="image/*,video/*" style={{ display: "none" }}
+                        onChange={(e) => processFiles([...e.target.files])}
+                      />
+                    </label>
+                    <button disabled style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "12px 24px",
+                      background: "rgba(255,255,255,0.08)",
+                      borderRadius: "10px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      color: "#52525b",
+                      cursor: "not-allowed",
+                      position: "relative",
+                    }}>
+                      <span style={{ filter: "grayscale(1)" }}>📦</span> Dropbox
+                      <span style={{
+                        position: "absolute",
+                        top: "-8px",
+                        right: "-8px",
+                        fontSize: "10px",
+                        padding: "2px 8px",
+                        background: "#1f2937",
+                        border: "1px solid rgba(251,146,60,0.3)",
+                        color: "#fb923c",
+                        borderRadius: "6px",
+                        fontWeight: "600",
+                      }}>Bientôt</span>
+                    </button>
+                    <button disabled style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "12px 24px",
+                      background: "rgba(255,255,255,0.08)",
+                      borderRadius: "10px",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      color: "#52525b",
+                      cursor: "not-allowed",
+                      position: "relative",
+                    }}>
+                      <span style={{ filter: "grayscale(1)" }}>🔷</span> Google Drive
+                      <span style={{
+                        position: "absolute",
+                        top: "-8px",
+                        right: "-8px",
+                        fontSize: "10px",
+                        padding: "2px 8px",
+                        background: "#1f2937",
+                        border: "1px solid rgba(251,146,60,0.3)",
+                        color: "#fb923c",
+                        borderRadius: "6px",
+                        fontWeight: "600",
+                      }}>Bientôt</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Option Advantage+ Creative */}
