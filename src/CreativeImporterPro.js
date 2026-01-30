@@ -115,6 +115,32 @@ const detectFormat = (w, h) => {
     : "feed_landscape";
 };
 
+// Extract base name from filename for auto-grouping
+// Examples: "creative1_9x16.mp4" → "creative1", "ad_feed_4x5.jpg" → "ad_feed"
+const extractBaseName = (filename) => {
+  // Remove extension
+  const nameWithoutExt = filename.replace(/\.[^/.]+$/, "");
+
+  // Patterns to remove (format indicators)
+  const formatPatterns = [
+    /_?(9x16|9:16|916|story|stories|vertical)$/i,
+    /_?(4x5|4:5|45|portrait)$/i,
+    /_?(1x1|1:1|11|square|carre)$/i,
+    /_?(16x9|16:9|169|landscape|horizontal)$/i,
+    /_?(feed|reel|reels)$/i,
+  ];
+
+  let baseName = nameWithoutExt;
+  for (const pattern of formatPatterns) {
+    baseName = baseName.replace(pattern, "");
+  }
+
+  // Clean up trailing underscores/dashes
+  baseName = baseName.replace(/[-_]+$/, "");
+
+  return baseName || nameWithoutExt;
+};
+
 const getMediaDimensions = (file) =>
   new Promise((resolve) => {
     if (file.type.startsWith("video/")) {
@@ -389,6 +415,9 @@ export default function CreativeImporterPro(props = {}) {
   // Options
   const [splitByMediaType, setSplitByMediaType] = useState(true);
   const [enableAdvantagePlus, setEnableAdvantagePlus] = useState(true);
+
+  // Ad Type (Ads | Carousel | Multi-Placement)
+  const [adType, setAdType] = useState("multi"); // "single" | "carousel" | "multi"
 
   // Config
   const [uploadedFiles, setUploadedFiles] = useState([]);
@@ -680,9 +709,54 @@ export default function CreativeImporterPro(props = {}) {
     setIsProcessing(false);
   };
 
+  // Smart auto-grouping by filename base name
+  const autoGroupedFiles = useMemo(() => {
+    if (uploadedFiles.length === 0) return {};
+
+    const groups = {};
+
+    // Group files by their base name (without format suffix)
+    uploadedFiles.forEach((f) => {
+      const baseName = extractBaseName(f.name);
+      if (!groups[baseName]) {
+        groups[baseName] = {
+          baseName,
+          files: [],
+          formats: new Set(),
+        };
+      }
+      groups[baseName].files.push(f);
+      groups[baseName].formats.add(f.format);
+    });
+
+    // Convert Set to Array and add metadata
+    Object.keys(groups).forEach((key) => {
+      groups[key].formats = Array.from(groups[key].formats);
+      groups[key].isMultiFormat = groups[key].formats.length > 1;
+      groups[key].hasStory = groups[key].formats.includes("story");
+      groups[key].hasFeed = groups[key].formats.some(f => f.startsWith("feed"));
+    });
+
+    return groups;
+  }, [uploadedFiles]);
+
+  // Legacy groupedFiles for backward compatibility
   const groupedFiles = useMemo(() => {
     let groups = {};
-    if (splitByMediaType) {
+
+    if (adType === "multi") {
+      // Multi-Placement: group by filename base name
+      Object.entries(autoGroupedFiles).forEach(([baseName, group], idx) => {
+        groups[`multi_${idx + 1}`] = {
+          format: group.isMultiFormat ? "multi" : group.formats[0],
+          type: "multi",
+          files: group.files,
+          baseName: baseName,
+          isMultiFormat: group.isMultiFormat,
+        };
+      });
+    } else if (splitByMediaType) {
+      // Single ads: group by media type
       uploadedFiles.forEach((f) => {
         if (!groups[f.type])
           groups[f.type] = { format: "mixed", type: f.type, files: [] };
@@ -696,7 +770,7 @@ export default function CreativeImporterPro(props = {}) {
       };
     }
     return groups;
-  }, [uploadedFiles, splitByMediaType]);
+  }, [uploadedFiles, splitByMediaType, adType, autoGroupedFiles]);
 
   // Nomenclature dynamique
   const nomenclature = useMemo(() => {
@@ -736,25 +810,31 @@ export default function CreativeImporterPro(props = {}) {
   const structurePreview = useMemo(() => {
     const numGroups = Object.keys(groupedFiles).length;
     const numFiles = uploadedFiles.length;
+
+    // For multi-placement mode, count how many multi-format ads will be created
+    const numMultiAds = adType === "multi" ? numGroups : numFiles;
+
     if (budgetType === "abo") {
-      if (aboMode === "1:1:1")
-        return { campaigns: numFiles, adsets: numFiles, ads: numFiles };
+      if (aboMode === "1:1:1") {
+        // 1-x-1 structure: 1 campaign, X adsets (1 per group/file), 1 ad per adset
+        return { campaigns: 1, adsets: numMultiAds, ads: numMultiAds };
+      }
       if (aboMode === "multi")
-        return { campaigns: 1, adsets: numGroups, ads: numFiles };
+        return { campaigns: 1, adsets: numGroups, ads: numMultiAds };
       if (aboMode === "existing")
-        return { campaigns: 0, adsets: numGroups, ads: numFiles };
+        return { campaigns: 0, adsets: numGroups, ads: numMultiAds };
     }
     if (budgetType === "cbo") {
       if (cboMode === "new" || cboMode === "existing_new_adset")
         return {
           campaigns: cboMode === "new" ? 1 : 0,
-          adsets: numGroups,
-          ads: numFiles,
+          adsets: 1,
+          ads: numMultiAds,
         };
-      return { campaigns: 0, adsets: 0, ads: numFiles };
+      return { campaigns: 0, adsets: 0, ads: numMultiAds };
     }
     return { campaigns: 0, adsets: 0, ads: 0 };
-  }, [budgetType, aboMode, cboMode, groupedFiles, uploadedFiles]);
+  }, [budgetType, aboMode, cboMode, groupedFiles, uploadedFiles, adType]);
 
   const box = {
     background: "rgba(17,7,38,0.6)",
@@ -1481,12 +1561,105 @@ export default function CreativeImporterPro(props = {}) {
         console.log(`✅ Campaign created: ${campaignId}`);
       }
 
-      // Step 3: Create or use existing adset
+      // Helper function to create a single adset
+      const createAdset = async (adsetName, groupFiles = null) => {
+        console.log(`📦 Creating adset: ${adsetName}...`);
+
+        // Map optimization event to correct Meta format
+        const eventMapping = {
+          purchase: "PURCHASE",
+          add_to_cart: "ADD_TO_CART",
+          initiate_checkout: "INITIATE_CHECKOUT",
+          add_payment_info: "ADD_PAYMENT_INFO",
+          view_content: "VIEW_CONTENT",
+          search: "SEARCH",
+          lead: "LEAD"
+        };
+
+        // Detect formats from group files or all uploaded files
+        const filesToCheck = groupFiles || uploadedFiles;
+        const formats = filesToCheck.map(f => f.format);
+        const hasStoryOnly = formats.every(f => f === 'story');
+        const hasFeedOnly = formats.every(f => f === 'feed' || f.startsWith('feed_'));
+
+        // Build targeting
+        const targeting = {
+          geo_locations: {
+            countries: selectedCountries.map(c => GEO_ZONES[c].code),
+          },
+          age_min: 18,
+          age_max: 65,
+        };
+
+        // Add placement restrictions based on creative formats
+        if (hasStoryOnly) {
+          targeting.publisher_platforms = ['facebook', 'instagram'];
+          targeting.facebook_positions = ['story'];
+          targeting.instagram_positions = ['story'];
+        } else if (hasFeedOnly) {
+          targeting.publisher_platforms = ['facebook', 'instagram'];
+          targeting.facebook_positions = ['feed'];
+          targeting.instagram_positions = ['stream'];
+        }
+
+        // Build promoted object
+        const promotedObject = {
+          pixel_id: selectedPixel.id,
+          custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
+        };
+
+        const adsetData = new FormData();
+        adsetData.append("name", adsetName);
+        adsetData.append("campaign_id", campaignId);
+        adsetData.append("status", "ACTIVE");
+        adsetData.append("billing_event", "IMPRESSIONS");
+        adsetData.append("optimization_goal", "OFFSITE_CONVERSIONS");
+        adsetData.append("adset_auto_targeting_enabled", "false");
+        adsetData.append("promoted_object", JSON.stringify(promotedObject));
+        adsetData.append("targeting", JSON.stringify(targeting));
+
+        // Budget for ABO
+        if (budgetType === "abo") {
+          const dailyBudget = Math.max(1000, Math.round(parseFloat(budget) * 100));
+          adsetData.append("daily_budget", dailyBudget);
+          console.log(`💰 Budget: ${dailyBudget} cents (${dailyBudget/100} EUR/day)`);
+        }
+
+        adsetData.append("access_token", accessToken);
+
+        const adsetResponse = await fetch(
+          `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adsets`)}`,
+          { method: "POST", body: adsetData }
+        );
+
+        const adsetResult = await adsetResponse.json();
+        if (adsetResult.error) {
+          console.error("❌ Adset creation error:", adsetResult.error);
+          throw new Error(`Adset: ${adsetResult.error.message}`);
+        }
+
+        console.log(`✅ Adset created: ${adsetResult.id}`);
+        return adsetResult.id;
+      };
+
+      // Step 3: Create adset(s) based on structure
+      // For ABO 1-x-1: Create one adset per group (later in the loop)
+      // For other modes: Create a single adset here
       let adsetId;
+      const isAbo1x1 = budgetType === "abo" && aboMode === "1:1:1";
+
       if (budgetType === "cbo" && cboMode === "existing_adset") {
         adsetId = selectedAdset?.id;
         console.log(`✅ Using existing adset: ${adsetId}`);
-      } else {
+      } else if (!isAbo1x1) {
+        // Create single adset for CBO or ABO multi modes
+        adsetId = await createAdset(nomenclature.adset);
+        results.adsets.push({ id: adsetId, name: nomenclature.adset });
+      }
+      // For ABO 1-x-1, adsets will be created in the group loop below
+
+      // Skip old adset creation code for non-1x1 modes
+      if (false) {
         console.log("📦 Creating new adset...");
 
         // Map optimization event to correct Meta format
@@ -1597,7 +1770,7 @@ export default function CreativeImporterPro(props = {}) {
         adsetId = adsetResult.id;
         results.adsets.push({ id: adsetId, name: nomenclature.adset });
         console.log(`✅ Adset created: ${adsetId}`);
-      }
+      } // End of if(false) block for legacy adset creation
 
       // Step 4: Create ads
       console.log("📦 Creating ads...");
@@ -1639,45 +1812,101 @@ export default function CreativeImporterPro(props = {}) {
         }
       };
 
-      // Separate mapped files (in adGroups) from unmapped files
-      const mappedFileIds = adGroups.flatMap(g => g.fileIds);
-      let unmappedHashes = validHashes.filter(h => !mappedFileIds.includes(h.fileId));
+      // Use smart auto-grouping from state when in multi-placement mode
+      // For ABO 1-x-1 + multi mode: use groupedFiles (auto-grouped by filename)
+      const useSmartGrouping = adType === "multi" && Object.keys(groupedFiles).length > 0;
 
-      // AUTO-GROUP: If no groups created and multiple files with different formats,
-      // create ONE ad with all files mapped to their respective placements
-      let effectiveAdGroups = [...adGroups];
-      if (effectiveAdGroups.length === 0 && validHashes.length > 1) {
-        const formats = new Set(validHashes.map(h => {
-          const file = uploadedFiles.find(f => f.id === h.fileId);
-          return file?.format;
+      let effectiveGroups = [];
+      let unmappedHashes = []; // For legacy mode fallback
+      let effectiveAdGroups = []; // For legacy mode fallback
+
+      if (useSmartGrouping) {
+        // Convert groupedFiles to the format expected by ad creation
+        effectiveGroups = Object.entries(groupedFiles).map(([key, group]) => ({
+          key,
+          baseName: group.baseName,
+          files: group.files,
+          fileIds: group.files.map(f => f.id),
+          isMultiFormat: group.isMultiFormat,
         }));
+        console.log(`📦 Using smart auto-grouping: ${effectiveGroups.length} groups`);
+      } else {
+        // Fallback: Separate mapped files (in adGroups) from unmapped files
+        const mappedFileIds = adGroups.flatMap(g => g.fileIds);
+        unmappedHashes = validHashes.filter(h => !mappedFileIds.includes(h.fileId));
 
-        // If we have different formats (e.g., story AND feed), auto-group them
-        if (formats.size > 1) {
-          console.log(`📦 Auto-grouping ${validHashes.length} files with ${formats.size} different formats`);
-          effectiveAdGroups = [{
-            fileIds: validHashes.map(h => h.fileId)
-          }];
-          unmappedHashes = []; // All files are now in the group
+        // AUTO-GROUP: If no groups created and multiple files with different formats,
+        // create ONE ad with all files mapped to their respective placements
+        effectiveAdGroups = [...adGroups];
+        if (effectiveAdGroups.length === 0 && validHashes.length > 1) {
+          const formats = new Set(validHashes.map(h => {
+            const file = uploadedFiles.find(f => f.id === h.fileId);
+            return file?.format;
+          }));
+
+          // If we have different formats (e.g., story AND feed), auto-group them
+          if (formats.size > 1) {
+            console.log(`📦 Auto-grouping ${validHashes.length} files with ${formats.size} different formats`);
+            effectiveAdGroups = [{
+              fileIds: validHashes.map(h => h.fileId)
+            }];
+            unmappedHashes = [];
+          }
         }
+
+        // Create single group from legacy logic
+        if (effectiveAdGroups.length > 0) {
+          effectiveGroups = effectiveAdGroups.map((g, idx) => ({
+            key: `legacy_${idx}`,
+            baseName: null,
+            files: uploadedFiles.filter(f => g.fileIds.includes(f.id)),
+            fileIds: g.fileIds,
+            isMultiFormat: g.fileIds.length > 1,
+          }));
+        }
+
+        // Add unmapped files as single-file groups
+        unmappedHashes.forEach((h, idx) => {
+          const file = uploadedFiles.find(f => f.id === h.fileId);
+          effectiveGroups.push({
+            key: `single_${idx}`,
+            baseName: null,
+            files: [file],
+            fileIds: [h.fileId],
+            isMultiFormat: false,
+          });
+        });
       }
 
-      // Process mapped groups first (create ONE ad per group with asset_feed_spec)
-      for (let groupIndex = 0; groupIndex < effectiveAdGroups.length; groupIndex++) {
-        const group = effectiveAdGroups[groupIndex];
+      // Process each group: For ABO 1-x-1, create one adset per group
+      for (let groupIndex = 0; groupIndex < effectiveGroups.length; groupIndex++) {
+        const group = effectiveGroups[groupIndex];
         const groupHashes = validHashes.filter(h => group.fileIds.includes(h.fileId));
 
         if (groupHashes.length === 0) continue;
 
-        // If only ONE file in group, treat as unmapped (separate ads)
-        if (groupHashes.length === 1) {
-          console.log(`📦 Group #${groupIndex + 1}: Single file, creating regular ad`);
-          groupHashes.forEach(h => unmappedHashes.push(h));
-          continue;
+        // For ABO 1-x-1: Create a new adset for this group
+        let currentAdsetId = adsetId;
+        if (isAbo1x1) {
+          const adsetName = group.baseName
+            ? `${nomenclature.adset}_${group.baseName}`
+            : `${nomenclature.adset}_${groupIndex + 1}`;
+          try {
+            currentAdsetId = await createAdset(adsetName, group.files);
+            results.adsets.push({ id: currentAdsetId, name: adsetName });
+          } catch (err) {
+            console.error(`❌ Failed to create adset for group ${groupIndex + 1}:`, err);
+            results.errors.push(`Adset creation failed for group ${groupIndex + 1}: ${err.message}`);
+            continue;
+          }
         }
 
-        const adName = nomenclature.ad(groupIndex + 1, "multi");
-        console.log(`📦 Creating multi-format ad for group #${groupIndex + 1} with ${groupHashes.length} assets`);
+        // Determine ad name
+        const adName = group.baseName
+          ? nomenclature.ad(groupIndex + 1, group.baseName)
+          : nomenclature.ad(groupIndex + 1, groupHashes.length > 1 ? "multi" : "single");
+
+        console.log(`📦 Creating ad for group #${groupIndex + 1} (${group.baseName || 'unnamed'}) with ${groupHashes.length} asset(s)`);
 
         // Update progress for all files in group
         groupHashes.forEach(h => {
@@ -1820,7 +2049,7 @@ export default function CreativeImporterPro(props = {}) {
         // Create ad
         const adData = new FormData();
         adData.append("name", adName);
-        adData.append("adset_id", adsetId);
+        adData.append("adset_id", currentAdsetId || adsetId);
         adData.append("creative", JSON.stringify({ creative_id: creativeResult.id }));
         adData.append("status", "ACTIVE");
         adData.append("access_token", accessToken);
@@ -1853,7 +2082,8 @@ export default function CreativeImporterPro(props = {}) {
       }
 
       // Process unmapped files (original logic - one ad per file)
-      for (let i = 0; i < unmappedHashes.length; i++) {
+      // Skip if using smart grouping (all files are already in groups)
+      for (let i = 0; !useSmartGrouping && i < unmappedHashes.length; i++) {
         const hashData = unmappedHashes[i];
         const file = uploadedFiles.find(f => f.id === hashData.fileId);
 
@@ -1995,7 +2225,7 @@ export default function CreativeImporterPro(props = {}) {
         // Create ad
         const adData = new FormData();
         adData.append("name", adName);
-        adData.append("adset_id", adsetId);
+        adData.append("adset_id", currentAdsetId || adsetId);
         adData.append("creative", JSON.stringify({ creative_id: creativeResult.id }));
         adData.append("status", "ACTIVE");
         adData.append("access_token", accessToken);
@@ -3959,10 +4189,106 @@ export default function CreativeImporterPro(props = {}) {
               </div>
             </div>
 
+            {/* Ad Type Tabs */}
+            {uploadedFiles.length > 0 && (
+              <div style={{ marginBottom: "20px" }}>
+                <div style={{
+                  display: "flex",
+                  gap: "8px",
+                  padding: "4px",
+                  background: "rgba(17,24,39,0.6)",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  width: "fit-content",
+                }}>
+                  {[
+                    { id: "single", name: "Ads", count: uploadedFiles.length },
+                    { id: "carousel", name: "Carousel", count: 0, disabled: true },
+                    { id: "multi", name: "Multi-Placement", count: Object.keys(autoGroupedFiles).length },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => !tab.disabled && setAdType(tab.id)}
+                      disabled={tab.disabled}
+                      style={{
+                        padding: "10px 16px",
+                        borderRadius: "8px",
+                        border: "none",
+                        background: adType === tab.id
+                          ? "linear-gradient(135deg, #6366f1, #8b5cf6)"
+                          : "transparent",
+                        color: tab.disabled ? "#52525b" : adType === tab.id ? "#fff" : "#a1a1aa",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        cursor: tab.disabled ? "not-allowed" : "pointer",
+                        transition: "all 0.2s ease",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      {tab.name}
+                      {tab.count > 0 && (
+                        <span style={{
+                          padding: "2px 8px",
+                          borderRadius: "10px",
+                          background: adType === tab.id ? "rgba(255,255,255,0.2)" : "rgba(99,102,241,0.2)",
+                          fontSize: "11px",
+                          color: adType === tab.id ? "#fff" : "#818cf8",
+                        }}>
+                          {tab.count}
+                        </span>
+                      )}
+                      {tab.disabled && (
+                        <span style={{
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          background: "rgba(251,146,60,0.2)",
+                          fontSize: "9px",
+                          color: "#fb923c",
+                          textTransform: "uppercase",
+                        }}>
+                          Soon
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Auto-grouping info banner */}
+                {adType === "multi" && Object.keys(autoGroupedFiles).length > 0 && (
+                  <div style={{
+                    marginTop: "12px",
+                    padding: "12px 16px",
+                    background: "rgba(34,197,94,0.1)",
+                    border: "1px solid rgba(34,197,94,0.3)",
+                    borderRadius: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}>
+                    <span style={{ fontSize: "16px" }}>✨</span>
+                    <div>
+                      <div style={{ fontSize: "13px", fontWeight: "600", color: "#22c55e" }}>
+                        Auto-Grouping activé
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#71717a" }}>
+                        {Object.keys(autoGroupedFiles).length} groupe(s) détecté(s) par nom de fichier •
+                        Formats 9:16 → Stories/Reels, 4:5/1:1 → Feed
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {uploadedFiles.length > 0 && (
               <div style={{ marginBottom: "24px" }}>
-                {Object.entries(groupedFiles).map(([key, group]) => {
-                  const p = META_PLACEMENTS[group.format] || {
+                {Object.entries(groupedFiles).map(([key, group], groupIdx) => {
+                  const isMultiFormat = group.isMultiFormat;
+                  const p = isMultiFormat
+                    ? { name: `Multi ${groupIdx + 1}`, abbrev: "M", color: "#22c55e", bgColor: "rgba(34,197,94,0.15)" }
+                    : META_PLACEMENTS[group.format] || {
                     name: "Mixed",
                     abbrev: "F",
                     color: "#71717a",
@@ -3972,23 +4298,51 @@ export default function CreativeImporterPro(props = {}) {
                     <div key={key} style={{ marginBottom: "16px" }}>
                       <div
                         style={{
-                          padding: "10px 14px",
+                          padding: "12px 14px",
                           background: p.bgColor,
                           borderRadius: "8px",
                           marginBottom: "10px",
+                          border: isMultiFormat ? `1px solid ${p.color}40` : "none",
                         }}
                       >
-                        {p.icon}{" "}
-                        <span style={{ fontWeight: "600", color: p.color }}>
-                          {p.name}
-                        </span>{" "}
-                        {group.type !== "mixed" &&
-                          `• ${
-                            group.type === "video" ? "Vidéos" : "Images"
-                          }`}{" "}
-                        <span style={{ float: "right", color: "#71717a" }}>
-                          {group.files.length}
-                        </span>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            <span style={{ fontWeight: "600", color: p.color, fontSize: "14px" }}>
+                              {isMultiFormat ? `Multi ${groupIdx + 1}` : p.name}
+                            </span>
+                            {group.baseName && (
+                              <span style={{ fontSize: "11px", color: "#71717a", fontStyle: "italic" }}>
+                                {group.baseName}
+                              </span>
+                            )}
+                            {/* Format badges for multi-format groups */}
+                            {isMultiFormat && (
+                              <div style={{ display: "flex", gap: "4px", marginLeft: "8px" }}>
+                                {group.files.map((f) => {
+                                  const placement = META_PLACEMENTS[f.format];
+                                  return (
+                                    <span
+                                      key={f.id}
+                                      style={{
+                                        padding: "2px 6px",
+                                        borderRadius: "4px",
+                                        background: placement?.bgColor || "rgba(255,255,255,0.1)",
+                                        color: placement?.color || "#71717a",
+                                        fontSize: "10px",
+                                        fontWeight: "600",
+                                      }}
+                                    >
+                                      {placement?.abbrev || f.format}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                          <span style={{ color: "#71717a", fontSize: "12px" }}>
+                            {group.files.length} fichier{group.files.length > 1 ? "s" : ""}
+                          </span>
+                        </div>
                       </div>
                       <div
                         style={{

@@ -3,85 +3,129 @@ import { authHelpers, createMetaApi } from "./config";
 import CreativeImporterPro from "./CreativeImporterPro";
 import MediaBuyerPro from "./MediaBuyerPro";
 
-// Tools - Main navigation items
+// TOOL Section items
 const toolItems = [
   {
-    id: "creative-importer",
-    name: "Creative Importer",
-    abbrev: "CI",
-    description: "Import & launch ads",
-    color: "#818cf8",
-    bgColor: "rgba(129,140,248,0.12)",
+    id: "dashboard",
+    name: "Dashboard",
+    icon: "📊",
+    description: "Vue d'ensemble",
     status: "active",
+    badge: "NEW",
+    badgeColor: "#22c55e",
+  },
+  {
+    id: "creative-importer",
+    name: "Upload",
+    icon: "⬆️",
+    description: "Import & launch ads",
+    status: "active",
+    badge: "NEW",
+    badgeColor: "#22c55e",
+  },
+  {
+    id: "media-library",
+    name: "Media Library",
+    icon: "🖼️",
+    description: "Manage creatives",
+    status: "coming-soon",
+    badge: "SOON",
+    badgeColor: "#fb923c",
   },
   {
     id: "media-buyer",
     name: "Media Buyer",
-    abbrev: "MB",
+    icon: "📈",
     description: "Optimize campaigns",
-    color: "#fb923c",
-    bgColor: "rgba(251,146,60,0.12)",
     status: "active",
+    badge: "NEW",
+    badgeColor: "#22c55e",
   },
-];
-
-// Coming soon tools
-const comingSoonItems = [
   {
     id: "creative-strategist",
-    name: "Creative Strategist",
-    abbrev: "CS",
+    name: "Creative",
+    icon: "🎨",
     description: "AI creative insights",
-    color: "#22d3ee",
-    bgColor: "rgba(34,211,238,0.12)",
     status: "coming-soon",
+    badge: "SOON",
+    badgeColor: "#fb923c",
   },
   {
-    id: "ad-creator",
-    name: "Ad Creator",
-    abbrev: "AC",
-    description: "Generate creatives",
-    color: "#f472b6",
-    bgColor: "rgba(244,114,182,0.12)",
-    status: "coming-soon",
-  },
-  {
-    id: "data-analyst",
-    name: "Data Analyst",
-    abbrev: "DA",
+    id: "analytics",
+    name: "Analytics",
+    icon: "📉",
     description: "Advanced analytics",
-    color: "#4ade80",
-    bgColor: "rgba(74,222,128,0.12)",
     status: "coming-soon",
+    badge: "SOON",
+    badgeColor: "#fb923c",
+  },
+  {
+    id: "automation",
+    name: "Automation",
+    icon: "⚡",
+    description: "Automate workflows",
+    status: "coming-soon",
+    badge: "SOON",
+    badgeColor: "#fb923c",
   },
 ];
 
-// Settings sub-items
+// COMMUNITY Section items
+const communityItems = [
+  {
+    id: "affiliate",
+    name: "Affiliate",
+    icon: "👥",
+    description: "Earn rewards",
+    badge: "EARN $",
+    badgeColor: "#22c55e",
+  },
+  {
+    id: "discord",
+    name: "Join Community",
+    icon: "💬",
+    description: "Discord community",
+    badge: "JOIN",
+    badgeColor: "#22c55e",
+  },
+];
+
+// SETTINGS Section items
 const settingsItems = [
+  {
+    id: "settings-ad-config",
+    name: "Ad Configuration",
+    icon: "⚙️",
+    description: "Default ad settings",
+  },
   {
     id: "settings-account",
     name: "Account",
+    icon: "👤",
     description: "Connected accounts",
   },
   {
     id: "settings-billing",
     name: "Billing",
+    icon: "💳",
     description: "Plan & usage",
   },
   {
     id: "settings-history",
     name: "History",
+    icon: "📜",
     description: "Upload history",
   },
   {
     id: "settings-integrations",
-    name: "Integrations",
+    name: "Integration",
+    icon: "🔗",
     description: "Connect services",
   },
 ];
 
-// Combined nav items for display
-const navItems = [...toolItems, ...comingSoonItems];
+// Combined nav items for display (legacy)
+const navItems = toolItems;
 
 export default function App() {
   const [activeModule, setActiveModule] = useState(null);
@@ -90,6 +134,10 @@ export default function App() {
   const [isAuthenticating, setIsAuthenticating] = useState(true);
   const [authError, setAuthError] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Section expansion states
+  const [toolExpanded, setToolExpanded] = useState(true);
+  const [communityExpanded, setCommunityExpanded] = useState(false);
   const [settingsExpanded, setSettingsExpanded] = useState(false);
 
   // Ad Account state
@@ -1729,88 +1777,268 @@ export default function App() {
           </div>
         )}
 
-        {/* Navigation */}
+        {/* Navigation with Collapsible Sections */}
         <nav style={styles.nav}>
-          {/* Active Tools */}
-          <div style={styles.navSection}>
-            <div style={styles.navSectionTitle}>Outils</div>
-            {navItems
-              .filter((item) => item.status === "active")
-              .map((item) => (
-                <div
-                  key={item.id}
-                  style={styles.navItem(activeModule === item.id, item)}
-                  onClick={() => handleModuleSelect(item.id)}
-                  onMouseOver={(e) => {
-                    if (activeModule !== item.id) {
-                      e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-                    }
-                  }}
-                  onMouseOut={(e) => {
-                    if (activeModule !== item.id) {
-                      e.currentTarget.style.background = "transparent";
-                    }
-                  }}
-                >
-                  <div style={{
-                    width: "36px",
-                    height: "36px",
-                    background: item.bgColor,
-                    borderRadius: "8px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "13px",
-                    fontWeight: "700",
-                    color: item.color,
-                    flexShrink: 0,
-                  }}>{item.abbrev}</div>
-                  <div style={styles.navItemContent}>
-                    <div style={styles.navItemName}>{item.name}</div>
-                    <div style={styles.navItemDesc}>{item.description}</div>
+          {/* Home Button */}
+          {!sidebarCollapsed && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                padding: "12px",
+                marginBottom: "8px",
+                borderRadius: "8px",
+                cursor: "pointer",
+                background: activeModule === null ? "rgba(99,102,241,0.15)" : "transparent",
+                border: activeModule === null ? "1px solid rgba(99,102,241,0.3)" : "1px solid transparent",
+              }}
+              onClick={() => setActiveModule(null)}
+              onMouseOver={(e) => {
+                if (activeModule !== null) e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+              }}
+              onMouseOut={(e) => {
+                if (activeModule !== null) e.currentTarget.style.background = "transparent";
+              }}
+            >
+              <span style={{ fontSize: "18px" }}>🏠</span>
+              <span style={{ fontSize: "13px", fontWeight: "500", color: "#fafafa" }}>Home</span>
+            </div>
+          )}
+
+          {/* TOOL Section */}
+          <div style={{ marginBottom: "8px" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: sidebarCollapsed ? "10px 8px" : "10px 12px",
+                cursor: "pointer",
+                borderRadius: "6px",
+              }}
+              onClick={() => setToolExpanded(!toolExpanded)}
+              onMouseOver={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+              onMouseOut={(e) => e.currentTarget.style.background = "transparent"}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "14px" }}>🛠️</span>
+                {!sidebarCollapsed && (
+                  <span style={{ fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    TOOL
+                  </span>
+                )}
+              </div>
+              {!sidebarCollapsed && (
+                <span style={{ fontSize: "10px", color: "#52525b" }}>{toolExpanded ? "▲" : "▼"}</span>
+              )}
+            </div>
+            {toolExpanded && (
+              <div style={{ paddingLeft: sidebarCollapsed ? "0" : "8px" }}>
+                {toolItems.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: sidebarCollapsed ? "10px 8px" : "10px 12px",
+                      marginBottom: "2px",
+                      borderRadius: "8px",
+                      cursor: item.status === "active" ? "pointer" : "default",
+                      background: activeModule === item.id ? "rgba(99,102,241,0.15)" : "transparent",
+                      opacity: item.status === "coming-soon" ? 0.6 : 1,
+                    }}
+                    onClick={() => item.status === "active" && handleModuleSelect(item.id)}
+                    onMouseOver={(e) => {
+                      if (item.status === "active" && activeModule !== item.id) {
+                        e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                      }
+                    }}
+                    onMouseOut={(e) => {
+                      if (activeModule !== item.id) {
+                        e.currentTarget.style.background = "transparent";
+                      }
+                    }}
+                  >
+                    <span style={{ fontSize: "16px" }}>{item.icon}</span>
+                    {!sidebarCollapsed && (
+                      <>
+                        <span style={{ flex: 1, fontSize: "13px", fontWeight: "500", color: "#e4e4e7" }}>
+                          {item.name}
+                        </span>
+                        {item.badge && (
+                          <span style={{
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            fontSize: "9px",
+                            fontWeight: "700",
+                            background: `${item.badgeColor}20`,
+                            color: item.badgeColor,
+                            textTransform: "uppercase",
+                          }}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </>
+                    )}
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Coming Soon */}
-          <div style={styles.navSection}>
-            <div style={styles.navSectionTitle}>Prochainement</div>
-            {navItems
-              .filter((item) => item.status === "coming-soon")
-              .map((item) => (
-                <div key={item.id} style={styles.navItem(false, item)}>
-                  <div style={{
-                    width: "36px",
-                    height: "36px",
-                    background: item.bgColor,
-                    borderRadius: "8px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "13px",
-                    fontWeight: "700",
-                    color: item.color,
-                    flexShrink: 0,
-                    opacity: 0.7,
-                  }}>{item.abbrev}</div>
-                  <div style={styles.navItemContent}>
-                    <div style={styles.navItemName}>{item.name}</div>
-                    <div style={styles.navItemDesc}>{item.description}</div>
+          {/* COMMUNITY Section */}
+          <div style={{ marginBottom: "8px" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: sidebarCollapsed ? "10px 8px" : "10px 12px",
+                cursor: "pointer",
+                borderRadius: "6px",
+              }}
+              onClick={() => setCommunityExpanded(!communityExpanded)}
+              onMouseOver={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+              onMouseOut={(e) => e.currentTarget.style.background = "transparent"}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "14px" }}>🌐</span>
+                {!sidebarCollapsed && (
+                  <span style={{ fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    COMMUNITY
+                  </span>
+                )}
+              </div>
+              {!sidebarCollapsed && (
+                <span style={{ fontSize: "10px", color: "#52525b" }}>{communityExpanded ? "▲" : "▼"}</span>
+              )}
+            </div>
+            {communityExpanded && (
+              <div style={{ paddingLeft: sidebarCollapsed ? "0" : "8px" }}>
+                {communityItems.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: sidebarCollapsed ? "10px 8px" : "10px 12px",
+                      marginBottom: "2px",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                    onMouseOut={(e) => e.currentTarget.style.background = "transparent"}
+                  >
+                    <span style={{ fontSize: "16px" }}>{item.icon}</span>
+                    {!sidebarCollapsed && (
+                      <>
+                        <span style={{ flex: 1, fontSize: "13px", fontWeight: "500", color: "#e4e4e7" }}>
+                          {item.name}
+                        </span>
+                        {item.badge && (
+                          <span style={{
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            fontSize: "9px",
+                            fontWeight: "700",
+                            background: `${item.badgeColor}20`,
+                            color: item.badgeColor,
+                          }}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </>
+                    )}
                   </div>
-                  <div style={{
-                    padding: "3px 8px",
-                    background: "rgba(255,255,255,0.06)",
-                    borderRadius: "4px",
-                    fontSize: "9px",
-                    fontWeight: "600",
-                    color: "#71717a",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}>Soon</div>
-                </div>
-              ))}
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* SETTINGS Section */}
+          <div style={{ marginBottom: "8px" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: sidebarCollapsed ? "10px 8px" : "10px 12px",
+                cursor: "pointer",
+                borderRadius: "6px",
+              }}
+              onClick={() => setSettingsExpanded(!settingsExpanded)}
+              onMouseOver={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+              onMouseOut={(e) => e.currentTarget.style.background = "transparent"}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "14px" }}>⚙️</span>
+                {!sidebarCollapsed && (
+                  <span style={{ fontSize: "11px", fontWeight: "600", color: "#71717a", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    SETTINGS
+                  </span>
+                )}
+              </div>
+              {!sidebarCollapsed && (
+                <span style={{ fontSize: "10px", color: "#52525b" }}>{settingsExpanded ? "▲" : "▼"}</span>
+              )}
+            </div>
+            {settingsExpanded && (
+              <div style={{ paddingLeft: sidebarCollapsed ? "0" : "8px" }}>
+                {settingsItems.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: sidebarCollapsed ? "10px 8px" : "10px 12px",
+                      marginBottom: "2px",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      background: activeModule === item.id ? "rgba(99,102,241,0.15)" : "transparent",
+                    }}
+                    onClick={() => handleModuleSelect(item.id)}
+                    onMouseOver={(e) => {
+                      if (activeModule !== item.id) e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                    }}
+                    onMouseOut={(e) => {
+                      if (activeModule !== item.id) e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <span style={{ fontSize: "16px" }}>{item.icon}</span>
+                    {!sidebarCollapsed && (
+                      <span style={{ fontSize: "13px", fontWeight: "500", color: "#e4e4e7" }}>
+                        {item.name}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Feedback */}
+          {!sidebarCollapsed && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "10px 12px",
+                marginTop: "auto",
+                borderTop: "1px solid rgba(255,255,255,0.06)",
+                cursor: "pointer",
+              }}
+              onMouseOver={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+              onMouseOut={(e) => e.currentTarget.style.background = "transparent"}
+            >
+              <span style={{ fontSize: "16px" }}>💬</span>
+              <span style={{ fontSize: "13px", fontWeight: "500", color: "#71717a" }}>Feedback</span>
+            </div>
+          )}
         </nav>
 
         {/* Footer */}
