@@ -1791,14 +1791,12 @@ export default function CreativeImporterPro(props = {}) {
         campaignData.append("status", "ACTIVE");
         campaignData.append("special_ad_categories", JSON.stringify([]));
 
-        // Apply bid strategy
-        campaignData.append("bid_strategy", bidStrategy);
-        // console.log(`💰 Using bid strategy: ${bidStrategy}`);
-
         if (budgetType === "cbo") {
+          // CBO: Budget and bid strategy at campaign level
           campaignData.append("daily_budget", Math.round(parseFloat(budget) * 100));
+          campaignData.append("bid_strategy", bidStrategy);
         } else {
-          // ABO: Must specify is_adset_budget_sharing_enabled (disabled by default)
+          // ABO: Budget at adset level, no bid_strategy at campaign level
           campaignData.append("is_adset_budget_sharing_enabled", "false");
         }
 
