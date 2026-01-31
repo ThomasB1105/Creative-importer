@@ -102,6 +102,20 @@ const CTA_OPTIONS = [
   { id: "contact_us", name: "Nous contacter" },
 ];
 
+// CTAs compatible with lead_gen_form_id via Meta API
+// Note: CONTACT_US works in Meta UI but NOT via API
+const LEAD_FORM_VALID_CTAS = ["LEARN_MORE", "SIGN_UP", "SUBSCRIBE", "APPLY_NOW", "GET_QUOTE", "DOWNLOAD"];
+
+// Map incompatible CTAs to compatible ones for Lead Forms
+const getLeadFormCTA = (cta) => {
+  const upperCta = cta.toUpperCase();
+  if (LEAD_FORM_VALID_CTAS.includes(upperCta)) {
+    return upperCta;
+  }
+  // Map incompatible CTAs to SIGN_UP (most common for lead forms)
+  return "SIGN_UP";
+};
+
 const detectFormat = (w, h) => {
   const r = w / h;
   for (const [k, p] of Object.entries(META_PLACEMENTS))
@@ -2250,7 +2264,9 @@ export default function CreativeImporterPro(props = {}) {
                 message: filteredTexts[0] || "",
                 title: filteredHeadlines[0] || "",
                 call_to_action: {
-                  type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
+                  type: objective === "leadform"
+                    ? getLeadFormCTA(callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE")
+                    : (callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"),
                   value: objective === "leadform" && selectedLeadForm
                     ? { lead_gen_form_id: selectedLeadForm.id }
                     : { link: destinationUrl.trim() }
@@ -2265,7 +2281,9 @@ export default function CreativeImporterPro(props = {}) {
               message: filteredTexts[0] || "",
               name: filteredHeadlines[0] || "",
               call_to_action: {
-                type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
+                type: objective === "leadform"
+                  ? getLeadFormCTA(callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE")
+                  : (callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"),
                 value: objective === "leadform" && selectedLeadForm
                   ? { lead_gen_form_id: selectedLeadForm.id }
                   : { link: destinationUrl.trim() }
@@ -2417,7 +2435,9 @@ export default function CreativeImporterPro(props = {}) {
             image_hash: hashData.thumbnailHash, // REQUIRED by Facebook
             message: filteredTexts[i % filteredTexts.length],
             call_to_action: {
-              type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
+              type: objective === "leadform"
+                ? getLeadFormCTA(callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE")
+                : (callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"),
               value: objective === "leadform" && selectedLeadForm
                 ? { lead_gen_form_id: selectedLeadForm.id }
                 : { link: destinationUrl.trim() },
@@ -2456,7 +2476,7 @@ export default function CreativeImporterPro(props = {}) {
           // Add call_to_action
           if (objective === "leadform" && selectedLeadForm) {
             linkData.call_to_action = {
-              type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
+              type: getLeadFormCTA(callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"),
               value: { lead_gen_form_id: selectedLeadForm.id }
             };
           } else if (callToAction !== "NO_BUTTON") {
