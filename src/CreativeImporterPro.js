@@ -664,17 +664,25 @@ export default function CreativeImporterPro(props = {}) {
     setLeadForms([]);
     setSelectedLeadForm(null);
 
+    const pageId = selectedPage.id;
+    const apiUrl = `https://graph.facebook.com/${META_APP.apiVersion}/${pageId}/leadgen_forms?fields=id,name,status,created_time&limit=100&access_token=${accessToken}`;
+
+    console.log("📋 Fetching lead forms for page:", selectedPage.name, "ID:", pageId);
+    console.log("📋 API URL:", apiUrl.replace(accessToken, "ACCESS_TOKEN_HIDDEN"));
+
     // Fetch lead forms from the page
-    fetch(
-      `/api/facebook-proxy?endpoint=${encodeURIComponent(
-        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedPage.id}/leadgen_forms?fields=id,name,status,created_time&limit=100&access_token=${accessToken}`
-      )}`
-    )
+    fetch(`/api/facebook-proxy?endpoint=${encodeURIComponent(apiUrl)}`)
       .then((res) => res.json())
       .then((data) => {
         console.log("📋 Lead forms API response:", data);
         if (data.error) {
           console.error("❌ Lead forms API error:", data.error);
+          console.error("❌ Error code:", data.error.code, "Type:", data.error.type);
+          console.error("❌ Error message:", data.error.message);
+          // Show error to user if it's a permission issue
+          if (data.error.code === 200 || data.error.message?.includes("permission")) {
+            console.error("⚠️ Permission issue detected! User needs to re-login with leads_retrieval permission.");
+          }
           return;
         }
         if (data.data) {
@@ -684,6 +692,8 @@ export default function CreativeImporterPro(props = {}) {
           console.log(`📋 Found ${forms.length} lead forms:`, forms);
           setLeadForms(forms);
           if (forms.length > 0) setSelectedLeadForm(forms[0]);
+        } else {
+          console.log("📋 No lead forms data in response. Response keys:", Object.keys(data));
         }
       })
       .catch((error) => {
