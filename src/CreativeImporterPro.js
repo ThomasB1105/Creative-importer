@@ -654,7 +654,8 @@ export default function CreativeImporterPro(props = {}) {
 
   // Load lead forms when objective is leadform and page is selected
   useEffect(() => {
-    if (objective !== "leadform" || !selectedPage || !accessToken) {
+    // Lead forms API requires a Page Access Token, not User Access Token
+    if (objective !== "leadform" || !selectedPage || !selectedPage.access_token) {
       setLeadForms([]);
       setSelectedLeadForm(null);
       return;
@@ -665,10 +666,11 @@ export default function CreativeImporterPro(props = {}) {
     setSelectedLeadForm(null);
 
     const pageId = selectedPage.id;
-    const apiUrl = `https://graph.facebook.com/${META_APP.apiVersion}/${pageId}/leadgen_forms?fields=id,name,status,created_time&limit=100&access_token=${accessToken}`;
+    const pageAccessToken = selectedPage.access_token; // Use Page Access Token!
+    const apiUrl = `https://graph.facebook.com/${META_APP.apiVersion}/${pageId}/leadgen_forms?fields=id,name,status,created_time&limit=100&access_token=${pageAccessToken}`;
 
     console.log("📋 Fetching lead forms for page:", selectedPage.name, "ID:", pageId);
-    console.log("📋 API URL:", apiUrl.replace(accessToken, "ACCESS_TOKEN_HIDDEN"));
+    console.log("📋 Using Page Access Token (required for leadgen_forms)");
 
     // Fetch lead forms from the page
     fetch(`/api/facebook-proxy?endpoint=${encodeURIComponent(apiUrl)}`)
@@ -700,7 +702,7 @@ export default function CreativeImporterPro(props = {}) {
         console.error("❌ Error loading lead forms:", error);
       })
       .finally(() => setIsLoadingLeadForms(false));
-  }, [objective, selectedPage, accessToken]);
+  }, [objective, selectedPage]);
 
   const handleLogin = () => {
     window.location.href = authHelpers.getOAuthUrl();
