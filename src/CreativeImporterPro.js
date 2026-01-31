@@ -2250,8 +2250,7 @@ export default function CreativeImporterPro(props = {}) {
                 message: filteredTexts[0] || "",
                 title: filteredHeadlines[0] || "",
                 call_to_action: {
-                  // For lead forms, use SUBSCRIBE as it's always valid with lead_gen_form_id
-                  type: objective === "leadform" ? "SUBSCRIBE" : (callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"),
+                  type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
                   value: objective === "leadform" && selectedLeadForm
                     ? { lead_gen_form_id: selectedLeadForm.id }
                     : { link: destinationUrl.trim() }
@@ -2266,9 +2265,7 @@ export default function CreativeImporterPro(props = {}) {
               message: filteredTexts[0] || "",
               name: filteredHeadlines[0] || "",
               call_to_action: {
-                // For lead forms, use SUBSCRIBE as it's always valid with lead_gen_form_id
-                // Other CTAs like CONTACT_US are not compatible with lead forms
-                type: objective === "leadform" ? "SUBSCRIBE" : (callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"),
+                type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
                 value: objective === "leadform" && selectedLeadForm
                   ? { lead_gen_form_id: selectedLeadForm.id }
                   : { link: destinationUrl.trim() }
@@ -2420,8 +2417,7 @@ export default function CreativeImporterPro(props = {}) {
             image_hash: hashData.thumbnailHash, // REQUIRED by Facebook
             message: filteredTexts[i % filteredTexts.length],
             call_to_action: {
-              // For lead forms, use SUBSCRIBE as it's always valid with lead_gen_form_id
-              type: objective === "leadform" ? "SUBSCRIBE" : (callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"),
+              type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
               value: objective === "leadform" && selectedLeadForm
                 ? { lead_gen_form_id: selectedLeadForm.id }
                 : { link: destinationUrl.trim() },
@@ -2458,11 +2454,9 @@ export default function CreativeImporterPro(props = {}) {
           }
 
           // Add call_to_action
-          // For lead forms, use SUBSCRIBE as it's always valid with lead_gen_form_id
-          // Other CTAs like CONTACT_US are not compatible with lead forms
           if (objective === "leadform" && selectedLeadForm) {
             linkData.call_to_action = {
-              type: "SUBSCRIBE",
+              type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
               value: { lead_gen_form_id: selectedLeadForm.id }
             };
           } else if (callToAction !== "NO_BUTTON") {
