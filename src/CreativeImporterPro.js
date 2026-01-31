@@ -43,17 +43,17 @@ const OPTIMIZATION_EVENTS = {
 };
 
 const CALL_TO_ACTIONS = [
-  { id: "LEARN_MORE", name: "En savoir plus" },
-  { id: "SHOP_NOW", name: "Acheter" },
-  { id: "SIGN_UP", name: "S'inscrire" },
-  { id: "DOWNLOAD", name: "Télécharger" },
-  { id: "APPLY_NOW", name: "Postuler" },
-  { id: "BOOK_NOW", name: "Réserver" },
-  { id: "CONTACT_US", name: "Nous contacter" },
-  { id: "GET_QUOTE", name: "Devis" },
-  { id: "SUBSCRIBE", name: "S'abonner" },
-  { id: "WATCH_MORE", name: "Voir plus" },
-  { id: "NO_BUTTON", name: "Pas de bouton" },
+  { id: "LEARN_MORE", name: "En savoir plus", leadFormCompatible: true },
+  { id: "SHOP_NOW", name: "Acheter", leadFormCompatible: false },
+  { id: "SIGN_UP", name: "S'inscrire", leadFormCompatible: true },
+  { id: "DOWNLOAD", name: "Télécharger", leadFormCompatible: true },
+  { id: "APPLY_NOW", name: "Postuler", leadFormCompatible: true },
+  { id: "BOOK_NOW", name: "Réserver", leadFormCompatible: false },
+  { id: "CONTACT_US", name: "Nous contacter", leadFormCompatible: false },
+  { id: "GET_QUOTE", name: "Devis", leadFormCompatible: true },
+  { id: "SUBSCRIBE", name: "S'abonner", leadFormCompatible: true },
+  { id: "WATCH_MORE", name: "Voir plus", leadFormCompatible: false },
+  { id: "NO_BUTTON", name: "Pas de bouton", leadFormCompatible: false },
 ];
 
 const META_PLACEMENTS = {
@@ -717,6 +717,16 @@ export default function CreativeImporterPro(props = {}) {
       })
       .finally(() => setIsLoadingLeadForms(false));
   }, [objective, selectedPage]);
+
+  // Reset CTA to compatible one when switching to leadform objective
+  useEffect(() => {
+    if (objective === "leadform") {
+      const currentCTA = CALL_TO_ACTIONS.find(c => c.id === callToAction);
+      if (currentCTA && !currentCTA.leadFormCompatible) {
+        setCallToAction("SIGN_UP"); // Default to SIGN_UP for lead forms
+      }
+    }
+  }, [objective, callToAction]);
 
   const handleLogin = () => {
     window.location.href = authHelpers.getOAuthUrl();
@@ -4173,7 +4183,9 @@ export default function CreativeImporterPro(props = {}) {
                       overflowY: "auto",
                     }}
                   >
-                    {CALL_TO_ACTIONS.map((cta) => (
+                    {CALL_TO_ACTIONS
+                      .filter(cta => objective !== "leadform" || cta.leadFormCompatible)
+                      .map((cta) => (
                       <button
                         key={cta.id}
                         onClick={() => setCallToAction(cta.id)}
