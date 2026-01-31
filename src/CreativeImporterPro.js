@@ -2417,11 +2417,8 @@ export default function CreativeImporterPro(props = {}) {
             };
           }
 
-          // Add Instagram actor if available (real account or PBIA)
-          // Skip for lead forms as they have specific Instagram restrictions
-          if (instagramActorId && objective !== "leadform") {
-            objectStorySpec.instagram_actor_id = instagramActorId;
-          }
+          // NOTE: instagram_actor_id removed - causes validation errors
+          // Meta auto-assigns Instagram from the connected FB page
 
           // console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
           creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
@@ -2602,11 +2599,8 @@ export default function CreativeImporterPro(props = {}) {
           };
         }
 
-        // Add instagram_actor_id if we have a linked Instagram account or PBIA
-        // Skip for lead forms as they have specific Instagram restrictions
-        if (instagramActorId && objective !== "leadform") {
-          objectStorySpec.instagram_actor_id = instagramActorId;
-        }
+        // NOTE: instagram_actor_id removed - causes validation errors
+        // Meta auto-assigns Instagram from the connected FB page
 
         // console.log(`📝 Creating creative for ${file.name}:`, JSON.stringify(objectStorySpec, null, 2));
 
