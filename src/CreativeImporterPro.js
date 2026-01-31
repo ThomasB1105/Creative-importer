@@ -487,10 +487,26 @@ export default function CreativeImporterPro(props = {}) {
   // Scheduling (Programmation)
   const [enableScheduling, setEnableScheduling] = useState(false);
   const [scheduleStartDate, setScheduleStartDate] = useState("");
-  const [scheduleStartTime, setScheduleStartTime] = useState("00:00");
+  const [scheduleStartTime, setScheduleStartTime] = useState("00:01");
   const [enableEndDate, setEnableEndDate] = useState(false);
   const [scheduleEndDate, setScheduleEndDate] = useState("");
   const [scheduleEndTime, setScheduleEndTime] = useState("23:59");
+
+  // Helper to get tomorrow's date in YYYY-MM-DD format
+  const getTomorrowDate = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
+
+  // Auto-set tomorrow's date when scheduling is enabled
+  const handleSchedulingToggle = (enabled) => {
+    setEnableScheduling(enabled);
+    if (enabled && !scheduleStartDate) {
+      setScheduleStartDate(getTomorrowDate());
+      setScheduleStartTime("00:01");
+    }
+  };
 
   // Nomenclature templates with dynamic fields
   const [nomenclatureFields, setNomenclatureFields] = useState({
@@ -4015,7 +4031,7 @@ export default function CreativeImporterPro(props = {}) {
                           <input
                             type="checkbox"
                             checked={enableScheduling}
-                            onChange={(e) => setEnableScheduling(e.target.checked)}
+                            onChange={(e) => handleSchedulingToggle(e.target.checked)}
                             style={{ cursor: "pointer" }}
                           />
                           Activer
@@ -4032,6 +4048,7 @@ export default function CreativeImporterPro(props = {}) {
                                 type="date"
                                 value={scheduleStartDate}
                                 onChange={(e) => setScheduleStartDate(e.target.value)}
+                                min={new Date().toISOString().split('T')[0]}
                                 style={{ ...inp, flex: 2 }}
                               />
                               <input
@@ -4067,6 +4084,7 @@ export default function CreativeImporterPro(props = {}) {
                                   type="date"
                                   value={scheduleEndDate}
                                   onChange={(e) => setScheduleEndDate(e.target.value)}
+                                  min={scheduleStartDate || new Date().toISOString().split('T')[0]}
                                   style={{ ...inp, flex: 2 }}
                                 />
                                 <input
