@@ -2516,6 +2516,32 @@ export default function CreativeImporterPro(props = {}) {
 
         const adName = nomenclature.ad(effectiveGroups.length + i + 1, file.format);
 
+        // Determine the adset ID for this unmapped file
+        let currentUnmappedAdsetId;
+        if (isAbo1x1) {
+          // ABO 1x1: Create a new adset for each unmapped file (consistent with 1:1:1 pattern)
+          const adsetName = `${nomenclature.adset}_${file.name.replace(/\.[^.]+$/, '')}`;
+          try {
+            currentUnmappedAdsetId = await createAdset(adsetName, [file], false);
+            results.adsets.push({ id: currentUnmappedAdsetId, name: adsetName });
+            console.log(`✅ ABO 1x1 adset created for unmapped file: ${adsetName} (${currentUnmappedAdsetId})`);
+          } catch (err) {
+            console.error(`❌ Failed to create adset for unmapped file ${file.name}:`, err);
+            results.errors.push(`Adset creation failed for ${file.name}: ${err.message}`);
+            setUploadProgress(prev => ({
+              ...prev,
+              [file.id]: { progress: 0, status: 'error' }
+            }));
+            continue;
+          }
+        } else if (isAboMulti) {
+          // ABO Multi: Use pre-created adsets with round-robin distribution
+          currentUnmappedAdsetId = getAboMultiAdsetId();
+        } else {
+          // CBO or other modes: Use the single adset
+          currentUnmappedAdsetId = adsetId;
+        }
+
         // Update progress: creating creative
         setUploadProgress(prev => ({
           ...prev,
@@ -2654,16 +2680,15 @@ export default function CreativeImporterPro(props = {}) {
           [file.id]: { progress: 80, status: 'creating' }
         }));
 
-        // Create ad (use ABO Multi adset distribution or main adsetId)
-        const unmappedAdsetId = isAboMulti ? getAboMultiAdsetId() : adsetId;
+        // Create ad (use the adset determined earlier in the loop)
         const adData = new FormData();
         adData.append("name", adName);
-        adData.append("adset_id", unmappedAdsetId);
+        adData.append("adset_id", currentUnmappedAdsetId);
         adData.append("creative", JSON.stringify({ creative_id: creativeResult.id }));
         adData.append("status", "ACTIVE");
         adData.append("access_token", accessToken);
 
-        console.log(`📝 Creating ad: name=${adName}, adset_id=${unmappedAdsetId}, creative_id=${creativeResult.id}`);
+        console.log(`📝 Creating ad: name=${adName}, adset_id=${currentUnmappedAdsetId}, creative_id=${creativeResult.id}`);
 
         const adResponse = await fetch(
           `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/ads`)}`,
