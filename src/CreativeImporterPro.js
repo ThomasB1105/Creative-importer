@@ -2271,8 +2271,11 @@ export default function CreativeImporterPro(props = {}) {
                   : { link: destinationUrl.trim() }
               }
             };
-            // Only add link for non-leadform objectives
-            if (objective !== "leadform") {
+            // For lead forms, link should be the Facebook Page URL
+            // For other objectives, use the destination URL
+            if (objective === "leadform") {
+              linkData.link = `https://www.facebook.com/${selectedPage.id}`;
+            } else {
               linkData.link = destinationUrl.trim();
             }
             objectStorySpec = {
@@ -2437,8 +2440,11 @@ export default function CreativeImporterPro(props = {}) {
             image_hash: hashData.hash,
           };
 
-          // Only add link for non-leadform objectives
-          if (objective !== "leadform") {
+          // For lead forms, link should be the Facebook Page URL
+          // For other objectives, use the destination URL
+          if (objective === "leadform") {
+            linkData.link = `https://www.facebook.com/${selectedPage.id}`;
+          } else {
             linkData.link = destinationUrl.trim();
           }
 
