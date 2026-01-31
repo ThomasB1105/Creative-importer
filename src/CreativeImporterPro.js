@@ -664,16 +664,21 @@ export default function CreativeImporterPro(props = {}) {
     // Fetch lead forms from the page
     fetch(
       `/api/facebook-proxy?endpoint=${encodeURIComponent(
-        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedPage.id}/leadgen_forms?fields=id,name,status,created_time&access_token=${accessToken}`
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedPage.id}/leadgen_forms?fields=id,name,status,created_time&limit=100&access_token=${accessToken}`
       )}`
     )
       .then((res) => res.json())
       .then((data) => {
+        console.log("📋 Lead forms API response:", data);
+        if (data.error) {
+          console.error("❌ Lead forms API error:", data.error);
+          return;
+        }
         if (data.data) {
-          // Filter only active forms and sort by creation date (newest first)
+          // Show all forms (ACTIVE, DRAFT, etc.) - don't filter by status
           const forms = data.data
-            .filter((f) => f.status === "ACTIVE")
             .sort((a, b) => new Date(b.created_time) - new Date(a.created_time));
+          console.log(`📋 Found ${forms.length} lead forms:`, forms);
           setLeadForms(forms);
           if (forms.length > 0) setSelectedLeadForm(forms[0]);
         }
