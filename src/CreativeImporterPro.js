@@ -1988,8 +1988,13 @@ export default function CreativeImporterPro(props = {}) {
       if (filteredTexts.length === 0) {
         throw new Error("Au moins un texte principal est requis pour créer les publicités");
       }
-      if (!destinationUrl || !destinationUrl.trim()) {
+      // URL is required except for lead forms (which use lead_gen_form_id instead)
+      if (objective !== "leadform" && (!destinationUrl || !destinationUrl.trim())) {
         throw new Error("L'URL de destination est requise pour créer les publicités");
+      }
+      // Lead form is required for leadform objective
+      if (objective === "leadform" && !selectedLeadForm) {
+        throw new Error("Un formulaire Lead est requis pour créer les publicités Lead Form");
       }
 
       // Helper to get placement positions based on format
@@ -2255,20 +2260,24 @@ export default function CreativeImporterPro(props = {}) {
             };
           } else {
             // Image ad
+            const linkData = {
+              image_hash: primaryAsset.hashData.hash,
+              message: filteredTexts[0] || "",
+              name: filteredHeadlines[0] || "",
+              call_to_action: {
+                type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
+                value: objective === "leadform" && selectedLeadForm
+                  ? { lead_gen_form_id: selectedLeadForm.id }
+                  : { link: destinationUrl.trim() }
+              }
+            };
+            // Only add link for non-leadform objectives
+            if (objective !== "leadform") {
+              linkData.link = destinationUrl.trim();
+            }
             objectStorySpec = {
               page_id: selectedPage.id,
-              link_data: {
-                image_hash: primaryAsset.hashData.hash,
-                link: destinationUrl.trim(),
-                message: filteredTexts[0] || "",
-                name: filteredHeadlines[0] || "",
-                call_to_action: {
-                  type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
-                  value: objective === "leadform" && selectedLeadForm
-                    ? { lead_gen_form_id: selectedLeadForm.id }
-                    : { link: destinationUrl.trim() }
-                }
-              }
+              link_data: linkData
             };
           }
 
@@ -2423,23 +2432,33 @@ export default function CreativeImporterPro(props = {}) {
         } else {
           // Images use link_data
           const linkData = {
-            link: destinationUrl.trim(),
             message: filteredTexts[i % filteredTexts.length],
             image_hash: hashData.hash,
           };
+
+          // Only add link for non-leadform objectives
+          if (objective !== "leadform") {
+            linkData.link = destinationUrl.trim();
+          }
 
           // Add headline only if available
           if (filteredHeadlines.length > 0) {
             linkData.name = filteredHeadlines[i % filteredHeadlines.length];
           }
 
-          // Add call_to_action only if not NO_BUTTON
+          // Add call_to_action
           if (callToAction !== "NO_BUTTON") {
             linkData.call_to_action = {
               type: callToAction,
-              ...(objective === "leadform" && selectedLeadForm && {
-                value: { lead_gen_form_id: selectedLeadForm.id }
-              }),
+              value: objective === "leadform" && selectedLeadForm
+                ? { lead_gen_form_id: selectedLeadForm.id }
+                : { link: destinationUrl.trim() }
+            };
+          } else if (objective === "leadform" && selectedLeadForm) {
+            // For lead forms, CTA is required even with NO_BUTTON
+            linkData.call_to_action = {
+              type: "LEARN_MORE",
+              value: { lead_gen_form_id: selectedLeadForm.id }
             };
           }
 
