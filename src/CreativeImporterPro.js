@@ -4066,58 +4066,6 @@ export default function CreativeImporterPro(props = {}) {
                   </div>
                 )}
 
-                {/* Lead Form selector (when Lead Form objective is selected) */}
-                {objective === "leadform" && (
-                  <div style={box}>
-                    <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
-                      📋 Formulaire Lead {isLoadingLeadForms && "(chargement...)"}
-                    </p>
-                    {leadForms.length === 0 && !isLoadingLeadForms ? (
-                      <div
-                        style={{
-                          padding: "16px",
-                          background: "rgba(239,68,68,0.1)",
-                          border: "1px solid rgba(239,68,68,0.3)",
-                          borderRadius: "8px",
-                          fontSize: "12px",
-                          color: "#fca5a5",
-                        }}
-                      >
-                        Aucun formulaire trouvé sur cette Page. Créez un formulaire dans Meta Ads Manager.
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        {leadForms.map((form) => (
-                          <div
-                            key={form.id}
-                            onClick={() => setSelectedLeadForm(form)}
-                            style={{
-                              padding: "12px",
-                              borderRadius: "8px",
-                              border:
-                                selectedLeadForm?.id === form.id
-                                  ? "2px solid #6366f1"
-                                  : "1px solid rgba(255,255,255,0.1)",
-                              background:
-                                selectedLeadForm?.id === form.id
-                                  ? "rgba(99,102,241,0.15)"
-                                  : "rgba(0,0,0,0.2)",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <div style={{ fontSize: "13px", fontWeight: "500" }}>
-                              {form.name}
-                            </div>
-                            <div style={{ fontSize: "10px", color: "#71717a", marginTop: "2px" }}>
-                              ID: {form.id}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 {/* Événement d'optimisation (seulement pour conversions et si nouvelle campagne) */}
                 {!(budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) && objective === "conversions" && (
                   <div style={box}>
