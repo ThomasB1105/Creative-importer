@@ -749,15 +749,23 @@ export default function CreativeImporterPro(props = {}) {
   // Auto-fill destination URL from lead form when selected
   useEffect(() => {
     if (objective === "leadform" && selectedLeadForm) {
-      // Get URL from lead form's thank_you_page or privacy_policy_url
+      console.log("📋 Lead form full data:", selectedLeadForm);
+      console.log("📋 thank_you_page:", selectedLeadForm.thank_you_page);
+
+      // Get URL from lead form's thank_you_page ONLY (not privacy policy)
       let formUrl = null;
-      if (selectedLeadForm.thank_you_page?.website_url) {
-        formUrl = selectedLeadForm.thank_you_page.website_url;
-      } else if (selectedLeadForm.privacy_policy_url) {
-        formUrl = selectedLeadForm.privacy_policy_url;
+
+      // Try different possible structures for thank_you_page URL
+      if (selectedLeadForm.thank_you_page) {
+        const tyPage = selectedLeadForm.thank_you_page;
+        // Meta API can return it in different formats
+        formUrl = tyPage.website_url || tyPage.url || tyPage.button_url || null;
+        console.log("📋 Found thank_you_page URL:", formUrl);
       }
+
+      // Only auto-fill if we found a proper URL and field is empty
       if (formUrl && !destinationUrl) {
-        console.log("📋 Auto-filling destination URL from lead form:", formUrl);
+        console.log("📋 Auto-filling destination URL from thank you page:", formUrl);
         setDestinationUrl(formUrl);
       }
     }
