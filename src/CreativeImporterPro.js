@@ -2031,8 +2031,8 @@ export default function CreativeImporterPro(props = {}) {
       if (filteredTexts.length === 0) {
         throw new Error("Au moins un texte principal est requis pour créer les publicités");
       }
-      // URL is required except for lead forms (which use lead_gen_form_id instead)
-      if (objective !== "leadform" && (!destinationUrl || !destinationUrl.trim())) {
+      // URL is always required (even for lead forms - Meta requires external URL, not Facebook Page URL)
+      if (!destinationUrl || !destinationUrl.trim()) {
         throw new Error("L'URL de destination est requise pour créer les publicités");
       }
       // Lead form is required for leadform objective
@@ -2318,13 +2318,8 @@ export default function CreativeImporterPro(props = {}) {
                   : { link: destinationUrl.trim() }
               }
             };
-            // For lead forms, link should be the Facebook Page URL
-            // For other objectives, use the destination URL
-            if (objective === "leadform") {
-              linkData.link = `https://www.facebook.com/${selectedPage.id}`;
-            } else {
-              linkData.link = destinationUrl.trim();
-            }
+            // Always use destination URL (Meta requires external URL, not Facebook Page URL for lead forms)
+            linkData.link = destinationUrl.trim();
             objectStorySpec = {
               page_id: selectedPage.id,
               link_data: linkData
@@ -2489,13 +2484,8 @@ export default function CreativeImporterPro(props = {}) {
             image_hash: hashData.hash,
           };
 
-          // For lead forms, link should be the Facebook Page URL
-          // For other objectives, use the destination URL
-          if (objective === "leadform") {
-            linkData.link = `https://www.facebook.com/${selectedPage.id}`;
-          } else {
-            linkData.link = destinationUrl.trim();
-          }
+          // Always use destination URL (Meta requires external URL, not Facebook Page URL for lead forms)
+          linkData.link = destinationUrl.trim();
 
           // Add headline only if available
           if (filteredHeadlines.length > 0) {
