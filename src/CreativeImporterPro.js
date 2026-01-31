@@ -2282,7 +2282,8 @@ export default function CreativeImporterPro(props = {}) {
           }
 
           // Add Instagram actor if available (real account or PBIA)
-          if (instagramActorId) {
+          // Skip for lead forms as they have specific Instagram restrictions
+          if (instagramActorId && objective !== "leadform") {
             objectStorySpec.instagram_actor_id = instagramActorId;
           }
 
@@ -2469,7 +2470,8 @@ export default function CreativeImporterPro(props = {}) {
         }
 
         // Add instagram_actor_id if we have a linked Instagram account or PBIA
-        if (instagramActorId) {
+        // Skip for lead forms as they have specific Instagram restrictions
+        if (instagramActorId && objective !== "leadform") {
           objectStorySpec.instagram_actor_id = instagramActorId;
         }
 
