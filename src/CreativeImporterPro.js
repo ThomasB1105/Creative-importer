@@ -2569,6 +2569,8 @@ export default function CreativeImporterPro(props = {}) {
         adData.append("status", "ACTIVE");
         adData.append("access_token", accessToken);
 
+        console.log(`📝 Creating ad: name=${adName}, adset_id=${unmappedAdsetId}, creative_id=${creativeResult.id}`);
+
         const adResponse = await fetch(
           `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/ads`)}`,
           { method: "POST", body: adData }
@@ -2576,7 +2578,11 @@ export default function CreativeImporterPro(props = {}) {
 
         const adResult = await adResponse.json();
         if (adResult.error) {
-          console.error(`Error creating ad for ${file.name}:`, adResult.error);
+          console.error(`❌ Error creating ad for ${file.name}:`, adResult.error);
+          console.error(`❌ Error details - code: ${adResult.error.code}, subcode: ${adResult.error.error_subcode}, message: ${adResult.error.message}`);
+          if (adResult.error.error_user_msg) {
+            console.error(`❌ User message: ${adResult.error.error_user_msg}`);
+          }
           results.errors.push(`Ad failed for ${file.name}: ${adResult.error.message}`);
 
           // Update progress: error
