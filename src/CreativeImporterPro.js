@@ -202,13 +202,16 @@ const authHelpers = {
 
   // Generate OAuth URL
   getOAuthUrl() {
-    // Permissions de base qui ne nécessitent pas d'App Review Facebook
+    // Permissions nécessaires pour la gestion des publicités et lead forms
+    // Note: leads_retrieval nécessite une App Review Facebook pour être approuvée
     const permissions = [
       "ads_management",
       "ads_read",
       "business_management",
       "pages_read_engagement",
       "pages_show_list",
+      "pages_manage_ads",
+      "leads_retrieval", // Requis pour accéder aux lead forms
     ].join(",");
 
     return (
