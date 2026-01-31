@@ -10,14 +10,15 @@ export const config = {
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  if (req.method !== 'POST') {
+  // Accept both GET and POST methods
+  if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
@@ -37,21 +38,29 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid endpoint - must be Facebook Graph API' });
     }
 
-    // Collect the raw body
-    const chunks = [];
-    for await (const chunk of req) {
-      chunks.push(chunk);
-    }
-    const body = Buffer.concat(chunks);
+    let response;
 
-    // Forward the request to Facebook
-    const response = await fetch(facebookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': req.headers['content-type'],
-      },
-      body: body,
-    });
+    if (req.method === 'GET') {
+      // For GET requests, simply forward to Facebook
+      response = await fetch(facebookUrl, {
+        method: 'GET',
+      });
+    } else {
+      // For POST requests, collect and forward the body
+      const chunks = [];
+      for await (const chunk of req) {
+        chunks.push(chunk);
+      }
+      const body = Buffer.concat(chunks);
+
+      response = await fetch(facebookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': req.headers['content-type'],
+        },
+        body: body,
+      });
+    }
 
     // Get response data
     const data = await response.json();
