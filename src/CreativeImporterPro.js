@@ -3894,59 +3894,22 @@ export default function CreativeImporterPro(props = {}) {
                   })()}
                 </div>
 
-                {/* Programmation (Scheduling) */}
-                <div style={box}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      marginBottom: enableScheduling ? "16px" : "0",
-                    }}
-                  >
-                    <p style={{ margin: 0, fontWeight: "600" }}>
-                      📅 Programmation
-                    </p>
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        cursor: "pointer",
-                        fontSize: "12px",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={enableScheduling}
-                        onChange={(e) => setEnableScheduling(e.target.checked)}
-                        style={{ cursor: "pointer" }}
-                      />
-                      Activer
-                    </label>
-                  </div>
-                  {enableScheduling && (
-                    <>
-                      <div style={{ marginBottom: "12px" }}>
-                        <span style={{ fontSize: "11px", color: "#71717a" }}>
-                          Date de début
-                        </span>
-                        <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
-                          <input
-                            type="date"
-                            value={scheduleStartDate}
-                            onChange={(e) => setScheduleStartDate(e.target.value)}
-                            style={{ ...inp, flex: 2 }}
-                          />
-                          <input
-                            type="time"
-                            value={scheduleStartTime}
-                            onChange={(e) => setScheduleStartTime(e.target.value)}
-                            style={{ ...inp, flex: 1 }}
-                          />
-                        </div>
-                      </div>
-                      <div>
+                {/* Programmation et Zones - masqués quand on utilise un adset existant */}
+                {!((budgetType === "cbo" && cboMode === "existing_adset") || (budgetType === "abo" && aboMode === "existing")) && (
+                  <>
+                    {/* Programmation (Scheduling) */}
+                    <div style={box}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginBottom: enableScheduling ? "16px" : "0",
+                        }}
+                      >
+                        <p style={{ margin: 0, fontWeight: "600" }}>
+                          📅 Programmation
+                        </p>
                         <label
                           style={{
                             display: "flex",
@@ -3954,72 +3917,115 @@ export default function CreativeImporterPro(props = {}) {
                             gap: "8px",
                             cursor: "pointer",
                             fontSize: "12px",
-                            marginBottom: "8px",
                           }}
                         >
                           <input
                             type="checkbox"
-                            checked={enableEndDate}
-                            onChange={(e) => setEnableEndDate(e.target.checked)}
+                            checked={enableScheduling}
+                            onChange={(e) => setEnableScheduling(e.target.checked)}
                             style={{ cursor: "pointer" }}
                           />
-                          Définir une date de fin
+                          Activer
                         </label>
-                        {enableEndDate && (
-                          <div style={{ display: "flex", gap: "8px" }}>
-                            <input
-                              type="date"
-                              value={scheduleEndDate}
-                              onChange={(e) => setScheduleEndDate(e.target.value)}
-                              style={{ ...inp, flex: 2 }}
-                            />
-                            <input
-                              type="time"
-                              value={scheduleEndTime}
-                              onChange={(e) => setScheduleEndTime(e.target.value)}
-                              style={{ ...inp, flex: 1 }}
-                            />
-                          </div>
-                        )}
                       </div>
-                    </>
-                  )}
-                </div>
+                      {enableScheduling && (
+                        <>
+                          <div style={{ marginBottom: "12px" }}>
+                            <span style={{ fontSize: "11px", color: "#71717a" }}>
+                              Date de début
+                            </span>
+                            <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                              <input
+                                type="date"
+                                value={scheduleStartDate}
+                                onChange={(e) => setScheduleStartDate(e.target.value)}
+                                style={{ ...inp, flex: 2 }}
+                              />
+                              <input
+                                type="time"
+                                value={scheduleStartTime}
+                                onChange={(e) => setScheduleStartTime(e.target.value)}
+                                style={{ ...inp, flex: 1 }}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                                marginBottom: "8px",
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={enableEndDate}
+                                onChange={(e) => setEnableEndDate(e.target.checked)}
+                                style={{ cursor: "pointer" }}
+                              />
+                              Définir une date de fin
+                            </label>
+                            {enableEndDate && (
+                              <div style={{ display: "flex", gap: "8px" }}>
+                                <input
+                                  type="date"
+                                  value={scheduleEndDate}
+                                  onChange={(e) => setScheduleEndDate(e.target.value)}
+                                  style={{ ...inp, flex: 2 }}
+                                />
+                                <input
+                                  type="time"
+                                  value={scheduleEndTime}
+                                  onChange={(e) => setScheduleEndTime(e.target.value)}
+                                  style={{ ...inp, flex: 1 }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
 
-                <div style={box}>
-                  <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
-                    Zones
-                  </p>
-                  <div
-                    style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}
-                  >
-                    {Object.entries(GEO_ZONES).map(([k, z]) => (
-                      <button
-                        key={k}
-                        onClick={() =>
-                          setSelectedCountries((p) =>
-                            p.includes(k) ? p.filter((c) => c !== k) : [...p, k]
-                          )
-                        }
-                        style={{
-                          padding: "8px 12px",
-                          borderRadius: "8px",
-                          border: selectedCountries.includes(k)
-                            ? "2px solid #6366f1"
-                            : "1px solid rgba(255,255,255,0.1)",
-                          background: selectedCountries.includes(k)
-                            ? "rgba(99,102,241,0.2)"
-                            : "transparent",
-                          color: "#fff",
-                          cursor: "pointer",
-                          fontSize: "12px",
-                        }}
+                    <div style={box}>
+                      <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
+                        Zones
+                      </p>
+                      <div
+                        style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}
                       >
-                        {z.flag} {z.code}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                        {Object.entries(GEO_ZONES).map(([k, z]) => (
+                          <button
+                            key={k}
+                            onClick={() =>
+                              setSelectedCountries((p) =>
+                                p.includes(k) ? p.filter((c) => c !== k) : [...p, k]
+                              )
+                            }
+                            style={{
+                              padding: "8px 12px",
+                              borderRadius: "8px",
+                              border: selectedCountries.includes(k)
+                                ? "2px solid #6366f1"
+                                : "1px solid rgba(255,255,255,0.1)",
+                              background: selectedCountries.includes(k)
+                                ? "rgba(99,102,241,0.2)"
+                                : "transparent",
+                              color: "#fff",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                            }}
+                          >
+                            {z.flag} {z.code}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 {/* Only show Objective if creating new campaign */}
                 {!(budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) && (
                   <div style={box}>
