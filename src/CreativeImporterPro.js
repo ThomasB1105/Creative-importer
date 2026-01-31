@@ -1547,24 +1547,74 @@ export default function CreativeImporterPro(props = {}) {
 
               // console.log(`📤 All chunks uploaded`);
 
-              // Phase 3: Finish upload
-              const finishData = new FormData();
-              finishData.append("upload_phase", "finish");
-              finishData.append("upload_session_id", upload_session_id);
-              finishData.append("access_token", accessToken);
+              // Wait a bit before finish phase - Facebook needs time to process chunks
+              console.log(`⏳ Waiting 5 seconds before finish phase for ${file.name}...`);
+              await new Promise(resolve => setTimeout(resolve, 5000));
 
-              const finishResponse = await fetch(videoUploadUrl, {
-                method: "POST",
-                body: finishData
-              });
+              // Phase 3: Finish upload with retry logic
+              let finishSuccess = false;
+              let finishAttempt = 0;
+              const maxFinishAttempts = 5;
+              let lastFinishError = null;
 
-              if (!finishResponse.ok) {
-                throw new Error(`Finish phase failed: ${finishResponse.status}`);
+              while (!finishSuccess && finishAttempt < maxFinishAttempts) {
+                finishAttempt++;
+                try {
+                  console.log(`📤 Finish attempt ${finishAttempt}/${maxFinishAttempts} for ${file.name}`);
+
+                  const finishData = new FormData();
+                  finishData.append("upload_phase", "finish");
+                  finishData.append("upload_session_id", upload_session_id);
+                  finishData.append("access_token", accessToken);
+
+                  const finishResponse = await fetch(videoUploadUrl, {
+                    method: "POST",
+                    body: finishData
+                  });
+
+                  if (!finishResponse.ok) {
+                    const errorText = await finishResponse.text();
+                    console.error(`Finish attempt ${finishAttempt} failed:`, finishResponse.status, errorText);
+                    lastFinishError = new Error(`Finish phase failed: ${finishResponse.status}`);
+
+                    // Wait before retry (exponential backoff: 5s, 10s, 20s, 40s)
+                    if (finishAttempt < maxFinishAttempts) {
+                      const waitTime = 5000 * Math.pow(2, finishAttempt - 1);
+                      console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
+                      await new Promise(resolve => setTimeout(resolve, waitTime));
+                    }
+                    continue;
+                  }
+
+                  const finishResult = await finishResponse.json();
+                  if (finishResult.error) {
+                    console.error(`Finish attempt ${finishAttempt} error:`, finishResult.error);
+                    lastFinishError = new Error(finishResult.error.message);
+
+                    if (finishAttempt < maxFinishAttempts) {
+                      const waitTime = 5000 * Math.pow(2, finishAttempt - 1);
+                      console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
+                      await new Promise(resolve => setTimeout(resolve, waitTime));
+                    }
+                    continue;
+                  }
+
+                  finishSuccess = true;
+                  console.log(`✅ Finish phase succeeded for ${file.name}`);
+                } catch (err) {
+                  console.error(`Finish attempt ${finishAttempt} exception:`, err);
+                  lastFinishError = err;
+
+                  if (finishAttempt < maxFinishAttempts) {
+                    const waitTime = 5000 * Math.pow(2, finishAttempt - 1);
+                    console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                  }
+                }
               }
 
-              const finishResult = await finishResponse.json();
-              if (finishResult.error) {
-                throw new Error(finishResult.error.message);
+              if (!finishSuccess) {
+                throw lastFinishError || new Error('Finish phase failed after all attempts');
               }
 
               hash = video_id;
