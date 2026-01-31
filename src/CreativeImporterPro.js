@@ -1797,6 +1797,9 @@ export default function CreativeImporterPro(props = {}) {
 
         if (budgetType === "cbo") {
           campaignData.append("daily_budget", Math.round(parseFloat(budget) * 100));
+        } else {
+          // ABO: Must specify is_adset_budget_sharing_enabled (disabled by default)
+          campaignData.append("is_adset_budget_sharing_enabled", "false");
         }
 
         campaignData.append("access_token", accessToken);
