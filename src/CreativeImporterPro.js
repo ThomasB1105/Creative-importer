@@ -361,21 +361,34 @@ const createMetaApi = (accessToken) => ({
 
   async fetchAdsets(campaignId) {
     try {
-      // Simplified: no filtering, filter client-side
-      const res = await fetch(
-        `${this.baseUrl}/${campaignId}/adsets?fields=id,name,status,daily_budget&limit=100&access_token=${accessToken}`
-      );
+      console.log("🔍 Fetching adsets for campaign:", campaignId);
+      const apiUrl = `${this.baseUrl}/${campaignId}/adsets?fields=id,name,status,daily_budget&limit=100&access_token=${accessToken}`;
+      console.log("🔍 Adsets API URL:", apiUrl.replace(accessToken, "ACCESS_TOKEN_HIDDEN"));
+
+      // Use proxy to avoid CORS issues (like we do for lead forms)
+      const proxyUrl = `/api/facebook-proxy?endpoint=${encodeURIComponent(apiUrl)}`;
+      const res = await fetch(proxyUrl);
+      console.log("🔍 Adsets API response status:", res.status);
+
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
       const data = await res.json();
+      console.log("🔍 Adsets API raw response:", data);
+
       if (data.error) {
+        console.error("❌ Adsets API error:", data.error);
         throw new Error(data.error.message || "Erreur lors de la récupération des adsets");
       }
+
+      // Log all adsets with their status
+      console.log("🔍 All adsets received:", (data.data || []).map(a => ({ id: a.id, name: a.name, status: a.status })));
+
       // Filter ACTIVE and PAUSED adsets client-side
       const activeAdsets = (data.data || []).filter(a =>
         a.status === "ACTIVE" || a.status === "PAUSED"
       );
+      console.log("✅ Filtered adsets (ACTIVE/PAUSED):", activeAdsets.length);
       return activeAdsets;
     } catch (error) {
       console.error("fetchAdsets error:", error);
@@ -654,6 +667,7 @@ export default function CreativeImporterPro(props = {}) {
   useEffect(() => {
     if (!selectedCampaign || !accessToken) return;
 
+    console.log("🔄 Loading adsets for campaign:", selectedCampaign.name, "ID:", selectedCampaign.id);
     setIsLoadingAdsets(true);
     setExistingAdsets([]);
     setSelectedAdset(null);
@@ -661,8 +675,13 @@ export default function CreativeImporterPro(props = {}) {
     const api = createMetaApi(accessToken);
     api
       .fetchAdsets(selectedCampaign.id)
-      .then(setExistingAdsets)
-      .catch(() => {})
+      .then((adsets) => {
+        console.log("✅ Adsets loaded:", adsets.length, "adsets found");
+        setExistingAdsets(adsets);
+      })
+      .catch((error) => {
+        console.error("❌ Failed to load adsets:", error);
+      })
       .finally(() => setIsLoadingAdsets(false));
   }, [selectedCampaign, accessToken]);
 
