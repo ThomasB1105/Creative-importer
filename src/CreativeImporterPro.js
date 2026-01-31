@@ -382,14 +382,13 @@ const createMetaApi = (accessToken) => ({
       }
 
       // Log all adsets with their status
-      console.log("🔍 All adsets received:", (data.data || []).map(a => ({ id: a.id, name: a.name, status: a.status })));
+      const allAdsets = data.data || [];
+      console.log("🔍 All adsets received:", allAdsets.map(a => ({ id: a.id, name: a.name, status: a.status })));
 
-      // Filter ACTIVE and PAUSED adsets client-side
-      const activeAdsets = (data.data || []).filter(a =>
-        a.status === "ACTIVE" || a.status === "PAUSED"
-      );
-      console.log("✅ Filtered adsets (ACTIVE/PAUSED):", activeAdsets.length);
-      return activeAdsets;
+      // Return all adsets without filtering - let users see all available adsets
+      // Previously filtered by ACTIVE/PAUSED which might exclude usable adsets
+      console.log("✅ Total adsets found:", allAdsets.length);
+      return allAdsets;
     } catch (error) {
       console.error("fetchAdsets error:", error);
       throw error;
