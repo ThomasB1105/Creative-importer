@@ -699,7 +699,7 @@ export default function CreativeImporterPro(props = {}) {
 
     const pageId = selectedPage.id;
     const pageAccessToken = selectedPage.access_token; // Use Page Access Token!
-    const apiUrl = `https://graph.facebook.com/${META_APP.apiVersion}/${pageId}/leadgen_forms?fields=id,name,status,created_time&limit=100&access_token=${pageAccessToken}`;
+    const apiUrl = `https://graph.facebook.com/${META_APP.apiVersion}/${pageId}/leadgen_forms?fields=id,name,status,created_time,thank_you_page,privacy_policy_url&limit=100&access_token=${pageAccessToken}`;
 
     console.log("📋 Fetching lead forms for page:", selectedPage.name, "ID:", pageId);
     console.log("📋 Using Page Access Token (required for leadgen_forms)");
@@ -745,6 +745,23 @@ export default function CreativeImporterPro(props = {}) {
       }
     }
   }, [objective, callToAction]);
+
+  // Auto-fill destination URL from lead form when selected
+  useEffect(() => {
+    if (objective === "leadform" && selectedLeadForm) {
+      // Get URL from lead form's thank_you_page or privacy_policy_url
+      let formUrl = null;
+      if (selectedLeadForm.thank_you_page?.website_url) {
+        formUrl = selectedLeadForm.thank_you_page.website_url;
+      } else if (selectedLeadForm.privacy_policy_url) {
+        formUrl = selectedLeadForm.privacy_policy_url;
+      }
+      if (formUrl && !destinationUrl) {
+        console.log("📋 Auto-filling destination URL from lead form:", formUrl);
+        setDestinationUrl(formUrl);
+      }
+    }
+  }, [objective, selectedLeadForm]);
 
   const handleLogin = () => {
     window.location.href = authHelpers.getOAuthUrl();
@@ -4466,8 +4483,8 @@ export default function CreativeImporterPro(props = {}) {
                     </button>
                   )}
 
-                  {/* URL or Lead Form selector based on objective */}
-                  {objective === "leadform" ? (
+                  {/* Lead Form selector when objective is leadform */}
+                  {objective === "leadform" && (
                     <>
                       <div style={{ marginBottom: "6px" }}>
                         <span style={{ fontSize: "11px", color: "#71717a" }}>
@@ -4483,6 +4500,7 @@ export default function CreativeImporterPro(props = {}) {
                             borderRadius: "8px",
                             fontSize: "11px",
                             color: "#fca5a5",
+                            marginBottom: "16px",
                           }}
                         >
                           Aucun formulaire actif trouvé. Créez un formulaire dans Meta Ads Manager.
@@ -4499,6 +4517,7 @@ export default function CreativeImporterPro(props = {}) {
                             border: selectedLeadForm
                               ? "1px solid rgba(34,197,94,0.5)"
                               : "1px solid rgba(239,68,68,0.5)",
+                            marginBottom: "16px",
                           }}
                         >
                           <option value="">Sélectionner un formulaire...</option>
@@ -4510,26 +4529,25 @@ export default function CreativeImporterPro(props = {}) {
                         </select>
                       )}
                     </>
-                  ) : (
-                    <>
-                      <div style={{ marginBottom: "6px" }}>
-                        <span style={{ fontSize: "11px", color: "#71717a" }}>
-                          URL de destination (Requis)
-                        </span>
-                      </div>
-                      <input
-                        value={destinationUrl}
-                        onChange={(e) => setDestinationUrl(e.target.value)}
-                        placeholder="https://..."
-                        style={{
-                          ...inp,
-                          border: destinationUrl?.startsWith("http")
-                            ? "1px solid rgba(34,197,94,0.5)"
-                            : "1px solid rgba(239,68,68,0.5)",
-                        }}
-                      />
-                    </>
                   )}
+
+                  {/* URL is always required (even for lead forms - Meta requires external URL) */}
+                  <div style={{ marginBottom: "6px" }}>
+                    <span style={{ fontSize: "11px", color: "#71717a" }}>
+                      🔗 URL de destination (Requis){objective === "leadform" && " - Site web de l'annonceur"}
+                    </span>
+                  </div>
+                  <input
+                    value={destinationUrl}
+                    onChange={(e) => setDestinationUrl(e.target.value)}
+                    placeholder="https://..."
+                    style={{
+                      ...inp,
+                      border: destinationUrl?.startsWith("http")
+                        ? "1px solid rgba(34,197,94,0.5)"
+                        : "1px solid rgba(239,68,68,0.5)",
+                    }}
+                  />
                 </div>
                 <div style={box}>
                   <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
