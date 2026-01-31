@@ -442,6 +442,12 @@ export default function CreativeImporterPro(props = {}) {
   const [objective, setObjective] = useState("conversions");
   const [optimizationEvent, setOptimizationEvent] = useState("purchase");
   const [callToAction, setCallToAction] = useState("LEARN_MORE");
+
+  // Lead Forms (for Lead Form objective)
+  const [leadForms, setLeadForms] = useState([]);
+  const [selectedLeadForm, setSelectedLeadForm] = useState(null);
+  const [isLoadingLeadForms, setIsLoadingLeadForms] = useState(false);
+
   const [budget, setBudget] = useState("50");
   const [selectedCountries, setSelectedCountries] = useState(["france"]);
   const [primaryTexts, setPrimaryTexts] = useState([""]);  // Array of texts
@@ -642,6 +648,41 @@ export default function CreativeImporterPro(props = {}) {
       .catch(() => {})
       .finally(() => setIsLoadingAdsets(false));
   }, [selectedCampaign, accessToken]);
+
+  // Load lead forms when objective is leadform and page is selected
+  useEffect(() => {
+    if (objective !== "leadform" || !selectedPage || !accessToken) {
+      setLeadForms([]);
+      setSelectedLeadForm(null);
+      return;
+    }
+
+    setIsLoadingLeadForms(true);
+    setLeadForms([]);
+    setSelectedLeadForm(null);
+
+    // Fetch lead forms from the page
+    fetch(
+      `/api/facebook-proxy?endpoint=${encodeURIComponent(
+        `https://graph.facebook.com/${META_APP.apiVersion}/${selectedPage.id}/leadgen_forms?fields=id,name,status,created_time&access_token=${accessToken}`
+      )}`
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.data) {
+          // Filter only active forms and sort by creation date (newest first)
+          const forms = data.data
+            .filter((f) => f.status === "ACTIVE")
+            .sort((a, b) => new Date(b.created_time) - new Date(a.created_time));
+          setLeadForms(forms);
+          if (forms.length > 0) setSelectedLeadForm(forms[0]);
+        }
+      })
+      .catch((error) => {
+        console.error("❌ Error loading lead forms:", error);
+      })
+      .finally(() => setIsLoadingLeadForms(false));
+  }, [objective, selectedPage, accessToken]);
 
   const handleLogin = () => {
     window.location.href = authHelpers.getOAuthUrl();
@@ -867,7 +908,11 @@ export default function CreativeImporterPro(props = {}) {
   }, [clientCode, selectedCountries, budgetType, objective, campaignName, nomenclatureFields, nomenclatureTemplate]);
 
   const isStep2Valid =
-    primaryTexts[0]?.trim() && headlines[0]?.trim() && destinationUrl?.startsWith("http");
+    primaryTexts[0]?.trim() &&
+    headlines[0]?.trim() &&
+    (objective === "leadform"
+      ? selectedLeadForm !== null
+      : destinationUrl?.startsWith("http"));
 
   const structurePreview = useMemo(() => {
     const numGroups = Object.keys(groupedFiles).length;
@@ -2181,7 +2226,9 @@ export default function CreativeImporterPro(props = {}) {
                 title: filteredHeadlines[0] || "",
                 call_to_action: {
                   type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
-                  value: { link: destinationUrl.trim() }
+                  value: objective === "leadform" && selectedLeadForm
+                    ? { lead_gen_form_id: selectedLeadForm.id }
+                    : { link: destinationUrl.trim() }
                 },
                 ...(primaryAsset.hashData.thumbnailHash && { image_hash: primaryAsset.hashData.thumbnailHash })
               }
@@ -2197,7 +2244,9 @@ export default function CreativeImporterPro(props = {}) {
                 name: filteredHeadlines[0] || "",
                 call_to_action: {
                   type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
-                  value: { link: destinationUrl.trim() }
+                  value: objective === "leadform" && selectedLeadForm
+                    ? { lead_gen_form_id: selectedLeadForm.id }
+                    : { link: destinationUrl.trim() }
                 }
               }
             };
@@ -2336,9 +2385,9 @@ export default function CreativeImporterPro(props = {}) {
             message: filteredTexts[i % filteredTexts.length],
             call_to_action: {
               type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
-              value: {
-                link: destinationUrl.trim(),
-              },
+              value: objective === "leadform" && selectedLeadForm
+                ? { lead_gen_form_id: selectedLeadForm.id }
+                : { link: destinationUrl.trim() },
             },
           };
 
@@ -2368,6 +2417,9 @@ export default function CreativeImporterPro(props = {}) {
           if (callToAction !== "NO_BUTTON") {
             linkData.call_to_action = {
               type: callToAction,
+              ...(objective === "leadform" && selectedLeadForm && {
+                value: { lead_gen_form_id: selectedLeadForm.id }
+              }),
             };
           }
 
@@ -3975,6 +4027,58 @@ export default function CreativeImporterPro(props = {}) {
                         </button>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Lead Form selector (when Lead Form objective is selected) */}
+                {objective === "leadform" && (
+                  <div style={box}>
+                    <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
+                      📋 Formulaire Lead {isLoadingLeadForms && "(chargement...)"}
+                    </p>
+                    {leadForms.length === 0 && !isLoadingLeadForms ? (
+                      <div
+                        style={{
+                          padding: "16px",
+                          background: "rgba(239,68,68,0.1)",
+                          border: "1px solid rgba(239,68,68,0.3)",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                          color: "#fca5a5",
+                        }}
+                      >
+                        Aucun formulaire trouvé sur cette Page. Créez un formulaire dans Meta Ads Manager.
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                        {leadForms.map((form) => (
+                          <div
+                            key={form.id}
+                            onClick={() => setSelectedLeadForm(form)}
+                            style={{
+                              padding: "12px",
+                              borderRadius: "8px",
+                              border:
+                                selectedLeadForm?.id === form.id
+                                  ? "2px solid #6366f1"
+                                  : "1px solid rgba(255,255,255,0.1)",
+                              background:
+                                selectedLeadForm?.id === form.id
+                                  ? "rgba(99,102,241,0.15)"
+                                  : "rgba(0,0,0,0.2)",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <div style={{ fontSize: "13px", fontWeight: "500" }}>
+                              {form.name}
+                            </div>
+                            <div style={{ fontSize: "10px", color: "#71717a", marginTop: "2px" }}>
+                              ID: {form.id}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
