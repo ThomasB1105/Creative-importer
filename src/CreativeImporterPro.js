@@ -3337,7 +3337,15 @@ export default function CreativeImporterPro(props = {}) {
                         {filteredCampaigns.map((c) => (
                           <div
                             key={c.id}
-                            onClick={() => setSelectedCampaign(c)}
+                            onClick={() => {
+                              setSelectedCampaign(c);
+                              // Detect objective from campaign
+                              if (c.objective === "OUTCOME_LEADS" || c.objective === "LEAD_GENERATION") {
+                                setObjective("leadform");
+                              } else if (c.objective === "OUTCOME_SALES" || c.objective === "CONVERSIONS") {
+                                setObjective("conversions");
+                              }
+                            }}
                             style={{
                               padding: "10px",
                               borderRadius: "6px",
@@ -3621,7 +3629,15 @@ export default function CreativeImporterPro(props = {}) {
                         {filteredCampaigns.map((c) => (
                           <div
                             key={c.id}
-                            onClick={() => setSelectedCampaign(c)}
+                            onClick={() => {
+                              setSelectedCampaign(c);
+                              // Detect objective from campaign
+                              if (c.objective === "OUTCOME_LEADS" || c.objective === "LEAD_GENERATION") {
+                                setObjective("leadform");
+                              } else if (c.objective === "OUTCOME_SALES" || c.objective === "CONVERSIONS") {
+                                setObjective("conversions");
+                              }
+                            }}
                             style={{
                               padding: "10px",
                               borderRadius: "6px",
@@ -4406,23 +4422,70 @@ export default function CreativeImporterPro(props = {}) {
                     </button>
                   )}
 
-                  {/* URL */}
-                  <div style={{ marginBottom: "6px" }}>
-                    <span style={{ fontSize: "11px", color: "#71717a" }}>
-                      URL de destination (Requis)
-                    </span>
-                  </div>
-                  <input
-                    value={destinationUrl}
-                    onChange={(e) => setDestinationUrl(e.target.value)}
-                    placeholder="https://..."
-                    style={{
-                      ...inp,
-                      border: destinationUrl?.startsWith("http")
-                        ? "1px solid rgba(34,197,94,0.5)"
-                        : "1px solid rgba(239,68,68,0.5)",
-                    }}
-                  />
+                  {/* URL or Lead Form selector based on objective */}
+                  {objective === "leadform" ? (
+                    <>
+                      <div style={{ marginBottom: "6px" }}>
+                        <span style={{ fontSize: "11px", color: "#71717a" }}>
+                          📋 Formulaire Lead (Requis) {isLoadingLeadForms && "(chargement...)"}
+                        </span>
+                      </div>
+                      {leadForms.length === 0 && !isLoadingLeadForms ? (
+                        <div
+                          style={{
+                            padding: "12px",
+                            background: "rgba(239,68,68,0.1)",
+                            border: "1px solid rgba(239,68,68,0.3)",
+                            borderRadius: "8px",
+                            fontSize: "11px",
+                            color: "#fca5a5",
+                          }}
+                        >
+                          Aucun formulaire actif trouvé. Créez un formulaire dans Meta Ads Manager.
+                        </div>
+                      ) : (
+                        <select
+                          value={selectedLeadForm?.id || ""}
+                          onChange={(e) => {
+                            const form = leadForms.find(f => f.id === e.target.value);
+                            setSelectedLeadForm(form);
+                          }}
+                          style={{
+                            ...inp,
+                            border: selectedLeadForm
+                              ? "1px solid rgba(34,197,94,0.5)"
+                              : "1px solid rgba(239,68,68,0.5)",
+                          }}
+                        >
+                          <option value="">Sélectionner un formulaire...</option>
+                          {leadForms.map((form) => (
+                            <option key={form.id} value={form.id}>
+                              {form.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ marginBottom: "6px" }}>
+                        <span style={{ fontSize: "11px", color: "#71717a" }}>
+                          URL de destination (Requis)
+                        </span>
+                      </div>
+                      <input
+                        value={destinationUrl}
+                        onChange={(e) => setDestinationUrl(e.target.value)}
+                        placeholder="https://..."
+                        style={{
+                          ...inp,
+                          border: destinationUrl?.startsWith("http")
+                            ? "1px solid rgba(34,197,94,0.5)"
+                            : "1px solid rgba(239,68,68,0.5)",
+                        }}
+                      />
+                    </>
+                  )}
                 </div>
                 <div style={box}>
                   <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
