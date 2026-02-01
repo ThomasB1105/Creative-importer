@@ -1906,11 +1906,13 @@ export default function CreativeImporterPro(props = {}) {
           // console.log(`🎨 Dynamic creative enabled for this adset`);
         }
 
-        // Budget for ABO
+        // Budget and bid strategy for ABO (budget at adset level)
         if (budgetType === "abo") {
           const dailyBudget = Math.max(1000, Math.round(parseFloat(budget) * 100));
           adsetData.append("daily_budget", dailyBudget);
-          // console.log(`💰 Budget: ${dailyBudget} cents (${dailyBudget/100} EUR/day)`);
+          // For ABO, bid_strategy must be at adset level (defaults to LOWEST_COST_WITHOUT_CAP)
+          adsetData.append("bid_strategy", bidStrategy);
+          // console.log(`💰 Budget: ${dailyBudget} cents (${dailyBudget/100} EUR/day), bid_strategy: ${bidStrategy}`);
         }
 
         // Scheduling (start_time / end_time) - ISO 8601 format
@@ -1927,6 +1929,22 @@ export default function CreativeImporterPro(props = {}) {
 
         adsetData.append("access_token", accessToken);
 
+        // Debug: Log all parameters being sent
+        console.log(`📦 Creating adset "${adsetName}" with parameters:`, {
+          name: adsetName,
+          campaign_id: campaignId,
+          status: "ACTIVE",
+          billing_event: "IMPRESSIONS",
+          optimization_goal: "OFFSITE_CONVERSIONS",
+          adset_auto_targeting_enabled: "false",
+          promoted_object: promotedObject,
+          targeting: targeting,
+          is_dynamic_creative: isDynamicCreative,
+          daily_budget: budgetType === "abo" ? Math.max(1000, Math.round(parseFloat(budget) * 100)) : undefined,
+          bid_strategy: budgetType === "abo" ? bidStrategy : undefined,
+          budgetType: budgetType,
+        });
+
         const adsetResponse = await fetch(
           `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adsets`)}`,
           { method: "POST", body: adsetData }
@@ -1934,8 +1952,17 @@ export default function CreativeImporterPro(props = {}) {
 
         const adsetResult = await adsetResponse.json();
         if (adsetResult.error) {
-          console.error("❌ Adset creation error:", adsetResult.error);
-          throw new Error(`Adset: ${adsetResult.error.message}`);
+          console.error("❌ Adset creation error FULL:", JSON.stringify(adsetResult.error, null, 2));
+          console.error("❌ Error details:", {
+            message: adsetResult.error.message,
+            code: adsetResult.error.code,
+            error_subcode: adsetResult.error.error_subcode,
+            error_user_title: adsetResult.error.error_user_title,
+            error_user_msg: adsetResult.error.error_user_msg,
+            fbtrace_id: adsetResult.error.fbtrace_id,
+          });
+          const errorMsg = adsetResult.error.error_user_msg || adsetResult.error.message;
+          throw new Error(`Adset: ${errorMsg}${adsetResult.error.code ? ` (Code: ${adsetResult.error.code})` : ''}`);
         }
 
         // console.log(`✅ Adset created: ${adsetResult.id}`);
