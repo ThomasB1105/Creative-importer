@@ -1491,7 +1491,7 @@ export default function CreativeImporterPro(props = {}) {
 
             // Use resumable upload for large videos (>50MB)
             if (file.type === "video" && fileSizeMB > 50) {
-              // console.log(`📹 Using resumable upload for large video: ${file.name} (${fileSizeMB.toFixed(1)} MB)`);
+              console.log(`📹 Using resumable upload for large video: ${file.name} (${fileSizeMB.toFixed(1)} MB)`);
 
               // Upload directly to Facebook (no proxy) - Facebook's video endpoint supports CORS
               const videoUploadUrl = `https://graph-video.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`;
@@ -1535,14 +1535,14 @@ export default function CreativeImporterPro(props = {}) {
               let chunkNum = 0;
               const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
 
-              // console.log(`📦 Uploading in ${totalChunks} chunks of ${CHUNK_SIZE / 1024 / 1024}MB`);
+              console.log(`📦 Uploading in ${totalChunks} chunks of ${CHUNK_SIZE / 1024 / 1024}MB`);
 
               while (startOffset < fileSize) {
                 const endOffset = Math.min(startOffset + CHUNK_SIZE, fileSize);
                 const chunk = file.file.slice(startOffset, endOffset);
                 chunkNum++;
 
-                // console.log(`📤 Uploading chunk ${chunkNum}/${totalChunks} (${startOffset}-${endOffset})`);
+                console.log(`📤 Uploading chunk ${chunkNum}/${totalChunks} (${startOffset}-${endOffset})`);
 
                 const transferData = new FormData();
                 transferData.append("upload_phase", "transfer");
@@ -1551,22 +1551,28 @@ export default function CreativeImporterPro(props = {}) {
                 transferData.append("video_file_chunk", chunk);
                 transferData.append("access_token", accessToken);
 
+                console.log(`📤 Sending chunk ${chunkNum}...`);
                 const transferResponse = await fetch(videoUploadUrl, {
                   method: "POST",
                   body: transferData
                 });
+                console.log(`📤 Chunk ${chunkNum} response received: ${transferResponse.status}`);
 
                 if (!transferResponse.ok) {
+                  const errorText = await transferResponse.text();
+                  console.error(`❌ Transfer phase failed for chunk ${chunkNum}:`, transferResponse.status, errorText);
                   throw new Error(`Transfer phase failed for chunk ${chunkNum}: ${transferResponse.status}`);
                 }
 
                 const transferResult = await transferResponse.json();
+                console.log(`📤 Chunk ${chunkNum} result:`, transferResult);
                 if (transferResult.error) {
                   throw new Error(transferResult.error.message);
                 }
 
                 // Facebook returns the next start_offset
                 startOffset = parseInt(transferResult.start_offset) || endOffset;
+                console.log(`✅ Chunk ${chunkNum} uploaded, next offset: ${startOffset}`);
 
                 // Update progress: 20% + (chunk progress * 30%)
                 const chunkProgress = 20 + Math.round((chunkNum / totalChunks) * 20);
@@ -1655,6 +1661,8 @@ export default function CreativeImporterPro(props = {}) {
               }));
             } else {
               // Standard upload for images and small videos
+              console.log(`📤 Standard upload for ${file.name} (${fileSizeMB.toFixed(1)} MB) via proxy`);
+
               const formData = new FormData();
               formData.append("source", file.file);
               formData.append("access_token", accessToken);
@@ -1663,10 +1671,18 @@ export default function CreativeImporterPro(props = {}) {
                 ? `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`
                 : `https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adimages`;
 
+              // Update progress to 20% when starting actual upload
+              setUploadProgress(prev => ({
+                ...prev,
+                [file.id]: { progress: 20, status: 'uploading' }
+              }));
+
+              console.log(`📤 Sending to proxy...`);
               const response = await fetch(`/api/facebook-proxy?endpoint=${encodeURIComponent(fbEndpoint)}`, {
                 method: "POST",
                 body: formData,
               });
+              console.log(`📤 Proxy response received: ${response.status}`);
 
               if (!response.ok) {
                 const errorText = await response.text();
@@ -1675,12 +1691,14 @@ export default function CreativeImporterPro(props = {}) {
               }
 
               const data = await response.json();
+              console.log(`📤 Upload response data:`, data);
               if (data.error) {
                 console.error(`❌ Meta API error for ${file.name}:`, data.error);
                 throw new Error(data.error.message);
               }
 
               hash = file.type === "video" ? data.id : data.images[Object.keys(data.images)[0]].hash;
+              console.log(`✅ Upload complete for ${file.name}, hash: ${hash}`);
             }
             // console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
 
