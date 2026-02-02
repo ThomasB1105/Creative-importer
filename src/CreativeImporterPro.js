@@ -484,6 +484,10 @@ export default function CreativeImporterPro(props = {}) {
   const [destinationUrl, setDestinationUrl] = useState("");
   const [bidStrategy, setBidStrategy] = useState("LOWEST_COST_WITHOUT_CAP"); // Bid strategy selection
 
+  // Attribution Window Settings
+  const [attributionClickWindow, setAttributionClickWindow] = useState("7d"); // 1d, 7d
+  const [attributionViewWindow, setAttributionViewWindow] = useState("none"); // none, 1d
+
   // Scheduling (Programmation)
   const [enableScheduling, setEnableScheduling] = useState(false);
   const [scheduleStartDate, setScheduleStartDate] = useState("");
@@ -1848,40 +1852,26 @@ export default function CreativeImporterPro(props = {}) {
           age_max: 65,
         };
 
-        // Add placement restrictions based on creative formats
+        // Add all placements by default for maximum reach
         // Use instagramActorId to check if we have Instagram capability (defined earlier in component)
         const canUseInstagram = !!instagramActorId;
 
-        if (isDynamicCreative) {
-          // Multi-placement mode: Facebook only, or Facebook + Instagram if we have an account
-          if (canUseInstagram) {
-            targeting.publisher_platforms = ['facebook', 'instagram'];
-          } else {
-            targeting.publisher_platforms = ['facebook'];
-          }
-        } else if (hasStoryOnly) {
-          if (canUseInstagram) {
-            targeting.publisher_platforms = ['facebook', 'instagram'];
-            targeting.facebook_positions = ['story'];
-            targeting.instagram_positions = ['story'];
-          } else {
-            targeting.publisher_platforms = ['facebook'];
-            targeting.facebook_positions = ['story'];
-          }
-        } else if (hasFeedOnly) {
-          if (canUseInstagram) {
-            targeting.publisher_platforms = ['facebook', 'instagram'];
-            targeting.facebook_positions = ['feed'];
-            targeting.instagram_positions = ['stream'];
-          } else {
-            targeting.publisher_platforms = ['facebook'];
-            targeting.facebook_positions = ['feed'];
-          }
+        // Enable all publisher platforms (Facebook, Instagram, Audience Network, Messenger)
+        if (canUseInstagram) {
+          targeting.publisher_platforms = ['facebook', 'instagram', 'audience_network', 'messenger'];
+          // Facebook positions: all main placements
+          targeting.facebook_positions = ['feed', 'story', 'instant_article', 'instream_video', 'marketplace', 'video_feeds', 'facebook_reels'];
+          // Instagram positions: all main placements
+          targeting.instagram_positions = ['stream', 'story', 'explore', 'reels', 'profile_feed'];
+          // Audience Network positions
+          targeting.audience_network_positions = ['classic', 'rewarded_video'];
+          // Messenger positions
+          targeting.messenger_positions = ['messenger_home', 'story'];
         } else {
-          // Default: Facebook only without Instagram account
-          if (!canUseInstagram) {
-            targeting.publisher_platforms = ['facebook'];
-          }
+          targeting.publisher_platforms = ['facebook', 'audience_network', 'messenger'];
+          targeting.facebook_positions = ['feed', 'story', 'instant_article', 'instream_video', 'marketplace', 'video_feeds', 'facebook_reels'];
+          targeting.audience_network_positions = ['classic', 'rewarded_video'];
+          targeting.messenger_positions = ['messenger_home', 'story'];
         }
 
         // Build promoted object
@@ -1927,6 +1917,27 @@ export default function CreativeImporterPro(props = {}) {
           console.log(`📅 Scheduled end: ${endDateTime.toISOString()}`);
         }
 
+        // Attribution Window Settings
+        const attributionSpec = [];
+        // Click-through window (1 or 7 days)
+        const clickDays = attributionClickWindow === "1d" ? 1 : 7;
+        attributionSpec.push({
+          event_type: "CLICK_THROUGH",
+          window_days: clickDays
+        });
+        // View-through window (optional, only if not "none")
+        if (attributionViewWindow !== "none") {
+          const viewDays = attributionViewWindow === "1d" ? 1 : 0;
+          if (viewDays > 0) {
+            attributionSpec.push({
+              event_type: "VIEW_THROUGH",
+              window_days: viewDays
+            });
+          }
+        }
+        adsetData.append("attribution_spec", JSON.stringify(attributionSpec));
+        console.log(`📊 Attribution spec:`, attributionSpec);
+
         adsetData.append("access_token", accessToken);
 
         // Debug: Log all parameters being sent
@@ -1943,6 +1954,7 @@ export default function CreativeImporterPro(props = {}) {
           daily_budget: budgetType === "abo" ? Math.max(1000, Math.round(parseFloat(budget) * 100)) : undefined,
           bid_strategy: budgetType === "abo" ? bidStrategy : undefined,
           budgetType: budgetType,
+          attribution_spec: attributionSpec,
         });
 
         const adsetResponse = await fetch(
@@ -2336,8 +2348,9 @@ export default function CreativeImporterPro(props = {}) {
           // Rule for story/reels placements (vertical 9:16)
           const storyRule = {
             customization_spec: {
-              publisher_platforms: hasInstagramCapability ? ["facebook", "instagram"] : ["facebook"],
+              publisher_platforms: hasInstagramCapability ? ["facebook", "instagram", "messenger"] : ["facebook", "messenger"],
               facebook_positions: ["story", "facebook_reels"],
+              messenger_positions: ["story"],
             },
             image_label: { name: "STORY_IMG" }
           };
@@ -2349,13 +2362,15 @@ export default function CreativeImporterPro(props = {}) {
           // Rule for feed placements (square/portrait)
           const feedRule = {
             customization_spec: {
-              publisher_platforms: hasInstagramCapability ? ["facebook", "instagram"] : ["facebook"],
-              facebook_positions: ["feed"],
+              publisher_platforms: hasInstagramCapability ? ["facebook", "instagram", "audience_network", "messenger"] : ["facebook", "audience_network", "messenger"],
+              facebook_positions: ["feed", "instant_article", "instream_video", "marketplace", "video_feeds"],
+              audience_network_positions: ["classic", "rewarded_video"],
+              messenger_positions: ["messenger_home"],
             },
             image_label: { name: "FEED_IMG" }
           };
           if (hasInstagramCapability) {
-            feedRule.customization_spec.instagram_positions = ["stream", "explore"];
+            feedRule.customization_spec.instagram_positions = ["stream", "explore", "profile_feed"];
           }
           assetCustomizationRules.push(feedRule);
 
@@ -4430,6 +4445,78 @@ export default function CreativeImporterPro(props = {}) {
                     </div>
                   </div>
                 )}
+
+                {/* Attribution Window Settings */}
+                <div style={box}>
+                  <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
+                    Fenêtre d'attribution
+                  </p>
+
+                  {/* Click Attribution Window */}
+                  <div style={{ marginBottom: "14px" }}>
+                    <div style={{ fontSize: "11px", color: "#71717a", marginBottom: "8px" }}>
+                      Clics
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      {[
+                        { id: "1d", name: "1 jour" },
+                        { id: "7d", name: "7 jours" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          onClick={() => setAttributionClickWindow(opt.id)}
+                          style={{
+                            flex: 1,
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            border: attributionClickWindow === opt.id ? "2px solid #22d3ee" : "1px solid rgba(255,255,255,0.1)",
+                            background: attributionClickWindow === opt.id ? "rgba(34,211,238,0.2)" : "transparent",
+                            color: "#fff",
+                            cursor: "pointer",
+                            fontSize: "11px",
+                            fontWeight: "500",
+                          }}
+                        >
+                          {opt.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* View Attribution Window */}
+                  <div>
+                    <div style={{ fontSize: "11px", color: "#71717a", marginBottom: "8px" }}>
+                      Vues actives (vidéos uniquement)
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      {[
+                        { id: "none", name: "Aucune" },
+                        { id: "1d", name: "1 jour" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          onClick={() => setAttributionViewWindow(opt.id)}
+                          style={{
+                            flex: 1,
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            border: attributionViewWindow === opt.id ? "2px solid #a78bfa" : "1px solid rgba(255,255,255,0.1)",
+                            background: attributionViewWindow === opt.id ? "rgba(167,139,250,0.2)" : "transparent",
+                            color: "#fff",
+                            cursor: "pointer",
+                            fontSize: "11px",
+                            fontWeight: "500",
+                          }}
+                        >
+                          {opt.name}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: "9px", color: "#71717a", marginTop: "8px" }}>
+                      Les vues actives comptabilisent les conversions après qu'un utilisateur a regardé au moins 10s de vidéo
+                    </div>
+                  </div>
+                </div>
               </div>
               <div
                 style={{

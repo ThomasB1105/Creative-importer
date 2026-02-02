@@ -17,7 +17,7 @@ export const GEO_ZONES = {
   switzerland: { name: "Suisse", code: "CH", flag: "🇨🇭" },
   canada: { name: "Canada", code: "CA", flag: "🇨🇦" },
   usa: { name: "USA", code: "US", flag: "🇺🇸" },
-  uk: { name: "UK", code: "UK", flag: "🇬🇧" },
+  uk: { name: "UK", code: "GB", flag: "🇬🇧" },
   germany: { name: "Allemagne", code: "DE", flag: "🇩🇪" },
 };
 
