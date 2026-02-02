@@ -33,8 +33,12 @@ export default async function handler(req, res) {
     // Decode the endpoint
     const facebookUrl = decodeURIComponent(endpoint);
 
-    // Validate it's a Facebook Graph API URL
-    if (!facebookUrl.startsWith('https://graph.facebook.com/')) {
+    // Validate it's a Facebook Graph API URL (including video endpoint)
+    const isValidFacebookUrl =
+      facebookUrl.startsWith('https://graph.facebook.com/') ||
+      facebookUrl.startsWith('https://graph-video.facebook.com/');
+
+    if (!isValidFacebookUrl) {
       return res.status(400).json({ error: 'Invalid endpoint - must be Facebook Graph API' });
     }
 
