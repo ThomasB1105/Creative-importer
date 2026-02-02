@@ -1775,26 +1775,30 @@ export default function CreativeImporterPro(props = {}) {
       const largeVideos = uploadedFiles.filter(f => f.type === "video" && f.file.size > 50 * 1024 * 1024);
       const smallFiles = uploadedFiles.filter(f => !(f.type === "video" && f.file.size > 50 * 1024 * 1024));
 
-      console.log(`📤 Upload strategy: ${largeVideos.length} large videos (sequential), ${smallFiles.length} small files (parallel)`);
+      console.log(`📤 Upload strategy: ${largeVideos.length} large videos, ${smallFiles.length} small files`);
 
       const uploadedHashes = [];
 
-      // Upload large videos ONE AT A TIME to avoid Facebook rate limiting
-      for (let i = 0; i < largeVideos.length; i++) {
-        const file = largeVideos[i];
-        console.log(`📤 Uploading large video ${i + 1}/${largeVideos.length}: ${file.name}`);
-        try {
-          const result = await uploadSingleFile(file);
-          uploadedHashes.push(result);
-          console.log(`✅ Large video ${i + 1}/${largeVideos.length} completed`);
-        } catch (err) {
-          console.error(`❌ Upload failed for ${file.name}:`, err);
-          uploadedHashes.push(null);
+      // Upload large videos 3 at a time for maximum speed
+      const CONCURRENT_LARGE = 3;
+      for (let i = 0; i < largeVideos.length; i += CONCURRENT_LARGE) {
+        const batch = largeVideos.slice(i, i + CONCURRENT_LARGE);
+        console.log(`📤 Uploading large videos ${i + 1}-${Math.min(i + CONCURRENT_LARGE, largeVideos.length)}/${largeVideos.length}`);
+
+        const batchResults = await Promise.allSettled(batch.map(file => uploadSingleFile(file)));
+
+        for (const result of batchResults) {
+          if (result.status === 'fulfilled') {
+            uploadedHashes.push(result.value);
+          } else {
+            console.error(`❌ Upload failed:`, result.reason);
+            uploadedHashes.push(null);
+          }
         }
       }
 
       // Upload small files in parallel batches (images and small videos)
-      const CONCURRENT_UPLOADS = 3;
+      const CONCURRENT_UPLOADS = 5;
       for (let i = 0; i < smallFiles.length; i += CONCURRENT_UPLOADS) {
         const batch = smallFiles.slice(i, i + CONCURRENT_UPLOADS);
         const batchNum = Math.floor(i / CONCURRENT_UPLOADS) + 1;
