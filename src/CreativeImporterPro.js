@@ -1578,9 +1578,8 @@ export default function CreativeImporterPro(props = {}) {
 
               // console.log(`📤 All chunks uploaded`);
 
-              // Wait a bit before finish phase - Facebook needs time to process chunks
-              console.log(`⏳ Waiting 2 seconds before finish phase for ${file.name}...`);
-              await new Promise(resolve => setTimeout(resolve, 2000));
+              // Short wait before finish phase
+              await new Promise(resolve => setTimeout(resolve, 500));
 
               // Phase 3: Finish upload with retry logic
               let finishSuccess = false;
@@ -1608,10 +1607,9 @@ export default function CreativeImporterPro(props = {}) {
                     console.error(`Finish attempt ${finishAttempt} failed:`, finishResponse.status, errorText);
                     lastFinishError = new Error(`Finish phase failed: ${finishResponse.status}`);
 
-                    // Wait before retry (exponential backoff: 2s, 4s, 8s, 16s)
+                    // Wait before retry (1s, 2s, 3s, 4s)
                     if (finishAttempt < maxFinishAttempts) {
-                      const waitTime = 2000 * Math.pow(2, finishAttempt - 1);
-                      console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
+                      const waitTime = 1000 * finishAttempt;
                       await new Promise(resolve => setTimeout(resolve, waitTime));
                     }
                     continue;
@@ -1623,8 +1621,7 @@ export default function CreativeImporterPro(props = {}) {
                     lastFinishError = new Error(finishResult.error.message);
 
                     if (finishAttempt < maxFinishAttempts) {
-                      const waitTime = 5000 * Math.pow(2, finishAttempt - 1);
-                      console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
+                      const waitTime = 1000 * finishAttempt;
                       await new Promise(resolve => setTimeout(resolve, waitTime));
                     }
                     continue;
@@ -1637,7 +1634,7 @@ export default function CreativeImporterPro(props = {}) {
                   lastFinishError = err;
 
                   if (finishAttempt < maxFinishAttempts) {
-                    const waitTime = 5000 * Math.pow(2, finishAttempt - 1);
+                    const waitTime = 1000 * finishAttempt;
                     console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
                     await new Promise(resolve => setTimeout(resolve, waitTime));
                   }
@@ -1649,20 +1646,13 @@ export default function CreativeImporterPro(props = {}) {
               }
 
               hash = video_id;
-              // console.log(`✅ Resumable upload completed: ${hash}`);
+              console.log(`✅ Resumable upload completed: ${hash} - skipping processing wait`);
 
-              // Wait for Facebook to process the video before continuing
+              // Skip waiting - Facebook allows creating ads with processing videos
               setUploadProgress(prev => ({
                 ...prev,
-                [file.id]: { progress: 45, status: 'processing' }
+                [file.id]: { progress: 45, status: 'uploaded' }
               }));
-
-              // Wait for video to be ready (max 5 min + 1 min per 100MB)
-              const maxWaitMs = 300000 + Math.floor(fileSizeMB / 100) * 60000;
-              const isReady = await waitForVideoReady(hash, maxWaitMs);
-              if (!isReady) {
-                console.warn(`⚠️ Video ${file.name} may not be fully processed yet`);
-              }
             } else {
               // Standard upload for images and small videos
               const formData = new FormData();
@@ -1694,21 +1684,10 @@ export default function CreativeImporterPro(props = {}) {
             }
             // console.log(`✅ Uploaded ${file.name}, hash: ${hash}`);
 
-            // For small/medium videos (10-50MB), wait for Facebook to finish processing
-            // Large videos (>50MB) already wait in the resumable upload section
-            if (file.type === "video" && fileSizeMB > 10 && fileSizeMB <= 50) {
-              setUploadProgress(prev => ({
-                ...prev,
-                [file.id]: { progress: 35, status: 'processing' }
-              }));
-
-              // Wait longer for larger videos (5 minutes base + 1 minute per 100MB)
-              const waitTimeMs = 300000 + Math.floor(fileSizeMB / 100) * 60000;
-              const isReady = await waitForVideoReady(hash, waitTimeMs);
-
-              if (!isReady) {
-                console.warn(`⚠️ Video ${file.name} may not be fully processed, attempting to create creative anyway...`);
-              }
+            // Skip waiting for video processing - Facebook allows creating ads with processing videos
+            // The ad will automatically work once Facebook finishes processing the video
+            if (file.type === "video" && fileSizeMB > 10) {
+              console.log(`📹 Video ${file.name} uploaded, skipping processing wait (ad will work once Facebook processes it)`);
             }
 
             // For videos, extract first frame and upload as thumbnail (REQUIRED by Facebook)
@@ -1801,17 +1780,30 @@ export default function CreativeImporterPro(props = {}) {
       const CONCURRENT_UPLOADS = 3; // Max 3 concurrent uploads to avoid rate limiting
       const uploadedHashes = [];
 
-      // Process files in batches
+      // Process files in batches using Promise.allSettled for better error handling
       for (let i = 0; i < uploadedFiles.length; i += CONCURRENT_UPLOADS) {
         const batch = uploadedFiles.slice(i, i + CONCURRENT_UPLOADS);
-        console.log(`📤 Uploading batch ${Math.floor(i / CONCURRENT_UPLOADS) + 1}/${Math.ceil(uploadedFiles.length / CONCURRENT_UPLOADS)} (${batch.length} files)`);
+        const batchNum = Math.floor(i / CONCURRENT_UPLOADS) + 1;
+        const totalBatches = Math.ceil(uploadedFiles.length / CONCURRENT_UPLOADS);
+        console.log(`📤 Uploading batch ${batchNum}/${totalBatches} (${batch.length} files)`);
 
-        const batchResults = await Promise.all(batch.map(file => uploadSingleFile(file)));
-        uploadedHashes.push(...batchResults);
+        // Use Promise.allSettled to handle individual failures without breaking the whole batch
+        const batchResults = await Promise.allSettled(batch.map(file => uploadSingleFile(file)));
+
+        // Extract successful results and log failures
+        for (let j = 0; j < batchResults.length; j++) {
+          const result = batchResults[j];
+          if (result.status === 'fulfilled') {
+            uploadedHashes.push(result.value);
+          } else {
+            console.error(`❌ Upload failed for ${batch[j].name}:`, result.reason);
+            uploadedHashes.push(null); // Keep track of failures
+          }
+        }
 
         // Small delay between batches to avoid rate limiting
         if (i + CONCURRENT_UPLOADS < uploadedFiles.length) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
 
