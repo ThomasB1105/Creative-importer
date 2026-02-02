@@ -1493,8 +1493,9 @@ export default function CreativeImporterPro(props = {}) {
             if (file.type === "video" && fileSizeMB > 50) {
               console.log(`📹 Using resumable upload for large video: ${file.name} (${fileSizeMB.toFixed(1)} MB)`);
 
-              // Upload directly to Facebook (no proxy) - Facebook's video endpoint supports CORS
+              // Use proxy for all Facebook API calls
               const videoUploadUrl = `https://graph-video.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/advideos`;
+              const proxyUrl = (endpoint) => `/api/facebook-proxy?endpoint=${encodeURIComponent(endpoint)}`;
 
               // Phase 1: Start upload session
               const startData = new FormData();
@@ -1502,8 +1503,8 @@ export default function CreativeImporterPro(props = {}) {
               startData.append("file_size", file.file.size.toString());
               startData.append("access_token", accessToken);
 
-              // console.log(`📤 Starting upload session...`);
-              const startResponse = await fetch(videoUploadUrl, {
+              console.log(`📤 Starting upload session via proxy...`);
+              const startResponse = await fetch(proxyUrl(videoUploadUrl), {
                 method: "POST",
                 body: startData
               });
@@ -1551,8 +1552,8 @@ export default function CreativeImporterPro(props = {}) {
                 transferData.append("video_file_chunk", chunk);
                 transferData.append("access_token", accessToken);
 
-                console.log(`📤 Sending chunk ${chunkNum}...`);
-                const transferResponse = await fetch(videoUploadUrl, {
+                console.log(`📤 Sending chunk ${chunkNum} via proxy...`);
+                const transferResponse = await fetch(proxyUrl(videoUploadUrl), {
                   method: "POST",
                   body: transferData
                 });
@@ -1603,7 +1604,7 @@ export default function CreativeImporterPro(props = {}) {
                   finishData.append("upload_session_id", upload_session_id);
                   finishData.append("access_token", accessToken);
 
-                  const finishResponse = await fetch(videoUploadUrl, {
+                  const finishResponse = await fetch(proxyUrl(videoUploadUrl), {
                     method: "POST",
                     body: finishData
                   });
