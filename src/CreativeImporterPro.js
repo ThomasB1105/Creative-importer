@@ -1794,34 +1794,50 @@ export default function CreativeImporterPro(props = {}) {
         return null; // Should not reach here
       };
 
-      // Upload files in parallel with concurrency limit
-      const CONCURRENT_UPLOADS = 3; // Max 3 concurrent uploads to avoid rate limiting
+      // Separate large videos (>50MB) from small files for different upload strategies
+      const largeVideos = uploadedFiles.filter(f => f.type === "video" && f.file.size > 50 * 1024 * 1024);
+      const smallFiles = uploadedFiles.filter(f => !(f.type === "video" && f.file.size > 50 * 1024 * 1024));
+
+      console.log(`📤 Upload strategy: ${largeVideos.length} large videos (sequential), ${smallFiles.length} small files (parallel)`);
+
       const uploadedHashes = [];
 
-      // Process files in batches using Promise.allSettled for better error handling
-      for (let i = 0; i < uploadedFiles.length; i += CONCURRENT_UPLOADS) {
-        const batch = uploadedFiles.slice(i, i + CONCURRENT_UPLOADS);
-        const batchNum = Math.floor(i / CONCURRENT_UPLOADS) + 1;
-        const totalBatches = Math.ceil(uploadedFiles.length / CONCURRENT_UPLOADS);
-        console.log(`📤 Uploading batch ${batchNum}/${totalBatches} (${batch.length} files)`);
+      // Upload large videos ONE AT A TIME to avoid Facebook rate limiting
+      for (let i = 0; i < largeVideos.length; i++) {
+        const file = largeVideos[i];
+        console.log(`📤 Uploading large video ${i + 1}/${largeVideos.length}: ${file.name}`);
+        try {
+          const result = await uploadSingleFile(file);
+          uploadedHashes.push(result);
+          console.log(`✅ Large video ${i + 1}/${largeVideos.length} completed`);
+        } catch (err) {
+          console.error(`❌ Upload failed for ${file.name}:`, err);
+          uploadedHashes.push(null);
+        }
+      }
 
-        // Use Promise.allSettled to handle individual failures without breaking the whole batch
+      // Upload small files in parallel batches (images and small videos)
+      const CONCURRENT_UPLOADS = 3;
+      for (let i = 0; i < smallFiles.length; i += CONCURRENT_UPLOADS) {
+        const batch = smallFiles.slice(i, i + CONCURRENT_UPLOADS);
+        const batchNum = Math.floor(i / CONCURRENT_UPLOADS) + 1;
+        const totalBatches = Math.ceil(smallFiles.length / CONCURRENT_UPLOADS);
+        console.log(`📤 Uploading small files batch ${batchNum}/${totalBatches} (${batch.length} files)`);
+
         const batchResults = await Promise.allSettled(batch.map(file => uploadSingleFile(file)));
 
-        // Extract successful results and log failures
         for (let j = 0; j < batchResults.length; j++) {
           const result = batchResults[j];
           if (result.status === 'fulfilled') {
             uploadedHashes.push(result.value);
           } else {
             console.error(`❌ Upload failed for ${batch[j].name}:`, result.reason);
-            uploadedHashes.push(null); // Keep track of failures
+            uploadedHashes.push(null);
           }
         }
 
-        // Small delay between batches to avoid rate limiting
-        if (i + CONCURRENT_UPLOADS < uploadedFiles.length) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+        if (i + CONCURRENT_UPLOADS < smallFiles.length) {
+          await new Promise(resolve => setTimeout(resolve, 300));
         }
       }
 
