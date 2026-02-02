@@ -486,7 +486,8 @@ export default function CreativeImporterPro(props = {}) {
 
   // Attribution Window Settings
   const [attributionClickWindow, setAttributionClickWindow] = useState("7d"); // 1d, 7d
-  const [attributionViewWindow, setAttributionViewWindow] = useState("none"); // none, 1d
+  const [attributionViewWindow, setAttributionViewWindow] = useState("none"); // none, 1d (engaged view - videos)
+  const [attributionClassicViewWindow, setAttributionClassicViewWindow] = useState("none"); // none, 1d (classic view)
 
   // Scheduling (Programmation)
   const [enableScheduling, setEnableScheduling] = useState(false);
@@ -1925,13 +1926,23 @@ export default function CreativeImporterPro(props = {}) {
           event_type: "CLICK_THROUGH",
           window_days: clickDays
         });
-        // View-through window (optional, only if not "none")
-        if (attributionViewWindow !== "none") {
-          const viewDays = attributionViewWindow === "1d" ? 1 : 0;
-          if (viewDays > 0) {
+        // Classic view-through window (optional, only if not "none")
+        if (attributionClassicViewWindow !== "none") {
+          const classicViewDays = attributionClassicViewWindow === "1d" ? 1 : 0;
+          if (classicViewDays > 0) {
             attributionSpec.push({
               event_type: "VIEW_THROUGH",
-              window_days: viewDays
+              window_days: classicViewDays
+            });
+          }
+        }
+        // Engaged view window (optional, only if not "none" - videos only)
+        if (attributionViewWindow !== "none") {
+          const engagedViewDays = attributionViewWindow === "1d" ? 1 : 0;
+          if (engagedViewDays > 0) {
+            attributionSpec.push({
+              event_type: "ENGAGED_VIEW",
+              window_days: engagedViewDays
             });
           }
         }
@@ -4483,7 +4494,38 @@ export default function CreativeImporterPro(props = {}) {
                     </div>
                   </div>
 
-                  {/* View Attribution Window */}
+                  {/* Classic View Attribution Window */}
+                  <div style={{ marginBottom: "14px" }}>
+                    <div style={{ fontSize: "11px", color: "#71717a", marginBottom: "8px" }}>
+                      Vues
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      {[
+                        { id: "none", name: "Aucune" },
+                        { id: "1d", name: "1 jour" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          onClick={() => setAttributionClassicViewWindow(opt.id)}
+                          style={{
+                            flex: 1,
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            border: attributionClassicViewWindow === opt.id ? "2px solid #f97316" : "1px solid rgba(255,255,255,0.1)",
+                            background: attributionClassicViewWindow === opt.id ? "rgba(249,115,22,0.2)" : "transparent",
+                            color: "#fff",
+                            cursor: "pointer",
+                            fontSize: "11px",
+                            fontWeight: "500",
+                          }}
+                        >
+                          {opt.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Engaged View Attribution Window */}
                   <div>
                     <div style={{ fontSize: "11px", color: "#71717a", marginBottom: "8px" }}>
                       Vues actives (vidéos uniquement)
