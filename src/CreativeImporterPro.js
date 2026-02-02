@@ -1983,7 +1983,7 @@ export default function CreativeImporterPro(props = {}) {
           const engagedViewDays = attributionViewWindow === "1d" ? 1 : 0;
           if (engagedViewDays > 0) {
             attributionSpec.push({
-              event_type: "ENGAGED_VIEW",
+              event_type: "ENGAGED_VIDEO_VIEW",
               window_days: engagedViewDays
             });
           }
