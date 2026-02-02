@@ -24,9 +24,9 @@ const GEO_ZONES = {
 };
 
 const OBJECTIVES = {
-  conversions: { name: "Conversions", code: "CONV", abbrev: "CV" },
-  lead_form: { name: "Lead Form", code: "LF", abbrev: "LF" },
-  lead_site: { name: "Lead Site", code: "LS", abbrev: "LS" },
+  conversions: { name: "Conversions", code: "CONV", abbrev: "CV", icon: "🎯" },
+  leadform: { name: "Lead Form", code: "LF", abbrev: "LF", icon: "📋" },
+  lead_site: { name: "Lead Site", code: "LS", abbrev: "LS", icon: "🌐" },
 };
 
 const OPTIMIZATION_EVENTS = {
@@ -38,7 +38,7 @@ const OPTIMIZATION_EVENTS = {
     { id: "view_content", name: "Voir contenu", code: "VC" },
     { id: "search", name: "Recherche", code: "SCH" },
   ],
-  lead_form: [{ id: "lead", name: "Lead", code: "LEAD" }],
+  leadform: [{ id: "lead", name: "Lead", code: "LEAD" }],
   lead_site: [{ id: "lead", name: "Lead", code: "LEAD" }],
 };
 
@@ -486,8 +486,8 @@ export default function CreativeImporterPro(props = {}) {
 
   // Attribution Window Settings
   const [attributionClickWindow, setAttributionClickWindow] = useState("7d"); // 1d, 7d
-  const [attributionViewWindow, setAttributionViewWindow] = useState("none"); // none, 1d (engaged view - videos)
-  const [attributionClassicViewWindow, setAttributionClassicViewWindow] = useState("none"); // none, 1d (classic view)
+  const [attributionViewWindow, setAttributionViewWindow] = useState("1d"); // none, 1d (engaged view - videos)
+  const [attributionClassicViewWindow, setAttributionClassicViewWindow] = useState("1d"); // none, 1d (classic view)
 
   // Scheduling (Programmation)
   const [enableScheduling, setEnableScheduling] = useState(false);
@@ -1008,7 +1008,21 @@ export default function CreativeImporterPro(props = {}) {
     };
 
     const campaign = replaceTokens(nomenclatureTemplate.campaign);
-    const adset = replaceTokens(nomenclatureTemplate.adset);
+
+    // Adset can be a string or function depending on whether {NUM} is in template
+    const adsetBase = replaceTokens(nomenclatureTemplate.adset);
+    const adset = (num = null, suffix = null) => {
+      let result = adsetBase;
+      if (num !== null) {
+        result = result.replace("{NUM}", num);
+      }
+      // Remove {NUM} if not replaced (for backward compatibility)
+      result = result.replace("{NUM}", "").replace(/_+/g, "_").replace(/^_|_$/g, "");
+      if (suffix) {
+        result = `${result}_${suffix}`;
+      }
+      return result;
+    };
 
     const ad = (num, mediaType) => {
       let adTemplate = nomenclatureTemplate.ad;
@@ -2027,7 +2041,7 @@ export default function CreativeImporterPro(props = {}) {
         console.log(`📦 ABO Multi: Creating ${numAdsets} adsets for ${totalAds} ads (max ${maxAdsPerAdset} per adset)`);
 
         for (let adsetIndex = 0; adsetIndex < numAdsets; adsetIndex++) {
-          const adsetName = `${nomenclature.adset}_${adsetIndex + 1}`;
+          const adsetName = nomenclature.adset(adsetIndex + 1);
           try {
             const newAdsetId = await createAdset(adsetName, null, globalNeedsDynamicCreative);
             aboMultiAdsets.push({ id: newAdsetId, name: adsetName, adsCount: 0 });
@@ -2047,13 +2061,15 @@ export default function CreativeImporterPro(props = {}) {
       } else if (budgetType === "cbo" && cboMode === "existing_adset" && globalNeedsDynamicCreative) {
         // Multi-placement needs is_dynamic_creative - must create NEW adset
         console.log(`🎨 Multi-placement requires new adset with is_dynamic_creative=true`);
-        adsetId = await createAdset(nomenclature.adset + "_multi", null, true);
-        results.adsets.push({ id: adsetId, name: nomenclature.adset + "_multi" });
+        const adsetName = nomenclature.adset(null, "multi");
+        adsetId = await createAdset(adsetName, null, true);
+        results.adsets.push({ id: adsetId, name: adsetName });
       } else if (!isAbo1x1 && !isAboMulti) {
         // Create single adset for CBO or ABO existing modes
         // Enable is_dynamic_creative when we have multi-placement with different formats
-        adsetId = await createAdset(nomenclature.adset, null, globalNeedsDynamicCreative);
-        results.adsets.push({ id: adsetId, name: nomenclature.adset });
+        const adsetName = nomenclature.adset();
+        adsetId = await createAdset(adsetName, null, globalNeedsDynamicCreative);
+        results.adsets.push({ id: adsetId, name: adsetName });
       }
       // For ABO 1-x-1, adsets will be created in the group loop below
       // For ABO Multi, adsets are already created above in aboMultiAdsets
@@ -2123,7 +2139,7 @@ export default function CreativeImporterPro(props = {}) {
 
 
         const adsetData = new FormData();
-        adsetData.append("name", nomenclature.adset);
+        adsetData.append("name", nomenclature.adset());
         adsetData.append("campaign_id", campaignId);
         adsetData.append("status", "ACTIVE");
         adsetData.append("billing_event", "IMPRESSIONS");
@@ -2166,7 +2182,7 @@ export default function CreativeImporterPro(props = {}) {
         }
 
         adsetId = adsetResult.id;
-        results.adsets.push({ id: adsetId, name: nomenclature.adset });
+        results.adsets.push({ id: adsetId, name: nomenclature.adset() });
         // console.log(`✅ Adset created: ${adsetId}`);
       } // End of if(false) block for legacy adset creation
 
@@ -2305,8 +2321,8 @@ export default function CreativeImporterPro(props = {}) {
         let currentAdsetId = adsetId;
         if (isAbo1x1) {
           const adsetName = group.baseName
-            ? `${nomenclature.adset}_${group.baseName}`
-            : `${nomenclature.adset}_${groupIndex + 1}`;
+            ? nomenclature.adset(groupIndex + 1, group.baseName)
+            : nomenclature.adset(groupIndex + 1);
           try {
             // Enable is_dynamic_creative when we have different assets for feed vs story
             currentAdsetId = await createAdset(adsetName, group.files, needsDynamicCreative);
@@ -2580,7 +2596,8 @@ export default function CreativeImporterPro(props = {}) {
         let currentUnmappedAdsetId;
         if (isAbo1x1) {
           // ABO 1x1: Create a new adset for each unmapped file (consistent with 1:1:1 pattern)
-          const adsetName = `${nomenclature.adset}_${file.name.replace(/\.[^.]+$/, '')}`;
+          const fileBaseName = file.name.replace(/\.[^.]+$/, '');
+          const adsetName = nomenclature.adset(effectiveGroups.length + i + 1, fileBaseName);
           try {
             currentUnmappedAdsetId = await createAdset(adsetName, [file], false);
             results.adsets.push({ id: currentUnmappedAdsetId, name: adsetName });
@@ -4010,32 +4027,25 @@ export default function CreativeImporterPro(props = {}) {
                       );
                     }
 
-                    // ABO: Campagne existante → Budget de la campagne (read-only)
+                    // ABO: Campagne existante → Budget pour les nouveaux adsets
                     if (budgetType === "abo" && aboMode === "existing") {
-                      const campaignBudget =
-                        selectedCampaign?.daily_budget ||
-                        selectedCampaign?.lifetime_budget;
                       return (
                         <>
                           <p style={{ margin: "0 0 8px", fontWeight: "600" }}>
-                            💰 Budget campagne actuel
+                            💰 Budget par adset ({selectedAdAccount?.currency}
+                            /jour)
                           </p>
-                          <div
+                          <input
+                            type="number"
+                            value={budget}
+                            onChange={(e) => setBudget(e.target.value)}
+                            placeholder="Ex: 50"
                             style={{
-                              padding: "12px",
-                              background: "rgba(245,158,11,0.1)",
-                              borderRadius: "8px",
+                              ...inp,
                               fontSize: "18px",
                               fontWeight: "600",
-                              color: "#f59e0b",
                             }}
-                          >
-                            {campaignBudget
-                              ? `${(campaignBudget / 100).toFixed(2)} ${
-                                  selectedAdAccount?.currency
-                                }/jour`
-                              : "Budget non défini"}
-                          </div>
+                          />
                           <div
                             style={{
                               fontSize: "11px",
@@ -4043,7 +4053,7 @@ export default function CreativeImporterPro(props = {}) {
                               marginTop: "6px",
                             }}
                           >
-                            ℹ️ Le budget sera alloué par adset
+                            ℹ️ Budget quotidien pour chaque nouvel adset créé
                           </div>
                         </>
                       );
@@ -5046,7 +5056,7 @@ export default function CreativeImporterPro(props = {}) {
                         <div style={{ marginBottom: "4px" }}>
                           <span style={{ color: "#71717a" }}>Adset:</span>{" "}
                           <span style={{ color: "#22c55e", fontWeight: "500" }}>
-                            {nomenclature.adset}
+                            {nomenclature.adset(1)}
                           </span>
                         </div>
                       )}
