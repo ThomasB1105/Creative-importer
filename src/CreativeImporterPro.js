@@ -1421,7 +1421,7 @@ export default function CreativeImporterPro(props = {}) {
       // Helper: wait for video to be ready (processed by Facebook)
       const waitForVideoReady = async (videoId, maxWaitMs = 300000) => {
         const startTime = Date.now();
-        const pollIntervalMs = 5000; // Check every 5 seconds
+        const pollIntervalMs = 3000; // Check every 3 seconds (faster polling)
 
         // console.log(`⏳ Waiting for video ${videoId} to be processed...`);
 
@@ -1465,14 +1465,12 @@ export default function CreativeImporterPro(props = {}) {
       });
       setUploadProgress(initialProgress);
 
-      // Upload sequentially to avoid rate limiting
-      const uploadedHashes = [];
-      for (let i = 0; i < uploadedFiles.length; i++) {
-        const file = uploadedFiles[i];
+      // Helper function to upload a single file with retry logic
+      const uploadSingleFile = async (file) => {
         const fileSizeMB = file.file.size / 1024 / 1024;
         let uploadSuccess = false;
         let retryCount = 0;
-        const maxRetries = file.type === "video" && fileSizeMB > 100 ? 2 : 1; // More retries for large videos
+        const maxRetries = file.type === "video" && fileSizeMB > 100 ? 2 : 1;
 
         while (!uploadSuccess && retryCount < maxRetries) {
           try {
@@ -1581,8 +1579,8 @@ export default function CreativeImporterPro(props = {}) {
               // console.log(`📤 All chunks uploaded`);
 
               // Wait a bit before finish phase - Facebook needs time to process chunks
-              console.log(`⏳ Waiting 5 seconds before finish phase for ${file.name}...`);
-              await new Promise(resolve => setTimeout(resolve, 5000));
+              console.log(`⏳ Waiting 2 seconds before finish phase for ${file.name}...`);
+              await new Promise(resolve => setTimeout(resolve, 2000));
 
               // Phase 3: Finish upload with retry logic
               let finishSuccess = false;
@@ -1610,9 +1608,9 @@ export default function CreativeImporterPro(props = {}) {
                     console.error(`Finish attempt ${finishAttempt} failed:`, finishResponse.status, errorText);
                     lastFinishError = new Error(`Finish phase failed: ${finishResponse.status}`);
 
-                    // Wait before retry (exponential backoff: 5s, 10s, 20s, 40s)
+                    // Wait before retry (exponential backoff: 2s, 4s, 8s, 16s)
                     if (finishAttempt < maxFinishAttempts) {
-                      const waitTime = 5000 * Math.pow(2, finishAttempt - 1);
+                      const waitTime = 2000 * Math.pow(2, finishAttempt - 1);
                       console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
                       await new Promise(resolve => setTimeout(resolve, waitTime));
                     }
@@ -1773,21 +1771,13 @@ export default function CreativeImporterPro(props = {}) {
               [file.id]: { progress: 50, status: 'uploaded' }
             }));
 
-            uploadedHashes.push({
+            // Return the result
+            return {
               fileId: file.id,
               hash: hash,
               type: file.type,
               thumbnailHash: thumbnailHash,
-            });
-
-            uploadSuccess = true;
-
-            // Longer delay between uploads to avoid rate limiting
-            // 4 seconds for videos, 2 seconds for images
-            if (i < uploadedFiles.length - 1) {
-              const delay = file.type === "video" ? 4000 : 2000;
-              await new Promise(resolve => setTimeout(resolve, delay));
-            }
+            };
           } catch (err) {
             retryCount++;
             if (retryCount >= maxRetries) {
@@ -1800,9 +1790,28 @@ export default function CreativeImporterPro(props = {}) {
                 [file.id]: { progress: 0, status: 'error' }
               }));
 
-              uploadedHashes.push(null);
+              return null;
             }
           }
+        }
+        return null; // Should not reach here
+      };
+
+      // Upload files in parallel with concurrency limit
+      const CONCURRENT_UPLOADS = 3; // Max 3 concurrent uploads to avoid rate limiting
+      const uploadedHashes = [];
+
+      // Process files in batches
+      for (let i = 0; i < uploadedFiles.length; i += CONCURRENT_UPLOADS) {
+        const batch = uploadedFiles.slice(i, i + CONCURRENT_UPLOADS);
+        console.log(`📤 Uploading batch ${Math.floor(i / CONCURRENT_UPLOADS) + 1}/${Math.ceil(uploadedFiles.length / CONCURRENT_UPLOADS)} (${batch.length} files)`);
+
+        const batchResults = await Promise.all(batch.map(file => uploadSingleFile(file)));
+        uploadedHashes.push(...batchResults);
+
+        // Small delay between batches to avoid rate limiting
+        if (i + CONCURRENT_UPLOADS < uploadedFiles.length) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
 
