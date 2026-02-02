@@ -1881,10 +1881,10 @@ export default function CreativeImporterPro(props = {}) {
         }
 
         // Build promoted object
+        // Note: conversion_location is NOT valid in promoted_object (causes API error #100)
         const promotedObject = {
           pixel_id: selectedPixel.id,
           custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
-          conversion_location: "website",
         };
 
         const adsetData = new FormData();
@@ -2115,10 +2115,10 @@ export default function CreativeImporterPro(props = {}) {
         }
 
         // Build promoted object
+        // Note: conversion_location is NOT valid in promoted_object (causes API error #100)
         const promotedObject = {
           pixel_id: selectedPixel.id,
           custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
-          conversion_location: "website",
         };
 
 
