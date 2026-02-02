@@ -440,6 +440,7 @@ export default function CreativeImporterPro(props = {}) {
   const [budgetType, setBudgetType] = useState("cbo");
   const [cboMode, setCboMode] = useState("new");
   const [aboMode, setAboMode] = useState("1:1:1");
+  const [aboExistingStructure, setAboExistingStructure] = useState("1:1:1"); // For existing campaign: "1:1:1" or "multi"
   const [maxAdsPerAdset, setMaxAdsPerAdset] = useState(5); // For ABO Multi (1-X-Y)
   const [existingCampaigns, setExistingCampaigns] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState(null);
@@ -1055,8 +1056,16 @@ export default function CreativeImporterPro(props = {}) {
       }
       if (aboMode === "multi")
         return { campaigns: 1, adsets: numGroups, ads: numMultiAds };
-      if (aboMode === "existing")
-        return { campaigns: 0, adsets: numGroups, ads: numMultiAds };
+      if (aboMode === "existing") {
+        // Existing campaign with new adsets - depends on selected structure
+        if (aboExistingStructure === "1:1:1") {
+          return { campaigns: 0, adsets: numMultiAds, ads: numMultiAds };
+        } else {
+          // multi structure
+          const numAdsets = Math.ceil(numMultiAds / maxAdsPerAdset);
+          return { campaigns: 0, adsets: numAdsets, ads: numMultiAds };
+        }
+      }
     }
     if (budgetType === "cbo") {
       if (cboMode === "new" || cboMode === "existing_new_adset")
@@ -1068,7 +1077,7 @@ export default function CreativeImporterPro(props = {}) {
       return { campaigns: 0, adsets: 0, ads: numMultiAds };
     }
     return { campaigns: 0, adsets: 0, ads: 0 };
-  }, [budgetType, aboMode, cboMode, groupedFiles, uploadedFiles, adType]);
+  }, [budgetType, aboMode, aboExistingStructure, maxAdsPerAdset, cboMode, groupedFiles, uploadedFiles, adType]);
 
   const box = {
     background: "rgba(17,7,38,0.6)",
@@ -1804,9 +1813,13 @@ export default function CreativeImporterPro(props = {}) {
 
       // Step 2: Create or use existing campaign
       let campaignId;
-      if (budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) {
+      const useExistingCampaign =
+        (budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) ||
+        (budgetType === "abo" && aboMode === "existing");
+
+      if (useExistingCampaign) {
         campaignId = selectedCampaign?.id;
-        // console.log(`✅ Using existing campaign: ${campaignId}`);
+        console.log(`✅ Using existing campaign: ${campaignId}`);
       } else {
         // console.log("📦 Creating new campaign...");
         const campaignData = new FormData();
@@ -2017,8 +2030,9 @@ export default function CreativeImporterPro(props = {}) {
       // For ABO multi: Create multiple adsets with max Y ads per adset
       // For other modes: Create a single adset here
       let adsetId;
-      const isAbo1x1 = budgetType === "abo" && aboMode === "1:1:1";
-      const isAboMulti = budgetType === "abo" && aboMode === "multi";
+      // Handle ABO modes including "existing" with structure selection
+      const isAbo1x1 = budgetType === "abo" && (aboMode === "1:1:1" || (aboMode === "existing" && aboExistingStructure === "1:1:1"));
+      const isAboMulti = budgetType === "abo" && (aboMode === "multi" || (aboMode === "existing" && aboExistingStructure === "multi"));
 
       // Multi-placement with different feed/story assets uses asset_feed_spec
       // This REQUIRES is_dynamic_creative on the adset
@@ -3859,6 +3873,89 @@ export default function CreativeImporterPro(props = {}) {
                       borderRadius: "10px",
                     }}
                   >
+                    {/* Structure selection for existing campaign */}
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      🏗️ Structure des nouveaux adsets
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+                      <button
+                        onClick={() => setAboExistingStructure("1:1:1")}
+                        style={{
+                          flex: 1,
+                          padding: "10px",
+                          borderRadius: "8px",
+                          border: aboExistingStructure === "1:1:1"
+                            ? "2px solid #22c55e"
+                            : "1px solid rgba(255,255,255,0.1)",
+                          background: aboExistingStructure === "1:1:1"
+                            ? "rgba(34,197,94,0.2)"
+                            : "transparent",
+                          color: "#fff",
+                          cursor: "pointer",
+                          textAlign: "center",
+                        }}
+                      >
+                        <div style={{ fontSize: "13px", fontWeight: "500" }}>1️⃣ Structure 1:1:1</div>
+                        <div style={{ fontSize: "10px", color: "#71717a", marginTop: "2px" }}>
+                          1 adset → 1 ad
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setAboExistingStructure("multi")}
+                        style={{
+                          flex: 1,
+                          padding: "10px",
+                          borderRadius: "8px",
+                          border: aboExistingStructure === "multi"
+                            ? "2px solid #8b5cf6"
+                            : "1px solid rgba(255,255,255,0.1)",
+                          background: aboExistingStructure === "multi"
+                            ? "rgba(139,92,246,0.2)"
+                            : "transparent",
+                          color: "#fff",
+                          cursor: "pointer",
+                          textAlign: "center",
+                        }}
+                      >
+                        <div style={{ fontSize: "13px", fontWeight: "500" }}>📦 Structure Multi</div>
+                        <div style={{ fontSize: "10px", color: "#71717a", marginTop: "2px" }}>
+                          X adsets → Y ads
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Max ads per adset for multi structure */}
+                    {aboExistingStructure === "multi" && (
+                      <div style={{ marginBottom: "16px" }}>
+                        <div style={{ fontSize: "11px", color: "#71717a", marginBottom: "6px" }}>
+                          🎯 Max ads par adset
+                        </div>
+                        <input
+                          type="number"
+                          min="1"
+                          max="50"
+                          value={maxAdsPerAdset}
+                          onChange={(e) => setMaxAdsPerAdset(Math.max(1, parseInt(e.target.value) || 1))}
+                          style={{
+                            width: "80px",
+                            padding: "8px 12px",
+                            borderRadius: "6px",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            background: "rgba(0,0,0,0.3)",
+                            color: "#fff",
+                            fontSize: "14px",
+                            outline: "none",
+                          }}
+                        />
+                      </div>
+                    )}
+
                     <div
                       style={{
                         fontSize: "12px",
