@@ -1879,6 +1879,7 @@ export default function CreativeImporterPro(props = {}) {
         const promotedObject = {
           pixel_id: selectedPixel.id,
           custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
+          conversion_location: "website",
         };
 
         const adsetData = new FormData();
@@ -2112,6 +2113,7 @@ export default function CreativeImporterPro(props = {}) {
         const promotedObject = {
           pixel_id: selectedPixel.id,
           custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
+          conversion_location: "website",
         };
 
 
