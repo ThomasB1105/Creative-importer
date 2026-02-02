@@ -665,7 +665,12 @@ export default function CreativeImporterPro(props = {}) {
       .fetchPixels(selectedAdAccount.id)
       .then((data) => {
         setPixels(data);
-        if (data.length > 0) setSelectedPixel(data[0]);
+        // If sharedPixel is provided (from project settings), use it if it exists in the loaded pixels
+        if (sharedPixel && data.some(p => p.id === sharedPixel.id)) {
+          setSelectedPixel(sharedPixel);
+        } else if (data.length > 0) {
+          setSelectedPixel(data[0]);
+        }
       })
       .catch(() => {})
       .finally(() => setIsLoadingPixels(false));
