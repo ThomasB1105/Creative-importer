@@ -1861,7 +1861,7 @@ export default function CreativeImporterPro(props = {}) {
         if (canUseInstagram) {
           targeting.publisher_platforms = ['facebook', 'instagram', 'audience_network', 'messenger'];
           // Facebook positions: all main placements
-          targeting.facebook_positions = ['feed', 'story', 'instant_article', 'instream_video', 'marketplace', 'video_feeds', 'facebook_reels'];
+          targeting.facebook_positions = ['feed', 'story', 'instant_article', 'instream_video', 'marketplace', 'facebook_reels'];
           // Instagram positions: all main placements
           targeting.instagram_positions = ['stream', 'story', 'explore', 'reels', 'profile_feed'];
           // Audience Network positions
@@ -1870,7 +1870,7 @@ export default function CreativeImporterPro(props = {}) {
           targeting.messenger_positions = ['messenger_home', 'story'];
         } else {
           targeting.publisher_platforms = ['facebook', 'audience_network', 'messenger'];
-          targeting.facebook_positions = ['feed', 'story', 'instant_article', 'instream_video', 'marketplace', 'video_feeds', 'facebook_reels'];
+          targeting.facebook_positions = ['feed', 'story', 'instant_article', 'instream_video', 'marketplace', 'facebook_reels'];
           targeting.audience_network_positions = ['classic', 'rewarded_video'];
           targeting.messenger_positions = ['messenger_home', 'story'];
         }
@@ -2374,7 +2374,7 @@ export default function CreativeImporterPro(props = {}) {
           const feedRule = {
             customization_spec: {
               publisher_platforms: hasInstagramCapability ? ["facebook", "instagram", "audience_network", "messenger"] : ["facebook", "audience_network", "messenger"],
-              facebook_positions: ["feed", "instant_article", "instream_video", "marketplace", "video_feeds"],
+              facebook_positions: ["feed", "instant_article", "instream_video", "marketplace"],
               audience_network_positions: ["classic", "rewarded_video"],
               messenger_positions: ["messenger_home"],
             },
