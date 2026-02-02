@@ -1529,8 +1529,8 @@ export default function CreativeImporterPro(props = {}) {
                 [file.id]: { progress: 20, status: 'uploading' }
               }));
 
-              // Phase 2: Transfer file in chunks (20MB chunks for direct upload)
-              const CHUNK_SIZE = 20 * 1024 * 1024; // 20MB chunks for direct upload
+              // Phase 2: Transfer file in chunks (4MB to fit Vercel's 4.5MB body limit)
+              const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB chunks for proxy
               const fileSize = file.file.size;
               let startOffset = 0;
               let chunkNum = 0;
