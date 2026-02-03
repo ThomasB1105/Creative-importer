@@ -131,28 +131,46 @@ const detectFormat = (w, h) => {
 
 // Extract base name from filename for auto-grouping
 // Examples: "creative1_9x16.mp4" → "creative1", "ad_feed_4x5.jpg" → "ad_feed"
+// Also handles copy suffixes: "4 (1).png" → "4", "video-copy.mp4" → "video"
 const extractBaseName = (filename) => {
   // Remove extension
-  const nameWithoutExt = filename.replace(/\.[^/.]+$/, "");
+  let baseName = filename.replace(/\.[^/.]+$/, "");
 
-  // Patterns to remove (format indicators)
-  const formatPatterns = [
-    /_?(9x16|9:16|916|story|stories|vertical)$/i,
-    /_?(4x5|4:5|45|portrait)$/i,
-    /_?(1x1|1:1|11|square|carre)$/i,
-    /_?(16x9|16:9|169|landscape|horizontal)$/i,
-    /_?(feed|reel|reels)$/i,
+  // Step 1: Remove copy/duplicate suffixes FIRST (these are most common)
+  // Handles: " (1)", " (2)", "(1)", "(2)", "-copy", "_copy", " copy", "-1", "_1", " - Copy", etc.
+  const copySuffixPatterns = [
+    /\s*\(\d+\)$/i,           // " (1)", "(2)", etc.
+    /\s*-\s*copy(\s*\d*)?$/i, // "-copy", "- copy", "-copy 2"
+    /\s*_\s*copy(\s*\d*)?$/i, // "_copy", "_copy2"
+    /\s+copy(\s*\d*)?$/i,     // " copy", " copy 2"
+    /\s*-\s*copie(\s*\d*)?$/i,// "-copie" (French)
+    /\s*_\d+$/,               // "_1", "_2" at the end
+    /\s*-\d+$/,               // "-1", "-2" at the end (but not format ratios)
   ];
 
-  let baseName = nameWithoutExt;
+  for (const pattern of copySuffixPatterns) {
+    baseName = baseName.replace(pattern, "");
+  }
+
+  // Step 2: Remove format indicators
+  // Handles: "_9x16", "_1x1", "_story", "_feed", etc.
+  const formatPatterns = [
+    /[-_\s]*(9x16|9:16|916|story|stories|vertical|reels?)$/i,
+    /[-_\s]*(4x5|4:5|45|portrait)$/i,
+    /[-_\s]*(1x1|1:1|square|carre|carr[ée])$/i,
+    /[-_\s]*(16x9|16:9|169|landscape|horizontal|paysage)$/i,
+    /[-_\s]*(feed)$/i,
+  ];
+
   for (const pattern of formatPatterns) {
     baseName = baseName.replace(pattern, "");
   }
 
-  // Clean up trailing underscores/dashes
-  baseName = baseName.replace(/[-_]+$/, "");
+  // Step 3: Clean up trailing separators and whitespace
+  baseName = baseName.replace(/[-_\s]+$/, "").trim();
 
-  return baseName || nameWithoutExt;
+  // Step 4: Normalize - lowercase for better matching
+  return baseName.toLowerCase() || filename.replace(/\.[^/.]+$/, "").toLowerCase();
 };
 
 const getMediaDimensions = (file) =>
@@ -176,6 +194,144 @@ const getMediaDimensions = (file) =>
       img.src = URL.createObjectURL(file);
     }
   });
+
+// VISUAL MATCHING - Perceptual Hashing for image/video similarity
+// This creates a "fingerprint" of the visual content to match similar creatives
+
+// Generate perceptual hash from an image element
+const getImageFingerprint = (imgElement) => {
+  return new Promise((resolve) => {
+    try {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const size = 16; // 16x16 = 256 bits hash (good balance of speed/accuracy)
+
+      canvas.width = size;
+      canvas.height = size;
+
+      // Draw image scaled down to 16x16
+      ctx.drawImage(imgElement, 0, 0, size, size);
+
+      // Get pixel data
+      const imageData = ctx.getImageData(0, 0, size, size);
+      const pixels = imageData.data;
+
+      // Convert to grayscale values
+      const grayscale = [];
+      for (let i = 0; i < pixels.length; i += 4) {
+        // Luminosity method for grayscale
+        const gray = pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114;
+        grayscale.push(gray);
+      }
+
+      // Calculate average
+      const avg = grayscale.reduce((a, b) => a + b, 0) / grayscale.length;
+
+      // Generate binary hash (1 if pixel > average, 0 otherwise)
+      const hash = grayscale.map(g => g > avg ? "1" : "0").join("");
+
+      resolve(hash);
+    } catch (err) {
+      console.warn("Fingerprint generation failed:", err);
+      resolve(null);
+    }
+  });
+};
+
+// Generate fingerprint from video (extract frame at 1 second or 25%)
+const getVideoFingerprint = (videoFile) => {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.preload = "auto";
+    video.muted = true;
+    video.playsInline = true;
+
+    const url = URL.createObjectURL(videoFile);
+    video.src = url;
+
+    video.addEventListener("loadedmetadata", () => {
+      // Seek to 25% of video or 1 second, whichever is smaller
+      const seekTime = Math.min(video.duration * 0.25, 1);
+      video.currentTime = seekTime;
+    });
+
+    video.addEventListener("seeked", async () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0);
+
+        // Create an image from the canvas to reuse getImageFingerprint
+        const img = new Image();
+        img.onload = async () => {
+          const hash = await getImageFingerprint(img);
+          URL.revokeObjectURL(url);
+          resolve(hash);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          resolve(null);
+        };
+        img.src = canvas.toDataURL();
+      } catch (err) {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      }
+    });
+
+    video.addEventListener("error", () => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    });
+
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      resolve(null);
+    }, 10000);
+  });
+};
+
+// Get fingerprint for any media file (image or video)
+const getMediaFingerprint = async (file) => {
+  if (file.type.startsWith("video/")) {
+    return await getVideoFingerprint(file);
+  } else {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = async () => {
+        const hash = await getImageFingerprint(img);
+        URL.revokeObjectURL(img.src);
+        resolve(hash);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(img.src);
+        resolve(null);
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+};
+
+// Calculate Hamming distance between two hashes (number of different bits)
+const hammingDistance = (hash1, hash2) => {
+  if (!hash1 || !hash2 || hash1.length !== hash2.length) return Infinity;
+  let distance = 0;
+  for (let i = 0; i < hash1.length; i++) {
+    if (hash1[i] !== hash2[i]) distance++;
+  }
+  return distance;
+};
+
+// Check if two hashes are similar enough (threshold = 15% difference for 256 bits = ~38 bits)
+const areSimilarFingerprints = (hash1, hash2, threshold = 0.20) => {
+  if (!hash1 || !hash2) return false;
+  const distance = hammingDistance(hash1, hash2);
+  const maxDistance = hash1.length * threshold;
+  return distance <= maxDistance;
+};
 
 // AUTH HELPERS
 const authHelpers = {
@@ -989,6 +1145,8 @@ export default function CreativeImporterPro(props = {}) {
     for (const file of valid) {
       const dim = await getMediaDimensions(file);
       const format = detectFormat(dim.width, dim.height);
+      // Generate visual fingerprint for auto-matching
+      const fingerprint = await getMediaFingerprint(file);
       processed.push({
         id: Date.now() + "-" + Math.random(),
         name: file.name,
@@ -1000,10 +1158,112 @@ export default function CreativeImporterPro(props = {}) {
         height: dim.height,
         format,
         placement: META_PLACEMENTS[format],
+        fingerprint, // Visual fingerprint for similarity matching
       });
     }
     setUploadedFiles((p) => [...p, ...processed]);
     setIsProcessing(false);
+  };
+
+  // Auto-Match state
+  const [isAutoMatching, setIsAutoMatching] = useState(false);
+
+  // Auto-Match function using VISUAL RECOGNITION (perceptual hashing)
+  // This matches files based on their visual content, not filename
+  const handleAutoMatch = async () => {
+    if (uploadedFiles.length < 2) return;
+
+    setIsAutoMatching(true);
+
+    try {
+      // Separate files by format type
+      const feedFiles = uploadedFiles.filter(f => f.format !== "story"); // 1:1, 4:5, 16:9
+      const storyFiles = uploadedFiles.filter(f => f.format === "story"); // 9:16
+
+      // For files without fingerprints, generate them now
+      for (const file of uploadedFiles) {
+        if (!file.fingerprint && file.file) {
+          file.fingerprint = await getMediaFingerprint(file.file);
+        }
+      }
+
+      const newGroups = [];
+      const usedStoryIds = new Set();
+      let groupIndex = 1;
+
+      // For each feed file, find the most similar story file
+      for (const feedFile of feedFiles) {
+        if (!feedFile.fingerprint) continue;
+
+        let bestMatch = null;
+        let bestDistance = Infinity;
+
+        for (const storyFile of storyFiles) {
+          if (usedStoryIds.has(storyFile.id)) continue;
+          if (!storyFile.fingerprint) continue;
+
+          const distance = hammingDistance(feedFile.fingerprint, storyFile.fingerprint);
+
+          // Check if this is the best match so far
+          if (distance < bestDistance && areSimilarFingerprints(feedFile.fingerprint, storyFile.fingerprint)) {
+            bestDistance = distance;
+            bestMatch = storyFile;
+          }
+        }
+
+        // Create group with feed file (and matched story if found)
+        const displayName = feedFile.name.replace(/\.[^/.]+$/, "").replace(/\s*\(\d+\)$/, "").trim();
+
+        newGroups.push({
+          id: Date.now() + groupIndex,
+          name: displayName || `Ad ${groupIndex}`,
+          feed: feedFile.id,
+          story: bestMatch?.id || null,
+          isAutoMatched: true,
+          isComplete: !!bestMatch,
+          matchConfidence: bestMatch ? Math.round((1 - bestDistance / 256) * 100) : 0,
+        });
+
+        if (bestMatch) {
+          usedStoryIds.add(bestMatch.id);
+        }
+
+        groupIndex++;
+      }
+
+      // Add remaining unmatched story files as their own groups
+      for (const storyFile of storyFiles) {
+        if (usedStoryIds.has(storyFile.id)) continue;
+
+        const displayName = storyFile.name.replace(/\.[^/.]+$/, "").replace(/\s*\(\d+\)$/, "").trim();
+
+        newGroups.push({
+          id: Date.now() + groupIndex,
+          name: displayName || `Ad ${groupIndex}`,
+          feed: null,
+          story: storyFile.id,
+          isAutoMatched: true,
+          isComplete: false,
+          matchConfidence: 0,
+        });
+
+        groupIndex++;
+      }
+
+      // Sort: complete groups first, then by confidence
+      newGroups.sort((a, b) => {
+        if (a.isComplete && !b.isComplete) return -1;
+        if (!a.isComplete && b.isComplete) return 1;
+        return (b.matchConfidence || 0) - (a.matchConfidence || 0);
+      });
+
+      setMultiGroups(newGroups);
+      console.log(`✨ Auto-Match complete: ${newGroups.filter(g => g.isComplete).length} matched pairs, ${newGroups.filter(g => !g.isComplete).length} unmatched`);
+    } catch (err) {
+      console.error("Auto-Match error:", err);
+    } finally {
+      setIsAutoMatching(false);
+    }
   };
 
   // Smart auto-grouping by filename base name
@@ -5692,24 +5952,59 @@ export default function CreativeImporterPro(props = {}) {
                   <span style={{ fontSize: "14px", fontWeight: "600", color: "#fafafa" }}>
                     🎯 Multi-Placement Ads ({multiGroups.length})
                   </span>
-                  <button
-                    onClick={() => setMultiGroups(prev => [...prev, { id: Date.now(), name: `Ad ${prev.length + 1}`, feed: null, story: null }])}
-                    style={{
-                      padding: "8px 16px",
-                      background: "linear-gradient(135deg, #22c55e, #16a34a)",
-                      border: "none",
-                      borderRadius: "8px",
-                      color: "#fff",
-                      fontSize: "13px",
-                      fontWeight: "500",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <span>+</span> Nouveau groupe
-                  </button>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    {/* Auto-Match Button - Visual Recognition */}
+                    <button
+                      onClick={handleAutoMatch}
+                      disabled={isAutoMatching || uploadedFiles.length < 2}
+                      style={{
+                        padding: "8px 16px",
+                        background: isAutoMatching
+                          ? "rgba(99,102,241,0.5)"
+                          : "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                        border: "none",
+                        borderRadius: "8px",
+                        color: "#fff",
+                        fontSize: "13px",
+                        fontWeight: "500",
+                        cursor: isAutoMatching || uploadedFiles.length < 2 ? "not-allowed" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        opacity: uploadedFiles.length < 2 ? 0.5 : 1,
+                      }}
+                      title="Associer automatiquement par reconnaissance visuelle"
+                    >
+                      {isAutoMatching ? (
+                        <>
+                          <span style={{ animation: "spin 1s linear infinite" }}>⏳</span> Analyse...
+                        </>
+                      ) : (
+                        <>
+                          <span>✨</span> Auto-Match
+                        </>
+                      )}
+                    </button>
+                    {/* Manual Group Button */}
+                    <button
+                      onClick={() => setMultiGroups(prev => [...prev, { id: Date.now(), name: `Ad ${prev.length + 1}`, feed: null, story: null }])}
+                      style={{
+                        padding: "8px 16px",
+                        background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                        border: "none",
+                        borderRadius: "8px",
+                        color: "#fff",
+                        fontSize: "13px",
+                        fontWeight: "500",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      <span>+</span> Nouveau groupe
+                    </button>
+                  </div>
                 </div>
 
                 {multiGroups.length === 0 ? (
@@ -5737,18 +6032,37 @@ export default function CreativeImporterPro(props = {}) {
                           border: "1px solid rgba(99,102,241,0.3)",
                         }}>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                            <input
-                              value={group.name}
-                              onChange={(e) => setMultiGroups(prev => prev.map(g => g.id === group.id ? { ...g, name: e.target.value } : g))}
-                              style={{
-                                background: "transparent",
-                                border: "none",
-                                fontSize: "14px",
-                                fontWeight: "600",
-                                color: "#fafafa",
-                                outline: "none",
-                              }}
-                            />
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <input
+                                value={group.name}
+                                onChange={(e) => setMultiGroups(prev => prev.map(g => g.id === group.id ? { ...g, name: e.target.value } : g))}
+                                style={{
+                                  background: "transparent",
+                                  border: "none",
+                                  fontSize: "14px",
+                                  fontWeight: "600",
+                                  color: "#fafafa",
+                                  outline: "none",
+                                }}
+                              />
+                              {/* Match confidence badge */}
+                              {group.isAutoMatched && group.matchConfidence > 0 && (
+                                <span style={{
+                                  padding: "2px 8px",
+                                  borderRadius: "10px",
+                                  fontSize: "10px",
+                                  fontWeight: "600",
+                                  background: group.matchConfidence >= 90 ? "rgba(34,197,94,0.2)" :
+                                             group.matchConfidence >= 70 ? "rgba(234,179,8,0.2)" :
+                                             "rgba(239,68,68,0.2)",
+                                  color: group.matchConfidence >= 90 ? "#22c55e" :
+                                         group.matchConfidence >= 70 ? "#eab308" :
+                                         "#ef4444",
+                                }}>
+                                  {group.matchConfidence}% match
+                                </span>
+                              )}
+                            </div>
                             <button
                               onClick={() => setMultiGroups(prev => prev.filter(g => g.id !== group.id))}
                               style={{
