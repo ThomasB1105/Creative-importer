@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { authHelpers, createMetaApi, GOOGLE_DRIVE_CONFIG } from "./config";
+import { authHelpers, createMetaApi, GOOGLE_DRIVE_CONFIG, STRIPE_CONFIG } from "./config";
 import CreativeImporterPro from "./CreativeImporterPro";
 import MediaBuyerPro from "./MediaBuyerPro";
 
@@ -178,6 +178,92 @@ export default function App() {
   const [googleDriveFolders, setGoogleDriveFolders] = useState([]);
   const [driveFolderPickerOpen, setDriveFolderPickerOpen] = useState(false);
   const [currentDrivePath, setCurrentDrivePath] = useState([{ id: 'root', name: 'Mon Drive' }]);
+
+  // Subscription/Billing state
+  const [subscription, setSubscription] = useState(() => {
+    const saved = localStorage.getItem('user_subscription');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+    return null;
+  });
+
+  // Initialize trial on first visit
+  useEffect(() => {
+    if (!subscription && user) {
+      const trialData = {
+        status: 'trialing',
+        trialStart: new Date().toISOString(),
+        trialEnd: new Date(Date.now() + STRIPE_CONFIG.trialDays * 24 * 60 * 60 * 1000).toISOString(),
+        plan: 'free',
+      };
+      setSubscription(trialData);
+      localStorage.setItem('user_subscription', JSON.stringify(trialData));
+    }
+  }, [user, subscription]);
+
+  // Check subscription status
+  const getSubscriptionStatus = useCallback(() => {
+    if (!subscription) return { status: 'none', daysLeft: 0 };
+
+    if (subscription.status === 'active') {
+      return { status: 'active', plan: 'pro' };
+    }
+
+    if (subscription.status === 'trialing') {
+      const trialEnd = new Date(subscription.trialEnd);
+      const now = new Date();
+      const daysLeft = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)));
+
+      if (daysLeft <= 0) {
+        return { status: 'expired', daysLeft: 0 };
+      }
+      return { status: 'trialing', daysLeft };
+    }
+
+    return { status: 'expired', daysLeft: 0 };
+  }, [subscription]);
+
+  const subscriptionStatus = getSubscriptionStatus();
+
+  // Handle Stripe checkout
+  const handleSubscribe = useCallback(async () => {
+    if (!STRIPE_CONFIG.publishableKey || !STRIPE_CONFIG.priceId) {
+      alert("Stripe n'est pas encore configuré. Contactez l'administrateur.");
+      return;
+    }
+
+    // Load Stripe
+    const stripe = await window.Stripe?.(STRIPE_CONFIG.publishableKey);
+    if (!stripe) {
+      // Load Stripe script dynamically
+      const script = document.createElement('script');
+      script.src = 'https://js.stripe.com/v3/';
+      script.async = true;
+      script.onload = () => handleSubscribe();
+      document.body.appendChild(script);
+      return;
+    }
+
+    // For now, simulate a successful subscription (in production, redirect to Stripe Checkout)
+    // In production, you'd call your backend to create a checkout session
+    const confirmed = window.confirm(
+      `Vous allez être redirigé vers Stripe pour souscrire à l'abonnement Pro à ${STRIPE_CONFIG.price}€/mois.\n\nNote: En mode test, la souscription sera simulée.`
+    );
+
+    if (confirmed) {
+      // Simulate successful subscription for demo
+      const newSubscription = {
+        status: 'active',
+        plan: 'pro',
+        startDate: new Date().toISOString(),
+        currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+      setSubscription(newSubscription);
+      localStorage.setItem('user_subscription', JSON.stringify(newSubscription));
+      alert("Abonnement Pro activé avec succès !");
+    }
+  }, []);
 
   // Load Google Drive token from localStorage OR from URL hash (OAuth redirect)
   useEffect(() => {
@@ -1624,6 +1710,387 @@ export default function App() {
                       SOON
                     </span>
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Billing page
+    if (activeModule === "settings-billing") {
+      const statusColors = {
+        active: { bg: "rgba(34,197,94,0.1)", border: "rgba(34,197,94,0.3)", text: "#22c55e" },
+        trialing: { bg: "rgba(99,102,241,0.1)", border: "rgba(99,102,241,0.3)", text: "#818cf8" },
+        expired: { bg: "rgba(239,68,68,0.1)", border: "rgba(239,68,68,0.3)", text: "#ef4444" },
+        none: { bg: "rgba(113,113,122,0.1)", border: "rgba(113,113,122,0.3)", text: "#71717a" },
+      };
+      const colors = statusColors[subscriptionStatus.status] || statusColors.none;
+
+      return (
+        <div style={{ padding: "40px", maxWidth: "800px", margin: "0 auto" }}>
+          <div style={{ marginBottom: "32px" }}>
+            <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#fafafa", margin: "0 0 8px" }}>
+              Abonnement
+            </h1>
+            <p style={{ fontSize: "14px", color: "#71717a", margin: 0 }}>
+              Gérez votre abonnement et vos informations de paiement
+            </p>
+          </div>
+
+          {/* Current Plan Card */}
+          <div style={{
+            padding: "32px",
+            background: "rgba(15,15,20,0.6)",
+            border: `1px solid ${colors.border}`,
+            borderRadius: "16px",
+            marginBottom: "24px",
+          }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "24px" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
+                  <h2 style={{ fontSize: "24px", fontWeight: "700", color: "#fafafa", margin: 0 }}>
+                    {subscriptionStatus.status === 'active' ? 'Plan Pro' : subscriptionStatus.status === 'trialing' ? 'Essai Gratuit' : 'Aucun Plan'}
+                  </h2>
+                  <span style={{
+                    padding: "4px 12px",
+                    background: colors.bg,
+                    border: `1px solid ${colors.border}`,
+                    borderRadius: "20px",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    color: colors.text,
+                  }}>
+                    {subscriptionStatus.status === 'active' ? '✓ Actif' :
+                     subscriptionStatus.status === 'trialing' ? `${subscriptionStatus.daysLeft}j restants` :
+                     'Expiré'}
+                  </span>
+                </div>
+                <p style={{ fontSize: "14px", color: "#71717a", margin: 0 }}>
+                  {subscriptionStatus.status === 'active'
+                    ? 'Accès complet à toutes les fonctionnalités'
+                    : subscriptionStatus.status === 'trialing'
+                    ? 'Profitez de toutes les fonctionnalités pendant votre essai'
+                    : 'Votre essai est terminé. Passez au Plan Pro pour continuer.'}
+                </p>
+              </div>
+              {subscriptionStatus.status === 'active' && (
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: "32px", fontWeight: "700", color: "#fafafa" }}>
+                    {STRIPE_CONFIG.price}€
+                  </div>
+                  <div style={{ fontSize: "13px", color: "#71717a" }}>par mois</div>
+                </div>
+              )}
+            </div>
+
+            {/* Features list */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: "12px",
+              padding: "20px",
+              background: "rgba(255,255,255,0.02)",
+              borderRadius: "12px",
+              marginBottom: "24px",
+            }}>
+              {[
+                { icon: "📤", text: "Uploads illimités" },
+                { icon: "📁", text: "Projets illimités" },
+                { icon: "🎨", text: "Import Google Drive" },
+                { icon: "⚡", text: "Upload prioritaire" },
+                { icon: "📊", text: "Statistiques avancées" },
+                { icon: "💬", text: "Support prioritaire" },
+              ].map((feature, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ fontSize: "16px" }}>{feature.icon}</span>
+                  <span style={{ fontSize: "13px", color: "#a1a1aa" }}>{feature.text}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Action button */}
+            {subscriptionStatus.status !== 'active' && (
+              <button
+                onClick={handleSubscribe}
+                style={{
+                  width: "100%",
+                  padding: "16px",
+                  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                  border: "none",
+                  borderRadius: "12px",
+                  fontSize: "16px",
+                  fontWeight: "600",
+                  color: "#fff",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  transition: "transform 0.2s, box-shadow 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 8px 24px rgba(99,102,241,0.4)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              >
+                <span>💳</span>
+                Passer au Plan Pro - {STRIPE_CONFIG.price}€/mois
+              </button>
+            )}
+
+            {subscriptionStatus.status === 'active' && (
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                    color: "#a1a1aa",
+                    cursor: "pointer",
+                  }}
+                >
+                  Gérer le paiement
+                </button>
+                <button
+                  onClick={() => {
+                    if (window.confirm("Êtes-vous sûr de vouloir annuler votre abonnement ?")) {
+                      setSubscription({ status: 'cancelled' });
+                      localStorage.setItem('user_subscription', JSON.stringify({ status: 'cancelled' }));
+                    }
+                  }}
+                  style={{
+                    padding: "12px 20px",
+                    background: "transparent",
+                    border: "1px solid rgba(239,68,68,0.3)",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                    color: "#ef4444",
+                    cursor: "pointer",
+                  }}
+                >
+                  Annuler
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Billing info */}
+          <div style={{
+            padding: "24px",
+            background: "rgba(15,15,20,0.4)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: "12px",
+          }}>
+            <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#fafafa", margin: "0 0 16px" }}>
+              Informations de facturation
+            </h3>
+            <div style={{ display: "grid", gap: "16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "13px", color: "#71717a" }}>Email</span>
+                <span style={{ fontSize: "13px", color: "#fafafa" }}>{user?.email || "Non connecté"}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "13px", color: "#71717a" }}>Début de l'essai</span>
+                <span style={{ fontSize: "13px", color: "#fafafa" }}>
+                  {subscription?.trialStart ? new Date(subscription.trialStart).toLocaleDateString('fr-FR') : '-'}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "13px", color: "#71717a" }}>Fin de l'essai</span>
+                <span style={{ fontSize: "13px", color: "#fafafa" }}>
+                  {subscription?.trialEnd ? new Date(subscription.trialEnd).toLocaleDateString('fr-FR') : '-'}
+                </span>
+              </div>
+              {subscription?.status === 'active' && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "13px", color: "#71717a" }}>Prochain paiement</span>
+                  <span style={{ fontSize: "13px", color: "#fafafa" }}>
+                    {subscription.currentPeriodEnd ? new Date(subscription.currentPeriodEnd).toLocaleDateString('fr-FR') : '-'}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* FAQ */}
+          <div style={{ marginTop: "32px" }}>
+            <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#71717a", margin: "0 0 16px" }}>
+              Questions fréquentes
+            </h3>
+            {[
+              { q: "Puis-je annuler à tout moment ?", a: "Oui, vous pouvez annuler votre abonnement à tout moment. Vous conserverez l'accès jusqu'à la fin de la période payée." },
+              { q: "Quels moyens de paiement acceptez-vous ?", a: "Nous acceptons les cartes Visa, Mastercard, American Express et les prélèvements SEPA." },
+              { q: "Y a-t-il un engagement ?", a: "Non, l'abonnement est sans engagement. Vous êtes facturé mensuellement et pouvez arrêter quand vous le souhaitez." },
+            ].map((faq, i) => (
+              <div key={i} style={{
+                padding: "16px",
+                background: "rgba(255,255,255,0.02)",
+                borderRadius: "8px",
+                marginBottom: "8px",
+              }}>
+                <div style={{ fontSize: "13px", fontWeight: "600", color: "#fafafa", marginBottom: "6px" }}>
+                  {faq.q}
+                </div>
+                <div style={{ fontSize: "12px", color: "#71717a", lineHeight: "1.5" }}>
+                  {faq.a}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // Account page
+    if (activeModule === "settings-account") {
+      return (
+        <div style={{ padding: "40px", maxWidth: "900px", margin: "0 auto" }}>
+          <div style={{ marginBottom: "32px" }}>
+            <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#fafafa", margin: "0 0 8px" }}>
+              Account
+            </h1>
+            <p style={{ fontSize: "14px", color: "#71717a", margin: 0 }}>
+              Manage your account settings
+            </p>
+          </div>
+
+          {/* Connected Facebook Accounts */}
+          <div style={{
+            padding: "24px",
+            background: "rgba(15,15,20,0.6)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: "16px",
+            marginBottom: "24px",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{
+                  width: "40px",
+                  height: "40px",
+                  background: "rgba(24,119,242,0.1)",
+                  borderRadius: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "20px",
+                }}>
+                  📘
+                </div>
+                <div>
+                  <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#fafafa", margin: 0 }}>
+                    Connected Facebook Accounts
+                  </h3>
+                  <p style={{ fontSize: "12px", color: "#71717a", margin: "4px 0 0" }}>
+                    Manage your connected Facebook accounts for Meta Ads access
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {user && (
+              <div style={{
+                padding: "16px",
+                background: "rgba(255,255,255,0.03)",
+                borderRadius: "12px",
+                border: "1px solid rgba(255,255,255,0.06)",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "16px" }}>
+                  {user.picture?.data?.url ? (
+                    <img
+                      src={user.picture.data.url}
+                      alt={user.name}
+                      style={{ width: "48px", height: "48px", borderRadius: "12px" }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: "48px",
+                      height: "48px",
+                      borderRadius: "12px",
+                      background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "18px",
+                      fontWeight: "700",
+                      color: "#fff",
+                    }}>
+                      {user.name?.charAt(0) || "U"}
+                    </div>
+                  )}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ fontSize: "15px", fontWeight: "600", color: "#fafafa" }}>{user.name}</span>
+                      <span style={{
+                        padding: "2px 8px",
+                        background: "rgba(34,197,94,0.1)",
+                        border: "1px solid rgba(34,197,94,0.2)",
+                        borderRadius: "10px",
+                        fontSize: "10px",
+                        fontWeight: "600",
+                        color: "#22c55e",
+                      }}>
+                        ✓ Active
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#71717a", marginTop: "2px" }}>{user.email}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "16px", fontSize: "12px", color: "#71717a" }}>
+                  <span>📊 {adAccounts.length} ad accounts synced</span>
+                  <span>•</span>
+                  <span>🕐 Connected</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Account Information */}
+          <div style={{
+            padding: "24px",
+            background: "rgba(15,15,20,0.6)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: "16px",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#fafafa", margin: 0 }}>
+                Account Information
+              </h3>
+              <span style={{ fontSize: "12px", color: "#71717a" }}>Your account details</span>
+            </div>
+
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: "20px",
+            }}>
+              {[
+                { icon: "👤", label: "Full Name", value: user?.name || "-" },
+                { icon: "✉️", label: "Email", value: user?.email || "-" },
+                { icon: "📅", label: "Account Created", value: subscription?.trialStart ? new Date(subscription.trialStart).toLocaleDateString('fr-FR') : "-" },
+                { icon: "💳", label: "Current Plan", value: subscriptionStatus.status === 'active' ? "Pro" : "Free" },
+                { icon: "📊", label: "Billing Status", value: subscriptionStatus.status === 'active' ? "Active" : subscriptionStatus.status === 'trialing' ? `Trial (${subscriptionStatus.daysLeft} days left)` : "Free Plan" },
+              ].map((item, i) => (
+                <div key={i} style={{
+                  padding: "16px",
+                  background: "rgba(255,255,255,0.02)",
+                  borderRadius: "10px",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                    <span style={{ fontSize: "14px" }}>{item.icon}</span>
+                    <span style={{ fontSize: "12px", color: "#71717a" }}>{item.label}</span>
+                  </div>
+                  <div style={{ fontSize: "14px", fontWeight: "500", color: "#fafafa" }}>{item.value}</div>
                 </div>
               ))}
             </div>

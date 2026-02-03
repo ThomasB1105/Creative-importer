@@ -37,6 +37,22 @@ export const GOOGLE_DRIVE_CONFIG = {
   discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
 };
 
+// STRIPE CONFIG
+// Pour configurer Stripe:
+// 1. Créez un compte sur https://stripe.com
+// 2. Allez dans Developers > API keys
+// 3. Copiez la clé publique (pk_live_... ou pk_test_...)
+// 4. Créez un produit avec un prix de 29€/mois dans Products
+// 5. Copiez le Price ID (price_...)
+// 6. Ajoutez REACT_APP_STRIPE_PUBLISHABLE_KEY et REACT_APP_STRIPE_PRICE_ID dans Vercel
+export const STRIPE_CONFIG = {
+  publishableKey: process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || "",
+  priceId: process.env.REACT_APP_STRIPE_PRICE_ID || "",
+  trialDays: 7,
+  price: 29,
+  currency: "EUR",
+};
+
 export const GEO_ZONES = {
   france: { name: "France", code: "FR", flag: "🇫🇷" },
   belgium: { name: "Belgique", code: "BE", flag: "🇧🇪" },
