@@ -2088,6 +2088,161 @@ export default function App() {
       );
     }
 
+    // Ad Configuration page
+    if (activeModule === "settings-ad-config") {
+      return (
+        <div style={{ padding: "40px", maxWidth: "800px", margin: "0 auto" }}>
+          <div style={{ marginBottom: "32px" }}>
+            <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#fafafa", margin: "0 0 8px" }}>
+              Configuration des Ads
+            </h1>
+            <p style={{ fontSize: "14px", color: "#71717a", margin: 0 }}>
+              Paramètres par défaut pour vos campagnes publicitaires
+            </p>
+          </div>
+
+          <div style={{
+            padding: "24px",
+            background: "rgba(15,15,20,0.6)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: "16px",
+            marginBottom: "20px",
+          }}>
+            <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#fafafa", margin: "0 0 20px" }}>
+              Paramètres généraux
+            </h3>
+            <div style={{ display: "grid", gap: "16px" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "13px", color: "#a1a1aa", marginBottom: "8px" }}>
+                  Budget par défaut (€)
+                </label>
+                <input
+                  type="number"
+                  defaultValue="50"
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "8px",
+                    color: "#fafafa",
+                    fontSize: "14px",
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "13px", color: "#a1a1aa", marginBottom: "8px" }}>
+                  Stratégie d'enchères par défaut
+                </label>
+                <select
+                  defaultValue="LOWEST_COST_WITHOUT_CAP"
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "8px",
+                    color: "#fafafa",
+                    fontSize: "14px",
+                  }}
+                >
+                  <option value="LOWEST_COST_WITHOUT_CAP">Coût le plus bas</option>
+                  <option value="COST_CAP">Plafond de coût</option>
+                  <option value="BID_CAP">Plafond d'enchère</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div style={{
+            padding: "24px",
+            background: "rgba(15,15,20,0.6)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: "16px",
+          }}>
+            <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#fafafa", margin: "0 0 20px" }}>
+              Placements par défaut
+            </h3>
+            <div style={{ display: "grid", gap: "12px" }}>
+              {[
+                { id: "feed", label: "Facebook Feed", checked: true },
+                { id: "stories", label: "Facebook & Instagram Stories", checked: true },
+                { id: "reels", label: "Reels", checked: true },
+                { id: "instagram", label: "Instagram Feed", checked: true },
+                { id: "audience", label: "Audience Network", checked: false },
+              ].map((placement) => (
+                <label key={placement.id} style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "12px",
+                  background: "rgba(255,255,255,0.02)",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                }}>
+                  <input
+                    type="checkbox"
+                    defaultChecked={placement.checked}
+                    style={{ width: "18px", height: "18px", accentColor: "#6366f1" }}
+                  />
+                  <span style={{ fontSize: "14px", color: "#fafafa" }}>{placement.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <button
+            style={{
+              width: "100%",
+              marginTop: "24px",
+              padding: "14px",
+              background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+              border: "none",
+              borderRadius: "10px",
+              fontSize: "14px",
+              fontWeight: "600",
+              color: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            Sauvegarder les paramètres
+          </button>
+        </div>
+      );
+    }
+
+    // History page
+    if (activeModule === "settings-history") {
+      return (
+        <div style={{ padding: "40px", maxWidth: "1000px", margin: "0 auto" }}>
+          <div style={{ marginBottom: "32px" }}>
+            <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#fafafa", margin: "0 0 8px" }}>
+              Historique
+            </h1>
+            <p style={{ fontSize: "14px", color: "#71717a", margin: 0 }}>
+              Historique de vos uploads et campagnes créées
+            </p>
+          </div>
+
+          <div style={{
+            padding: "40px",
+            background: "rgba(15,15,20,0.4)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            borderRadius: "16px",
+            textAlign: "center",
+          }}>
+            <div style={{ fontSize: "48px", marginBottom: "16px" }}>📜</div>
+            <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#fafafa", margin: "0 0 8px" }}>
+              Aucun historique
+            </h3>
+            <p style={{ fontSize: "14px", color: "#71717a", margin: 0 }}>
+              Votre historique d'uploads apparaîtra ici une fois que vous aurez créé des campagnes.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     // Welcome/Dashboard view
     return (
       <div style={styles.welcomeContainer}>
