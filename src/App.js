@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { authHelpers, createMetaApi } from "./config";
+import { useState, useEffect, useCallback } from "react";
+import { authHelpers, createMetaApi, GOOGLE_DRIVE_CONFIG } from "./config";
 import CreativeImporterPro from "./CreativeImporterPro";
 import MediaBuyerPro from "./MediaBuyerPro";
 
@@ -170,6 +170,142 @@ export default function App() {
   const [projectSelectorOpen, setProjectSelectorOpen] = useState(false);
   const [showProjectSettings, setShowProjectSettings] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
+
+  // Google Drive state
+  const [googleDriveToken, setGoogleDriveToken] = useState(null);
+  const [googleDriveUser, setGoogleDriveUser] = useState(null);
+  const [isGoogleDriveLoading, setIsGoogleDriveLoading] = useState(false);
+  const [googleDriveFolders, setGoogleDriveFolders] = useState([]);
+  const [driveFolderPickerOpen, setDriveFolderPickerOpen] = useState(false);
+  const [currentDrivePath, setCurrentDrivePath] = useState([{ id: 'root', name: 'Mon Drive' }]);
+
+  // Load Google Drive token from localStorage
+  useEffect(() => {
+    const savedGoogleToken = localStorage.getItem('google_drive_token');
+    const savedGoogleUser = localStorage.getItem('google_drive_user');
+    if (savedGoogleToken) {
+      setGoogleDriveToken(savedGoogleToken);
+      if (savedGoogleUser) {
+        setGoogleDriveUser(JSON.parse(savedGoogleUser));
+      }
+    }
+  }, []);
+
+  // Google Drive OAuth handler
+  const handleGoogleDriveConnect = useCallback(() => {
+    if (!GOOGLE_DRIVE_CONFIG.clientId) {
+      alert("Google Drive n'est pas configuré. Ajoutez REACT_APP_GOOGLE_CLIENT_ID dans les variables d'environnement.");
+      return;
+    }
+
+    setIsGoogleDriveLoading(true);
+
+    // Load Google API
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      // eslint-disable-next-line no-undef
+      const client = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_DRIVE_CONFIG.clientId,
+        scope: GOOGLE_DRIVE_CONFIG.scopes,
+        callback: async (response) => {
+          if (response.access_token) {
+            setGoogleDriveToken(response.access_token);
+            localStorage.setItem('google_drive_token', response.access_token);
+
+            // Fetch user info
+            try {
+              const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                headers: { Authorization: `Bearer ${response.access_token}` }
+              });
+              const userData = await userRes.json();
+              setGoogleDriveUser(userData);
+              localStorage.setItem('google_drive_user', JSON.stringify(userData));
+            } catch (err) {
+              console.error('Error fetching Google user:', err);
+            }
+          }
+          setIsGoogleDriveLoading(false);
+        },
+        error_callback: (error) => {
+          console.error('Google OAuth error:', error);
+          setIsGoogleDriveLoading(false);
+        }
+      });
+      client.requestAccessToken();
+    };
+    document.body.appendChild(script);
+  }, []);
+
+  // Disconnect Google Drive
+  const handleGoogleDriveDisconnect = useCallback(() => {
+    setGoogleDriveToken(null);
+    setGoogleDriveUser(null);
+    setGoogleDriveFolders([]);
+    localStorage.removeItem('google_drive_token');
+    localStorage.removeItem('google_drive_user');
+  }, []);
+
+  // Fetch Google Drive folders
+  const fetchDriveFolders = useCallback(async (folderId = 'root') => {
+    if (!googleDriveToken) return;
+
+    setIsGoogleDriveLoading(true);
+    try {
+      const query = folderId === 'root'
+        ? "'root' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        : `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType)&orderBy=name`,
+        { headers: { Authorization: `Bearer ${googleDriveToken}` } }
+      );
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          handleGoogleDriveDisconnect();
+          return;
+        }
+        throw new Error('Failed to fetch folders');
+      }
+
+      const data = await res.json();
+      setGoogleDriveFolders(data.files || []);
+    } catch (err) {
+      console.error('Error fetching Drive folders:', err);
+    } finally {
+      setIsGoogleDriveLoading(false);
+    }
+  }, [googleDriveToken, handleGoogleDriveDisconnect]);
+
+  // Fetch files from a Drive folder (images and videos)
+  const fetchDriveFiles = useCallback(async (folderId) => {
+    if (!googleDriveToken) return [];
+
+    try {
+      const mimeTypes = [
+        "image/jpeg", "image/png", "image/gif", "image/webp",
+        "video/mp4", "video/quicktime", "video/x-msvideo", "video/webm"
+      ].map(m => `mimeType='${m}'`).join(' or ');
+
+      const query = `'${folderId}' in parents and (${mimeTypes}) and trashed=false`;
+
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,thumbnailLink,webContentLink)&orderBy=name`,
+        { headers: { Authorization: `Bearer ${googleDriveToken}` } }
+      );
+
+      if (!res.ok) throw new Error('Failed to fetch files');
+
+      const data = await res.json();
+      return data.files || [];
+    } catch (err) {
+      console.error('Error fetching Drive files:', err);
+      return [];
+    }
+  }, [googleDriveToken]);
 
   // Load projects from localStorage on mount
   useEffect(() => {
@@ -1220,7 +1356,7 @@ export default function App() {
       );
     }
 
-    if (activeModule === "integrations") {
+    if (activeModule === "integrations" || activeModule === "settings-integrations") {
       const integrations = [
         {
           id: "meta",
@@ -1230,24 +1366,22 @@ export default function App() {
           color: "#1877f2",
           bgColor: "rgba(24,119,242,0.12)",
           connected: !!accessToken,
+          available: true,
+          user: user?.name,
         },
         {
           id: "google-drive",
           name: "Google Drive",
-          description: "Import creative assets from Google Drive",
+          description: "Import creative assets from Google Drive folders",
           abbrev: "GD",
           color: "#34a853",
           bgColor: "rgba(52,168,83,0.12)",
-          connected: false,
-        },
-        {
-          id: "frame-io",
-          name: "Frame.io",
-          description: "Import video assets from Frame.io projects",
-          abbrev: "FR",
-          color: "#8b5cf6",
-          bgColor: "rgba(139,92,246,0.12)",
-          connected: false,
+          connected: !!googleDriveToken,
+          available: true,
+          user: googleDriveUser?.email,
+          onConnect: handleGoogleDriveConnect,
+          onDisconnect: handleGoogleDriveDisconnect,
+          loading: isGoogleDriveLoading,
         },
         {
           id: "dropbox",
@@ -1257,15 +1391,17 @@ export default function App() {
           color: "#0061fe",
           bgColor: "rgba(0,97,254,0.12)",
           connected: false,
+          available: false,
         },
         {
-          id: "discord",
-          name: "Discord",
-          description: "Receive upload notifications in Discord channels",
-          abbrev: "DC",
-          color: "#5865f2",
-          bgColor: "rgba(88,101,242,0.12)",
+          id: "frame-io",
+          name: "Frame.io",
+          description: "Import video assets from Frame.io projects",
+          abbrev: "FR",
+          color: "#8b5cf6",
+          bgColor: "rgba(139,92,246,0.12)",
           connected: false,
+          available: false,
         },
         {
           id: "slack",
@@ -1275,6 +1411,17 @@ export default function App() {
           color: "#e01e5a",
           bgColor: "rgba(224,30,90,0.12)",
           connected: false,
+          available: false,
+        },
+        {
+          id: "discord",
+          name: "Discord",
+          description: "Receive upload notifications in Discord channels",
+          abbrev: "DC",
+          color: "#5865f2",
+          bgColor: "rgba(88,101,242,0.12)",
+          connected: false,
+          available: false,
         },
       ];
 
@@ -1282,99 +1429,190 @@ export default function App() {
         <div style={{ padding: "40px", maxWidth: "1200px", margin: "0 auto" }}>
           <div style={{ marginBottom: "32px" }}>
             <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#fafafa", margin: "0 0 8px" }}>
-              Integrations
+              Intégrations
             </h1>
             <p style={{ fontSize: "14px", color: "#71717a", margin: 0 }}>
-              Connect your tools and services
+              Connectez vos outils et services pour optimiser votre workflow
             </p>
           </div>
 
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-            gap: "20px",
-          }}>
-            {integrations.map((integration) => (
-              <div
-                key={integration.id}
-                style={{
-                  padding: "24px",
-                  background: "rgba(15,15,20,0.6)",
-                  border: "1px solid rgba(255,255,255,0.06)",
-                  borderRadius: "12px",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", marginBottom: "16px" }}>
-                  <div style={{
-                    width: "48px",
-                    height: "48px",
-                    background: integration.bgColor,
+          {/* Available integrations */}
+          <div style={{ marginBottom: "32px" }}>
+            <h2 style={{ fontSize: "16px", fontWeight: "600", color: "#a5b4fc", marginBottom: "16px" }}>
+              Disponibles
+            </h2>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
+              gap: "20px",
+            }}>
+              {integrations.filter(i => i.available).map((integration) => (
+                <div
+                  key={integration.id}
+                  style={{
+                    padding: "24px",
+                    background: integration.connected ? "rgba(34,197,94,0.05)" : "rgba(15,15,20,0.6)",
+                    border: integration.connected ? "1px solid rgba(34,197,94,0.2)" : "1px solid rgba(255,255,255,0.06)",
                     borderRadius: "12px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "16px",
-                    fontWeight: "700",
-                    color: integration.color,
-                    flexShrink: 0,
-                  }}>
-                    {integration.abbrev}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#fafafa", margin: "0 0 4px" }}>
-                      {integration.name}
-                    </h3>
-                    <p style={{ fontSize: "13px", color: "#71717a", margin: 0, lineHeight: "1.5" }}>
-                      {integration.description}
-                    </p>
-                  </div>
-                </div>
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                  {integration.connected ? (
-                    <span style={{
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", marginBottom: "16px" }}>
+                    <div style={{
+                      width: "48px",
+                      height: "48px",
+                      background: integration.bgColor,
+                      borderRadius: "12px",
                       display: "flex",
                       alignItems: "center",
-                      gap: "6px",
-                      padding: "6px 12px",
-                      background: "rgba(34,197,94,0.1)",
-                      border: "1px solid rgba(34,197,94,0.2)",
-                      borderRadius: "6px",
-                      fontSize: "12px",
-                      fontWeight: "500",
-                      color: "#22c55e",
+                      justifyContent: "center",
+                      fontSize: "16px",
+                      fontWeight: "700",
+                      color: integration.color,
+                      flexShrink: 0,
                     }}>
-                      <span style={{ width: "6px", height: "6px", background: "#22c55e", borderRadius: "50%" }}></span>
-                      Connected
-                    </span>
-                  ) : (
-                    <button
-                      style={{
-                        padding: "8px 16px",
-                        background: "transparent",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        borderRadius: "6px",
-                        fontSize: "12px",
-                        fontWeight: "500",
-                        color: "#a1a1aa",
-                        cursor: "pointer",
-                        transition: "all 0.15s ease",
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)";
-                        e.currentTarget.style.color = "#fafafa";
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
-                        e.currentTarget.style.color = "#a1a1aa";
-                      }}
-                    >
-                      Connect
-                    </button>
-                  )}
+                      {integration.abbrev}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#fafafa", margin: "0 0 4px" }}>
+                        {integration.name}
+                      </h3>
+                      <p style={{ fontSize: "13px", color: "#71717a", margin: 0, lineHeight: "1.5" }}>
+                        {integration.description}
+                      </p>
+                      {integration.connected && integration.user && (
+                        <p style={{ fontSize: "12px", color: "#22c55e", margin: "8px 0 0", display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span style={{ width: "6px", height: "6px", background: "#22c55e", borderRadius: "50%" }}></span>
+                          Connecté: {integration.user}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                    {integration.connected ? (
+                      <>
+                        <span style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "6px 12px",
+                          background: "rgba(34,197,94,0.1)",
+                          border: "1px solid rgba(34,197,94,0.2)",
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          fontWeight: "500",
+                          color: "#22c55e",
+                        }}>
+                          <span style={{ width: "6px", height: "6px", background: "#22c55e", borderRadius: "50%" }}></span>
+                          Connecté
+                        </span>
+                        {integration.onDisconnect && (
+                          <button
+                            onClick={integration.onDisconnect}
+                            style={{
+                              padding: "6px 12px",
+                              background: "transparent",
+                              border: "1px solid rgba(239,68,68,0.3)",
+                              borderRadius: "6px",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                              color: "#ef4444",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Déconnecter
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <button
+                        onClick={integration.onConnect}
+                        disabled={integration.loading}
+                        style={{
+                          padding: "8px 16px",
+                          background: integration.loading ? "rgba(255,255,255,0.05)" : `${integration.color}20`,
+                          border: `1px solid ${integration.color}40`,
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          fontWeight: "500",
+                          color: integration.color,
+                          cursor: integration.loading ? "wait" : "pointer",
+                          transition: "all 0.15s ease",
+                          opacity: integration.loading ? 0.7 : 1,
+                        }}
+                      >
+                        {integration.loading ? "Connexion..." : "Connecter"}
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+
+          {/* Coming soon integrations */}
+          <div>
+            <h2 style={{ fontSize: "16px", fontWeight: "600", color: "#71717a", marginBottom: "16px" }}>
+              Bientôt disponibles
+            </h2>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))",
+              gap: "20px",
+            }}>
+              {integrations.filter(i => !i.available).map((integration) => (
+                <div
+                  key={integration.id}
+                  style={{
+                    padding: "24px",
+                    background: "rgba(15,15,20,0.4)",
+                    border: "1px solid rgba(255,255,255,0.04)",
+                    borderRadius: "12px",
+                    opacity: 0.7,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "16px", marginBottom: "16px" }}>
+                    <div style={{
+                      width: "48px",
+                      height: "48px",
+                      background: integration.bgColor,
+                      borderRadius: "12px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "16px",
+                      fontWeight: "700",
+                      color: integration.color,
+                      flexShrink: 0,
+                      filter: "grayscale(30%)",
+                    }}>
+                      {integration.abbrev}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#a1a1aa", margin: "0 0 4px" }}>
+                        {integration.name}
+                      </h3>
+                      <p style={{ fontSize: "13px", color: "#52525b", margin: 0, lineHeight: "1.5" }}>
+                        {integration.description}
+                      </p>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <span style={{
+                      padding: "6px 12px",
+                      background: "rgba(251,146,60,0.1)",
+                      border: "1px solid rgba(251,146,60,0.2)",
+                      borderRadius: "6px",
+                      fontSize: "11px",
+                      fontWeight: "600",
+                      color: "#fb923c",
+                    }}>
+                      SOON
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       );
@@ -2031,6 +2269,11 @@ export default function App() {
               instagramAccounts={instagramAccounts}
               selectedAdAccount={selectedAdAccount}
               accessToken={accessToken}
+              googleDriveToken={googleDriveToken}
+              googleDriveUser={googleDriveUser}
+              fetchDriveFolders={fetchDriveFolders}
+              googleDriveFolders={googleDriveFolders}
+              isGoogleDriveLoading={isGoogleDriveLoading}
               onSave={(data) => {
                 if (editingProject) {
                   updateProject(editingProject.id, data);
@@ -2058,13 +2301,19 @@ export default function App() {
 }
 
 // Project Settings Form Component
-function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAccounts, selectedAdAccount, accessToken, onSave, onDelete, onCancel }) {
+function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAccounts, selectedAdAccount, accessToken, googleDriveToken, googleDriveUser, fetchDriveFolders, googleDriveFolders, isGoogleDriveLoading, onSave, onDelete, onCancel }) {
   const [name, setName] = useState(project?.name || "");
   const [adAccountId, setAdAccountId] = useState(project?.adAccountId || selectedAdAccount?.id || "");
   const [pageId, setPageId] = useState(project?.pageId || "");
   const [instagramAccountId, setInstagramAccountId] = useState(project?.instagramAccountId || "");
   const [usePageForInstagram, setUsePageForInstagram] = useState(project?.usePageForInstagram ?? true);
   const [pixelId, setPixelId] = useState(project?.pixelId || "");
+
+  // Google Drive folder selection
+  const [driveFolderId, setDriveFolderId] = useState(project?.driveFolderId || "");
+  const [driveFolderName, setDriveFolderName] = useState(project?.driveFolderName || "");
+  const [showDrivePicker, setShowDrivePicker] = useState(false);
+  const [drivePath, setDrivePath] = useState([{ id: 'root', name: 'Mon Drive' }]);
 
   const selectedPage = pages.find(p => p.id === pageId);
 
@@ -2114,6 +2363,8 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAcco
       usePageForInstagram,
       pixelId,
       pixelName: selectedPx?.name || "",
+      driveFolderId,
+      driveFolderName,
     });
   };
 
@@ -2258,30 +2509,207 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAcco
         <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
           {/* Google Drive */}
           <div style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
             padding: "12px",
-            background: "#27272a",
+            background: googleDriveToken ? "rgba(52,168,83,0.1)" : "#27272a",
+            border: googleDriveToken ? "1px solid rgba(52,168,83,0.2)" : "1px solid transparent",
             borderRadius: "8px",
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <span style={{ fontSize: "18px" }}>📁</span>
-              <div>
-                <div style={{ fontSize: "13px", fontWeight: "500", color: "#fafafa" }}>Google Drive</div>
-                <div style={{ fontSize: "11px", color: "#71717a" }}>Sync des créatives</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: driveFolderId ? "12px" : 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "18px" }}>📁</span>
+                <div>
+                  <div style={{ fontSize: "13px", fontWeight: "500", color: "#fafafa" }}>Google Drive</div>
+                  <div style={{ fontSize: "11px", color: googleDriveToken ? "#34a853" : "#71717a" }}>
+                    {googleDriveToken ? `Connecté: ${googleDriveUser?.email || ""}` : "Non connecté"}
+                  </div>
+                </div>
               </div>
+              {googleDriveToken ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDrivePicker(true);
+                    fetchDriveFolders('root');
+                    setDrivePath([{ id: 'root', name: 'Mon Drive' }]);
+                  }}
+                  style={{
+                    padding: "6px 12px",
+                    background: "rgba(52,168,83,0.2)",
+                    border: "1px solid rgba(52,168,83,0.3)",
+                    borderRadius: "6px",
+                    fontSize: "11px",
+                    fontWeight: "500",
+                    color: "#34a853",
+                    cursor: "pointer",
+                  }}
+                >
+                  {driveFolderId ? "Changer de dossier" : "Sélectionner un dossier"}
+                </button>
+              ) : (
+                <span style={{
+                  padding: "4px 8px",
+                  borderRadius: "4px",
+                  fontSize: "10px",
+                  fontWeight: "600",
+                  background: "rgba(113,113,122,0.2)",
+                  color: "#71717a",
+                }}>
+                  Connectez Drive dans Intégrations
+                </span>
+              )}
             </div>
-            <span style={{
-              padding: "4px 8px",
-              borderRadius: "4px",
-              fontSize: "10px",
-              fontWeight: "600",
-              background: "rgba(251,146,60,0.2)",
-              color: "#fb923c",
-            }}>
-              SOON
-            </span>
+
+            {/* Selected folder display */}
+            {driveFolderId && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 12px",
+                background: "rgba(52,168,83,0.15)",
+                borderRadius: "6px",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "14px" }}>📂</span>
+                  <span style={{ fontSize: "12px", color: "#fafafa" }}>{driveFolderName}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDriveFolderId("");
+                    setDriveFolderName("");
+                  }}
+                  style={{
+                    padding: "4px 8px",
+                    background: "transparent",
+                    border: "none",
+                    fontSize: "11px",
+                    color: "#ef4444",
+                    cursor: "pointer",
+                  }}
+                >
+                  ✕ Retirer
+                </button>
+              </div>
+            )}
+
+            {/* Drive folder picker modal */}
+            {showDrivePicker && (
+              <div style={{
+                marginTop: "12px",
+                padding: "12px",
+                background: "#1f1f23",
+                borderRadius: "8px",
+                border: "1px solid rgba(255,255,255,0.1)",
+              }}>
+                {/* Breadcrumb */}
+                <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "12px", flexWrap: "wrap" }}>
+                  {drivePath.map((item, index) => (
+                    <span key={item.id} style={{ display: "flex", alignItems: "center" }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newPath = drivePath.slice(0, index + 1);
+                          setDrivePath(newPath);
+                          fetchDriveFolders(item.id);
+                        }}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: index === drivePath.length - 1 ? "#fafafa" : "#71717a",
+                          fontSize: "12px",
+                          cursor: "pointer",
+                          padding: "2px 4px",
+                        }}
+                      >
+                        {item.name}
+                      </button>
+                      {index < drivePath.length - 1 && <span style={{ color: "#52525b", fontSize: "12px" }}>/</span>}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Folder list */}
+                <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+                  {isGoogleDriveLoading ? (
+                    <div style={{ textAlign: "center", padding: "20px", color: "#71717a", fontSize: "12px" }}>
+                      Chargement...
+                    </div>
+                  ) : googleDriveFolders.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "20px", color: "#71717a", fontSize: "12px" }}>
+                      Aucun sous-dossier
+                    </div>
+                  ) : (
+                    googleDriveFolders.map(folder => (
+                      <div
+                        key={folder.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "8px 10px",
+                          marginBottom: "4px",
+                          background: "rgba(255,255,255,0.03)",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                        }}
+                        onClick={() => {
+                          setDrivePath([...drivePath, { id: folder.id, name: folder.name }]);
+                          fetchDriveFolders(folder.id);
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontSize: "14px" }}>📁</span>
+                          <span style={{ fontSize: "12px", color: "#fafafa" }}>{folder.name}</span>
+                        </div>
+                        <span style={{ color: "#52525b", fontSize: "12px" }}>→</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const currentFolder = drivePath[drivePath.length - 1];
+                      setDriveFolderId(currentFolder.id);
+                      setDriveFolderName(drivePath.map(p => p.name).join(' / '));
+                      setShowDrivePicker(false);
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: "8px",
+                      background: "linear-gradient(135deg, #34a853, #2d8f47)",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontWeight: "500",
+                      color: "#fff",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Sélectionner ce dossier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowDrivePicker(false)}
+                    style={{
+                      padding: "8px 16px",
+                      background: "transparent",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      color: "#71717a",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Dropbox */}
@@ -2292,6 +2720,7 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAcco
             padding: "12px",
             background: "#27272a",
             borderRadius: "8px",
+            opacity: 0.6,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <span style={{ fontSize: "18px" }}>📦</span>
@@ -2320,6 +2749,7 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAcco
             padding: "12px",
             background: "#27272a",
             borderRadius: "8px",
+            opacity: 0.6,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <span style={{ fontSize: "18px" }}>💬</span>

@@ -11,6 +11,25 @@ export const META_APP = {
   redirectUri: window.location.origin + window.location.pathname,
 };
 
+// GOOGLE DRIVE CONFIG
+// Pour configurer Google Drive:
+// 1. Allez sur https://console.cloud.google.com/apis/credentials
+// 2. Créez un projet ou utilisez un existant
+// 3. Activez "Google Drive API" dans la bibliothèque d'APIs
+// 4. Créez des identifiants OAuth 2.0 (Application Web)
+// 5. Ajoutez les origines JavaScript autorisées (votre domaine)
+// 6. Ajoutez les URIs de redirection autorisés
+// 7. Configurez REACT_APP_GOOGLE_CLIENT_ID dans Vercel
+export const GOOGLE_DRIVE_CONFIG = {
+  clientId: process.env.REACT_APP_GOOGLE_CLIENT_ID || "",
+  apiKey: process.env.REACT_APP_GOOGLE_API_KEY || "",
+  scopes: [
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/drive.metadata.readonly",
+  ].join(" "),
+  discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
+};
+
 export const GEO_ZONES = {
   france: { name: "France", code: "FR", flag: "🇫🇷" },
   belgium: { name: "Belgique", code: "BE", flag: "🇧🇪" },
