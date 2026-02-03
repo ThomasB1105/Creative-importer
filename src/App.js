@@ -1339,6 +1339,10 @@ export default function App() {
           sharedPixel={selectedPixel}
           sharedInstagramAccountId={igId}
           usePageForInstagram={selectedProject?.usePageForInstagram ?? true}
+          googleDriveToken={googleDriveToken}
+          projectDriveFolderId={selectedProject?.driveFolderId}
+          projectDriveFolderName={selectedProject?.driveFolderName}
+          fetchDriveFiles={fetchDriveFiles}
         />
       );
     }

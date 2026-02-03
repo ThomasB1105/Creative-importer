@@ -409,6 +409,11 @@ export default function CreativeImporterPro(props = {}) {
     sharedPixel = null,
     sharedInstagramAccountId = null,
     usePageForInstagram = true, // If true, use FB Page ID for Instagram placements
+    // Google Drive props
+    googleDriveToken = null,
+    projectDriveFolderId = null,
+    projectDriveFolderName = null,
+    fetchDriveFiles = null,
   } = props;
 
   // Determine if we have all required shared selections
@@ -512,6 +517,100 @@ export default function CreativeImporterPro(props = {}) {
       setScheduleStartDate(getTomorrowDate());
       setScheduleStartTime("00:01");
     }
+  };
+
+  // Google Drive file picker state
+  const [showDriveFilePicker, setShowDriveFilePicker] = useState(false);
+  const [driveFiles, setDriveFiles] = useState([]);
+  const [selectedDriveFiles, setSelectedDriveFiles] = useState([]);
+  const [isDriveLoading, setIsDriveLoading] = useState(false);
+  const [driveImportProgress, setDriveImportProgress] = useState(null);
+
+  // Load files from project's Drive folder
+  const loadDriveFiles = async () => {
+    if (!fetchDriveFiles || !projectDriveFolderId) return;
+
+    setIsDriveLoading(true);
+    try {
+      const files = await fetchDriveFiles(projectDriveFolderId);
+      setDriveFiles(files);
+    } catch (err) {
+      console.error("Error loading Drive files:", err);
+    } finally {
+      setIsDriveLoading(false);
+    }
+  };
+
+  // Import selected files from Drive
+  const importFromDrive = async () => {
+    if (selectedDriveFiles.length === 0) return;
+
+    setDriveImportProgress({ current: 0, total: selectedDriveFiles.length });
+    const newFiles = [];
+
+    for (let i = 0; i < selectedDriveFiles.length; i++) {
+      const driveFile = selectedDriveFiles[i];
+      setDriveImportProgress({ current: i + 1, total: selectedDriveFiles.length });
+
+      try {
+        // Download file from Google Drive
+        const response = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${driveFile.id}?alt=media`,
+          { headers: { Authorization: `Bearer ${googleDriveToken}` } }
+        );
+
+        if (!response.ok) throw new Error(`Failed to download ${driveFile.name}`);
+
+        const blob = await response.blob();
+        const file = new File([blob], driveFile.name, { type: driveFile.mimeType });
+
+        // Detect format from dimensions
+        const isVideo = driveFile.mimeType.startsWith("video/");
+        let format = "feed_square";
+
+        if (isVideo) {
+          // For videos, try to detect aspect ratio from thumbnail or default to story
+          format = "story"; // Default to story for videos
+        } else {
+          // For images, create image to get dimensions
+          const img = new Image();
+          const url = URL.createObjectURL(blob);
+          await new Promise((resolve) => {
+            img.onload = () => {
+              const ratio = img.width / img.height;
+              if (ratio > 1.7) format = "feed_landscape";
+              else if (ratio < 0.6) format = "story";
+              else if (ratio < 0.9) format = "feed_portrait";
+              else format = "feed_square";
+              URL.revokeObjectURL(url);
+              resolve();
+            };
+            img.onerror = resolve;
+            img.src = url;
+          });
+        }
+
+        newFiles.push({
+          id: `drive-${driveFile.id}-${Date.now()}`,
+          file: file,
+          name: driveFile.name,
+          type: isVideo ? "video" : "image",
+          format: format,
+          preview: driveFile.thumbnailLink || URL.createObjectURL(blob),
+          size: blob.size,
+          adName: driveFile.name.replace(/\.[^/.]+$/, ""),
+          source: "google-drive",
+        });
+      } catch (err) {
+        console.error(`Error importing ${driveFile.name}:`, err);
+      }
+    }
+
+    // Add to uploaded files
+    setUploadedFiles(prev => [...prev, ...newFiles]);
+    setShowDriveFilePicker(false);
+    setSelectedDriveFiles([]);
+    setDriveImportProgress(null);
   };
 
   // Nomenclature templates with dynamic fields
@@ -5321,34 +5420,68 @@ export default function CreativeImporterPro(props = {}) {
                         fontWeight: "600",
                       }}>Bientôt</span>
                     </button>
-                    <button disabled style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      padding: "12px 24px",
-                      background: "rgba(255,255,255,0.08)",
-                      borderRadius: "10px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#52525b",
-                      cursor: "not-allowed",
-                      position: "relative",
-                    }}>
-                      <span style={{ filter: "grayscale(1)" }}>🔷</span> Google Drive
-                      <span style={{
-                        position: "absolute",
-                        top: "-8px",
-                        right: "-8px",
-                        fontSize: "10px",
-                        padding: "2px 8px",
-                        background: "#1f2937",
-                        border: "1px solid rgba(251,146,60,0.3)",
-                        color: "#fb923c",
-                        borderRadius: "6px",
-                        fontWeight: "600",
-                      }}>Bientôt</span>
-                    </button>
+                    {googleDriveToken && projectDriveFolderId ? (
+                      <button
+                        onClick={() => {
+                          setShowDriveFilePicker(true);
+                          loadDriveFiles();
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          padding: "12px 24px",
+                          background: "linear-gradient(135deg, #34a853, #2d8f47)",
+                          borderRadius: "10px",
+                          border: "none",
+                          fontSize: "14px",
+                          fontWeight: "600",
+                          color: "#fff",
+                          cursor: "pointer",
+                          boxShadow: "0 4px 12px rgba(52,168,83,0.3)",
+                          transition: "transform 0.2s, box-shadow 0.2s",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "translateY(-2px)";
+                          e.currentTarget.style.boxShadow = "0 6px 16px rgba(52,168,83,0.4)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "translateY(0)";
+                          e.currentTarget.style.boxShadow = "0 4px 12px rgba(52,168,83,0.3)";
+                        }}
+                      >
+                        <span>📁</span> Google Drive
+                      </button>
+                    ) : (
+                      <button disabled style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "12px 24px",
+                        background: "rgba(255,255,255,0.08)",
+                        borderRadius: "10px",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        fontSize: "14px",
+                        fontWeight: "500",
+                        color: "#52525b",
+                        cursor: "not-allowed",
+                        position: "relative",
+                      }}>
+                        <span style={{ filter: "grayscale(1)" }}>📁</span> Google Drive
+                        <span style={{
+                          position: "absolute",
+                          top: "-8px",
+                          right: "-8px",
+                          fontSize: "10px",
+                          padding: "2px 8px",
+                          background: "#1f2937",
+                          border: "1px solid rgba(113,113,122,0.3)",
+                          color: "#71717a",
+                          borderRadius: "6px",
+                          fontWeight: "600",
+                        }}>{googleDriveToken ? "Config projet" : "Non connecté"}</span>
+                      </button>
+                    )}
                   </div>
                 </>
               )}
@@ -6476,6 +6609,387 @@ export default function CreativeImporterPro(props = {}) {
           </div>
         )}
       </main>
+
+      {/* Google Drive File Picker Modal */}
+      {showDriveFilePicker && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.8)",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => {
+            if (!driveImportProgress) {
+              setShowDriveFilePicker(false);
+              setSelectedDriveFiles([]);
+            }
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "linear-gradient(135deg, #1f2937, #111827)",
+              borderRadius: "16px",
+              border: "1px solid rgba(255,255,255,0.1)",
+              width: "90%",
+              maxWidth: "800px",
+              maxHeight: "80vh",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: "20px 24px",
+                borderBottom: "1px solid rgba(255,255,255,0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600" }}>
+                  📁 Importer depuis Google Drive
+                </h3>
+                {projectDriveFolderName && (
+                  <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#71717a" }}>
+                    Dossier: {projectDriveFolderName}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  if (!driveImportProgress) {
+                    setShowDriveFilePicker(false);
+                    setSelectedDriveFiles([]);
+                  }
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#71717a",
+                  fontSize: "24px",
+                  cursor: driveImportProgress ? "not-allowed" : "pointer",
+                  opacity: driveImportProgress ? 0.5 : 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ flex: 1, overflow: "auto", padding: "20px 24px" }}>
+              {isDriveLoading ? (
+                <div style={{ textAlign: "center", padding: "40px" }}>
+                  <div
+                    style={{
+                      width: "40px",
+                      height: "40px",
+                      border: "3px solid rgba(99,102,241,0.3)",
+                      borderTop: "3px solid #6366f1",
+                      borderRadius: "50%",
+                      margin: "0 auto 16px",
+                      animation: "spin 1s linear infinite",
+                    }}
+                  />
+                  <p style={{ color: "#71717a", fontSize: "14px" }}>
+                    Chargement des fichiers...
+                  </p>
+                </div>
+              ) : driveFiles.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px", color: "#71717a" }}>
+                  <div style={{ fontSize: "48px", marginBottom: "16px" }}>📂</div>
+                  <p style={{ fontSize: "14px" }}>
+                    Aucun fichier image ou vidéo trouvé dans ce dossier
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Select All */}
+                  <div
+                    style={{
+                      marginBottom: "16px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        cursor: "pointer",
+                        fontSize: "13px",
+                        color: "#a1a1aa",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedDriveFiles.length === driveFiles.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedDriveFiles([...driveFiles]);
+                          } else {
+                            setSelectedDriveFiles([]);
+                          }
+                        }}
+                        style={{ width: "16px", height: "16px", accentColor: "#6366f1" }}
+                      />
+                      Tout sélectionner ({driveFiles.length} fichiers)
+                    </label>
+                    <span style={{ fontSize: "13px", color: "#71717a" }}>
+                      {selectedDriveFiles.length} sélectionné(s)
+                    </span>
+                  </div>
+
+                  {/* File Grid */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                      gap: "12px",
+                    }}
+                  >
+                    {driveFiles.map((file) => {
+                      const isSelected = selectedDriveFiles.some((f) => f.id === file.id);
+                      const isVideo = file.mimeType.startsWith("video/");
+                      return (
+                        <div
+                          key={file.id}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedDriveFiles((prev) =>
+                                prev.filter((f) => f.id !== file.id)
+                              );
+                            } else {
+                              setSelectedDriveFiles((prev) => [...prev, file]);
+                            }
+                          }}
+                          style={{
+                            position: "relative",
+                            aspectRatio: "1",
+                            borderRadius: "10px",
+                            border: isSelected
+                              ? "2px solid #6366f1"
+                              : "2px solid rgba(255,255,255,0.1)",
+                            overflow: "hidden",
+                            cursor: "pointer",
+                            background: "#0a0a0a",
+                            transition: "all 0.2s",
+                          }}
+                        >
+                          {/* Thumbnail */}
+                          {file.thumbnailLink ? (
+                            <img
+                              src={file.thumbnailLink}
+                              alt={file.name}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: "32px",
+                                color: "#52525b",
+                              }}
+                            >
+                              {isVideo ? "🎬" : "🖼️"}
+                            </div>
+                          )}
+
+                          {/* Video badge */}
+                          {isVideo && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: "8px",
+                                left: "8px",
+                                background: "rgba(0,0,0,0.7)",
+                                borderRadius: "4px",
+                                padding: "2px 6px",
+                                fontSize: "10px",
+                                fontWeight: "600",
+                              }}
+                            >
+                              VIDEO
+                            </div>
+                          )}
+
+                          {/* Selection checkbox */}
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: "8px",
+                              right: "8px",
+                              width: "22px",
+                              height: "22px",
+                              borderRadius: "6px",
+                              background: isSelected
+                                ? "#6366f1"
+                                : "rgba(255,255,255,0.2)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              transition: "all 0.2s",
+                            }}
+                          >
+                            {isSelected && (
+                              <svg
+                                width="12"
+                                height="12"
+                                viewBox="0 0 12 12"
+                                fill="none"
+                              >
+                                <path
+                                  d="M2 6L5 9L10 3"
+                                  stroke="#fff"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            )}
+                          </div>
+
+                          {/* File name */}
+                          <div
+                            style={{
+                              position: "absolute",
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              padding: "24px 8px 8px",
+                              background:
+                                "linear-gradient(transparent, rgba(0,0,0,0.9))",
+                              fontSize: "11px",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {file.name}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div
+              style={{
+                padding: "16px 24px",
+                borderTop: "1px solid rgba(255,255,255,0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "12px",
+              }}
+            >
+              {driveImportProgress ? (
+                <div style={{ flex: 1 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "8px",
+                      fontSize: "13px",
+                    }}
+                  >
+                    <span>Import en cours...</span>
+                    <span>
+                      {driveImportProgress.current}/{driveImportProgress.total}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      height: "6px",
+                      background: "rgba(255,255,255,0.1)",
+                      borderRadius: "3px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${(driveImportProgress.current / driveImportProgress.total) * 100}%`,
+                        background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
+                        transition: "width 0.3s",
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      setShowDriveFilePicker(false);
+                      setSelectedDriveFiles([]);
+                    }}
+                    style={{
+                      padding: "10px 20px",
+                      borderRadius: "8px",
+                      border: "1px solid rgba(255,255,255,0.2)",
+                      background: "transparent",
+                      color: "#a1a1aa",
+                      fontSize: "13px",
+                      fontWeight: "500",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={importFromDrive}
+                    disabled={selectedDriveFiles.length === 0}
+                    style={{
+                      padding: "10px 24px",
+                      borderRadius: "8px",
+                      border: "none",
+                      background:
+                        selectedDriveFiles.length > 0
+                          ? "linear-gradient(135deg, #6366f1, #8b5cf6)"
+                          : "rgba(255,255,255,0.1)",
+                      color:
+                        selectedDriveFiles.length > 0 ? "#fff" : "#52525b",
+                      fontSize: "13px",
+                      fontWeight: "600",
+                      cursor:
+                        selectedDriveFiles.length > 0
+                          ? "pointer"
+                          : "not-allowed",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <span>📥</span>
+                    Importer {selectedDriveFiles.length > 0 && `(${selectedDriveFiles.length})`}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   );
