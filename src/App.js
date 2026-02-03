@@ -179,8 +179,38 @@ export default function App() {
   const [driveFolderPickerOpen, setDriveFolderPickerOpen] = useState(false);
   const [currentDrivePath, setCurrentDrivePath] = useState([{ id: 'root', name: 'Mon Drive' }]);
 
-  // Load Google Drive token from localStorage
+  // Load Google Drive token from localStorage OR from URL hash (OAuth redirect)
   useEffect(() => {
+    // Check for OAuth redirect response in URL hash
+    if (window.location.hash) {
+      const params = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = params.get('access_token');
+      const state = params.get('state');
+
+      if (accessToken && state === 'google_drive_auth') {
+        console.log("OAuth redirect received, saving token...");
+        setGoogleDriveToken(accessToken);
+        localStorage.setItem('google_drive_token', accessToken);
+
+        // Fetch user info
+        fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        })
+          .then(res => res.json())
+          .then(userData => {
+            console.log("User data:", userData);
+            setGoogleDriveUser(userData);
+            localStorage.setItem('google_drive_user', JSON.stringify(userData));
+          })
+          .catch(err => console.error('Error fetching Google user:', err));
+
+        // Clean URL hash
+        window.history.replaceState(null, '', window.location.pathname);
+        return;
+      }
+    }
+
+    // Load from localStorage
     const savedGoogleToken = localStorage.getItem('google_drive_token');
     const savedGoogleUser = localStorage.getItem('google_drive_user');
     if (savedGoogleToken) {
@@ -191,71 +221,24 @@ export default function App() {
     }
   }, []);
 
-  // Google Drive OAuth handler
+  // Google Drive OAuth handler - using implicit grant flow with redirect
   const handleGoogleDriveConnect = useCallback(() => {
-    console.log("Starting Google Drive connect...");
-    console.log("Client ID:", GOOGLE_DRIVE_CONFIG.clientId ? "Present" : "Missing");
-
     if (!GOOGLE_DRIVE_CONFIG.clientId) {
       alert("Google Drive n'est pas configuré. Ajoutez REACT_APP_GOOGLE_CLIENT_ID dans les variables d'environnement.");
       return;
     }
 
-    setIsGoogleDriveLoading(true);
+    // Build OAuth URL for implicit grant
+    const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    authUrl.searchParams.set('client_id', GOOGLE_DRIVE_CONFIG.clientId);
+    authUrl.searchParams.set('redirect_uri', window.location.origin);
+    authUrl.searchParams.set('response_type', 'token');
+    authUrl.searchParams.set('scope', GOOGLE_DRIVE_CONFIG.scopes);
+    authUrl.searchParams.set('include_granted_scopes', 'true');
+    authUrl.searchParams.set('state', 'google_drive_auth');
 
-    // Load Google API
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => {
-      console.log("Google script loaded, initializing token client...");
-      // eslint-disable-next-line no-undef
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_DRIVE_CONFIG.clientId,
-        scope: GOOGLE_DRIVE_CONFIG.scopes,
-        callback: async (response) => {
-          console.log("OAuth callback received:", response);
-          if (response.error) {
-            console.error("OAuth error:", response.error);
-            alert("Erreur OAuth: " + response.error);
-            setIsGoogleDriveLoading(false);
-            return;
-          }
-          if (response.access_token) {
-            console.log("Access token received, saving...");
-            setGoogleDriveToken(response.access_token);
-            localStorage.setItem('google_drive_token', response.access_token);
-
-            // Fetch user info
-            try {
-              const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-                headers: { Authorization: `Bearer ${response.access_token}` }
-              });
-              const userData = await userRes.json();
-              console.log("User data:", userData);
-              setGoogleDriveUser(userData);
-              localStorage.setItem('google_drive_user', JSON.stringify(userData));
-            } catch (err) {
-              console.error('Error fetching Google user:', err);
-            }
-          }
-          setIsGoogleDriveLoading(false);
-        },
-        error_callback: (error) => {
-          console.error('Google OAuth error_callback:', error);
-          alert("Erreur Google OAuth: " + JSON.stringify(error));
-          setIsGoogleDriveLoading(false);
-        }
-      });
-      console.log("Requesting access token...");
-      client.requestAccessToken();
-    };
-    script.onerror = (err) => {
-      console.error("Failed to load Google script:", err);
-      setIsGoogleDriveLoading(false);
-    };
-    document.body.appendChild(script);
+    // Redirect to Google OAuth
+    window.location.href = authUrl.toString();
   }, []);
 
   // Disconnect Google Drive
