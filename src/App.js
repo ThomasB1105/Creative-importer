@@ -1380,6 +1380,198 @@ export default function App() {
       );
     }
 
+    // Billing page
+    if (activeModule === "settings-billing") {
+      const features = [
+        "Unlimited creatives",
+        "Unlimited ad accounts",
+        "Unlimited spend",
+        "Multi-format (1:1, 4:5, 9:16, 16:9)",
+        "A+ Creative Enhancements",
+        "2h consulting media buying included",
+        "Priority support",
+      ];
+
+      return (
+        <div style={{
+          padding: "40px",
+          maxWidth: "600px",
+          margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}>
+          {/* Early Access Badge */}
+          <div style={{
+            background: "linear-gradient(135deg, #fef3c7, #fde68a)",
+            color: "#92400e",
+            padding: "8px 16px",
+            borderRadius: "20px",
+            fontSize: "13px",
+            fontWeight: "600",
+            marginBottom: "24px",
+          }}>
+            Early Access
+          </div>
+
+          {/* Main Card */}
+          <div style={{
+            background: "#ffffff",
+            borderRadius: "20px",
+            padding: "40px",
+            width: "100%",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
+          }}>
+            {/* Title */}
+            <h1 style={{
+              fontSize: "32px",
+              fontWeight: "700",
+              color: "#18181b",
+              margin: "0 0 8px",
+            }}>
+              Launch Offer Q1 2026
+            </h1>
+            <p style={{
+              fontSize: "15px",
+              color: "#71717a",
+              margin: "0 0 32px",
+              lineHeight: "1.5",
+            }}>
+              Join the first 100 users and help shape upcoming features
+            </p>
+
+            {/* Price Section */}
+            <div style={{ marginBottom: "32px" }}>
+              <div style={{
+                display: "flex",
+                alignItems: "baseline",
+                gap: "12px",
+                flexWrap: "wrap",
+                marginBottom: "8px",
+              }}>
+                <span style={{
+                  fontSize: "48px",
+                  fontWeight: "700",
+                  color: "#18181b",
+                }}>
+                  €414
+                </span>
+                <span style={{
+                  fontSize: "20px",
+                  color: "#a1a1aa",
+                  textDecoration: "line-through",
+                }}>
+                  €828
+                </span>
+                <span style={{
+                  fontSize: "15px",
+                  color: "#71717a",
+                }}>
+                  / year HT
+                </span>
+                <span style={{
+                  background: "#dcfce7",
+                  color: "#166534",
+                  padding: "4px 12px",
+                  borderRadius: "20px",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                }}>
+                  -50%
+                </span>
+              </div>
+              <div style={{
+                fontSize: "16px",
+                fontWeight: "600",
+                color: "#f97316",
+              }}>
+                €34.50/month
+              </div>
+            </div>
+
+            {/* Features List */}
+            <div style={{ marginBottom: "32px" }}>
+              {features.map((feature, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    padding: "12px 0",
+                    borderBottom: index < features.length - 1 ? "1px solid #f4f4f5" : "none",
+                  }}
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#22c55e"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span style={{
+                    fontSize: "15px",
+                    color: "#3f3f46",
+                    fontWeight: "500",
+                  }}>
+                    {feature}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* CTA Button */}
+            <button
+              style={{
+                width: "100%",
+                padding: "16px 24px",
+                background: "#f97316",
+                border: "none",
+                borderRadius: "12px",
+                color: "#ffffff",
+                fontSize: "16px",
+                fontWeight: "600",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                transition: "all 0.2s ease",
+              }}
+              onMouseOver={(e) => e.currentTarget.style.background = "#ea580c"}
+              onMouseOut={(e) => e.currentTarget.style.background = "#f97316"}
+              onClick={() => window.open("https://buy.stripe.com/your-stripe-link", "_blank")}
+            >
+              Unlock Early Access
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Footer Info */}
+          <div style={{
+            marginTop: "24px",
+            display: "flex",
+            alignItems: "center",
+            gap: "16px",
+            color: "#71717a",
+            fontSize: "13px",
+          }}>
+            <span>57 days left</span>
+            <span style={{ color: "#d4d4d8" }}>·</span>
+            <span>99 spots remaining</span>
+          </div>
+        </div>
+      );
+    }
+
     // Welcome/Dashboard view
     return (
       <div style={styles.welcomeContainer}>
