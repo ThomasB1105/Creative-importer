@@ -1779,21 +1779,17 @@ export default function CreativeImporterPro(props = {}) {
 
       const uploadedHashes = [];
 
-      // Upload large videos 3 at a time for maximum speed
-      const CONCURRENT_LARGE = 3;
-      for (let i = 0; i < largeVideos.length; i += CONCURRENT_LARGE) {
-        const batch = largeVideos.slice(i, i + CONCURRENT_LARGE);
-        console.log(`📤 Uploading large videos ${i + 1}-${Math.min(i + CONCURRENT_LARGE, largeVideos.length)}/${largeVideos.length}`);
-
-        const batchResults = await Promise.allSettled(batch.map(file => uploadSingleFile(file)));
-
-        for (const result of batchResults) {
-          if (result.status === 'fulfilled') {
-            uploadedHashes.push(result.value);
-          } else {
-            console.error(`❌ Upload failed:`, result.reason);
-            uploadedHashes.push(null);
-          }
+      // Upload large videos ONE AT A TIME (parallel causes blocking)
+      for (let i = 0; i < largeVideos.length; i++) {
+        const file = largeVideos[i];
+        console.log(`📤 Uploading large video ${i + 1}/${largeVideos.length}: ${file.name}`);
+        try {
+          const result = await uploadSingleFile(file);
+          uploadedHashes.push(result);
+          console.log(`✅ Large video ${i + 1}/${largeVideos.length} completed`);
+        } catch (err) {
+          console.error(`❌ Upload failed for ${file.name}:`, err);
+          uploadedHashes.push(null);
         }
       }
 
