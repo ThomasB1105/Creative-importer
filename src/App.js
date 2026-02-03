@@ -250,20 +250,28 @@ export default function App() {
     localStorage.removeItem('google_drive_user');
   }, []);
 
-  // Fetch Google Drive folders
+  // Fetch Google Drive folders (supports 'root', 'sharedWithMe', or folder IDs)
   const fetchDriveFolders = useCallback(async (folderId = 'root') => {
     if (!googleDriveToken) return;
 
     setIsGoogleDriveLoading(true);
     try {
-      const query = folderId === 'root'
-        ? "'root' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
-        : `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+      let query;
+      let apiUrl;
 
-      const res = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType)&orderBy=name`,
-        { headers: { Authorization: `Bearer ${googleDriveToken}` } }
-      );
+      if (folderId === 'sharedWithMe') {
+        // Fetch shared folders
+        query = "sharedWithMe=true and mimeType='application/vnd.google-apps.folder' and trashed=false";
+        apiUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType)&orderBy=name&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+      } else if (folderId === 'root') {
+        query = "'root' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false";
+        apiUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType)&orderBy=name`;
+      } else {
+        query = `'${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+        apiUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType)&orderBy=name&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+      }
+
+      const res = await fetch(apiUrl, { headers: { Authorization: `Bearer ${googleDriveToken}` } });
 
       if (!res.ok) {
         if (res.status === 401) {
@@ -2608,6 +2616,50 @@ function ProjectSettingsForm({ project, adAccounts, pages, pixels, instagramAcco
                 borderRadius: "8px",
                 border: "1px solid rgba(255,255,255,0.1)",
               }}>
+                {/* Drive type tabs */}
+                <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDrivePath([{ id: 'root', name: 'Mon Drive' }]);
+                      fetchDriveFolders('root');
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: "8px",
+                      borderRadius: "6px",
+                      border: "none",
+                      fontSize: "12px",
+                      fontWeight: "500",
+                      cursor: "pointer",
+                      background: drivePath[0]?.id === 'root' ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.05)",
+                      color: drivePath[0]?.id === 'root' ? "#818cf8" : "#71717a",
+                    }}
+                  >
+                    📁 Mon Drive
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDrivePath([{ id: 'sharedWithMe', name: 'Partagés avec moi' }]);
+                      fetchDriveFolders('sharedWithMe');
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: "8px",
+                      borderRadius: "6px",
+                      border: "none",
+                      fontSize: "12px",
+                      fontWeight: "500",
+                      cursor: "pointer",
+                      background: drivePath[0]?.id === 'sharedWithMe' ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.05)",
+                      color: drivePath[0]?.id === 'sharedWithMe' ? "#818cf8" : "#71717a",
+                    }}
+                  >
+                    👥 Partagés avec moi
+                  </button>
+                </div>
+
                 {/* Breadcrumb */}
                 <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "12px", flexWrap: "wrap" }}>
                   {drivePath.map((item, index) => (
