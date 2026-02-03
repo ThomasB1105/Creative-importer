@@ -1405,8 +1405,11 @@ export default function CreativeImporterPro(props = {}) {
     const numGroups = Object.keys(groupedFiles).length;
     const numFiles = uploadedFiles.length;
 
-    // For multi-placement mode, count how many multi-format ads will be created
-    const numMultiAds = adType === "multi" ? numGroups : numFiles;
+    // For multi-placement mode, count ads from multiGroups (each group = 1 ad)
+    // A group with both feed + story = 1 ad, not 2
+    const numMultiAds = adType === "multi"
+      ? multiGroups.filter(g => g.feed || g.story).length
+      : numFiles;
 
     if (budgetType === "abo") {
       if (aboMode === "1:1:1") {
@@ -1436,7 +1439,7 @@ export default function CreativeImporterPro(props = {}) {
       return { campaigns: 0, adsets: 0, ads: numMultiAds };
     }
     return { campaigns: 0, adsets: 0, ads: 0 };
-  }, [budgetType, aboMode, aboExistingStructure, maxAdsPerAdset, cboMode, groupedFiles, uploadedFiles, adType]);
+  }, [budgetType, aboMode, aboExistingStructure, maxAdsPerAdset, cboMode, groupedFiles, uploadedFiles, adType, multiGroups]);
 
   const box = {
     background: "rgba(17,7,38,0.6)",
@@ -5950,61 +5953,26 @@ export default function CreativeImporterPro(props = {}) {
                 {/* Multi-Placement Groups */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
                   <span style={{ fontSize: "14px", fontWeight: "600", color: "#fafafa" }}>
-                    🎯 Multi-Placement Ads ({multiGroups.length})
+                    🎯 Multi-Placement Ads ({multiGroups.filter(g => g.feed || g.story).length})
                   </span>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    {/* Auto-Match Button - Visual Recognition */}
-                    <button
-                      onClick={handleAutoMatch}
-                      disabled={isAutoMatching || uploadedFiles.length < 2}
-                      style={{
-                        padding: "8px 16px",
-                        background: isAutoMatching
-                          ? "rgba(99,102,241,0.5)"
-                          : "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                        border: "none",
-                        borderRadius: "8px",
-                        color: "#fff",
-                        fontSize: "13px",
-                        fontWeight: "500",
-                        cursor: isAutoMatching || uploadedFiles.length < 2 ? "not-allowed" : "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        opacity: uploadedFiles.length < 2 ? 0.5 : 1,
-                      }}
-                      title="Associer automatiquement par reconnaissance visuelle"
-                    >
-                      {isAutoMatching ? (
-                        <>
-                          <span style={{ animation: "spin 1s linear infinite" }}>⏳</span> Analyse...
-                        </>
-                      ) : (
-                        <>
-                          <span>✨</span> Auto-Match
-                        </>
-                      )}
-                    </button>
-                    {/* Manual Group Button */}
-                    <button
-                      onClick={() => setMultiGroups(prev => [...prev, { id: Date.now(), name: `Ad ${prev.length + 1}`, feed: null, story: null }])}
-                      style={{
-                        padding: "8px 16px",
-                        background: "linear-gradient(135deg, #22c55e, #16a34a)",
-                        border: "none",
-                        borderRadius: "8px",
-                        color: "#fff",
-                        fontSize: "13px",
-                        fontWeight: "500",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                      }}
-                    >
-                      <span>+</span> Nouveau groupe
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setMultiGroups(prev => [...prev, { id: Date.now(), name: `Ad ${prev.length + 1}`, feed: null, story: null }])}
+                    style={{
+                      padding: "8px 16px",
+                      background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                      border: "none",
+                      borderRadius: "8px",
+                      color: "#fff",
+                      fontSize: "13px",
+                      fontWeight: "500",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <span>+</span> Nouveau groupe
+                  </button>
                 </div>
 
                 {multiGroups.length === 0 ? (
@@ -6032,37 +6000,18 @@ export default function CreativeImporterPro(props = {}) {
                           border: "1px solid rgba(99,102,241,0.3)",
                         }}>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                              <input
-                                value={group.name}
-                                onChange={(e) => setMultiGroups(prev => prev.map(g => g.id === group.id ? { ...g, name: e.target.value } : g))}
-                                style={{
-                                  background: "transparent",
-                                  border: "none",
-                                  fontSize: "14px",
-                                  fontWeight: "600",
-                                  color: "#fafafa",
-                                  outline: "none",
-                                }}
-                              />
-                              {/* Match confidence badge */}
-                              {group.isAutoMatched && group.matchConfidence > 0 && (
-                                <span style={{
-                                  padding: "2px 8px",
-                                  borderRadius: "10px",
-                                  fontSize: "10px",
-                                  fontWeight: "600",
-                                  background: group.matchConfidence >= 90 ? "rgba(34,197,94,0.2)" :
-                                             group.matchConfidence >= 70 ? "rgba(234,179,8,0.2)" :
-                                             "rgba(239,68,68,0.2)",
-                                  color: group.matchConfidence >= 90 ? "#22c55e" :
-                                         group.matchConfidence >= 70 ? "#eab308" :
-                                         "#ef4444",
-                                }}>
-                                  {group.matchConfidence}% match
-                                </span>
-                              )}
-                            </div>
+                            <input
+                              value={group.name}
+                              onChange={(e) => setMultiGroups(prev => prev.map(g => g.id === group.id ? { ...g, name: e.target.value } : g))}
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                fontSize: "14px",
+                                fontWeight: "600",
+                                color: "#fafafa",
+                                outline: "none",
+                              }}
+                            />
                             <button
                               onClick={() => setMultiGroups(prev => prev.filter(g => g.id !== group.id))}
                               style={{
