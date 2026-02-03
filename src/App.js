@@ -1810,38 +1810,27 @@ export default function App() {
               ))}
             </div>
 
-            {/* Action button */}
+            {/* Stripe Buy Button */}
             {subscriptionStatus.status !== 'active' && (
-              <button
-                onClick={handleSubscribe}
-                style={{
-                  width: "100%",
-                  padding: "16px",
-                  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-                  border: "none",
-                  borderRadius: "12px",
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  color: "#fff",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                  transition: "transform 0.2s, box-shadow 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow = "0 8px 24px rgba(99,102,241,0.4)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-              >
-                <span>💳</span>
-                Passer au Plan Pro - {STRIPE_CONFIG.price}€/mois
-              </button>
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <div
+                  ref={(el) => {
+                    if (el && !el.hasChildNodes()) {
+                      // Load Stripe Buy Button script
+                      const script = document.createElement('script');
+                      script.src = 'https://js.stripe.com/v3/buy-button.js';
+                      script.async = true;
+                      document.head.appendChild(script);
+
+                      // Create the buy button element
+                      const buyButton = document.createElement('stripe-buy-button');
+                      buyButton.setAttribute('buy-button-id', 'buy_btn_1SwmfTBMw1KZXV38VYpFhBng');
+                      buyButton.setAttribute('publishable-key', 'pk_live_51MpWDsBMw1KZXV389aOyfzwpybIfkB1tai3RW5q2cmPZV6eWuUAQqDRjfdHTSqRkUXZPLyneBNu76QUfbR6nS1wj00miPh6pJH');
+                      el.appendChild(buyButton);
+                    }
+                  }}
+                />
+              </div>
             )}
 
             {subscriptionStatus.status === 'active' && (
