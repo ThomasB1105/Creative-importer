@@ -1403,30 +1403,32 @@ export default function App() {
         }}>
           {/* Early Access Badge */}
           <div style={{
-            background: "linear-gradient(135deg, #fef3c7, #fde68a)",
-            color: "#92400e",
+            background: "rgba(99,102,241,0.15)",
+            color: "#a5b4fc",
             padding: "8px 16px",
             borderRadius: "20px",
             fontSize: "13px",
             fontWeight: "600",
             marginBottom: "24px",
+            border: "1px solid rgba(99,102,241,0.3)",
           }}>
             Early Access
           </div>
 
           {/* Main Card */}
           <div style={{
-            background: "#ffffff",
+            background: "rgba(15,15,20,0.8)",
             borderRadius: "20px",
             padding: "40px",
             width: "100%",
-            boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
           }}>
             {/* Title */}
             <h1 style={{
               fontSize: "32px",
               fontWeight: "700",
-              color: "#18181b",
+              color: "#fafafa",
               margin: "0 0 8px",
             }}>
               Launch Offer Q1 2026
@@ -1452,40 +1454,16 @@ export default function App() {
                 <span style={{
                   fontSize: "48px",
                   fontWeight: "700",
-                  color: "#18181b",
+                  color: "#fafafa",
                 }}>
-                  €414
-                </span>
-                <span style={{
-                  fontSize: "20px",
-                  color: "#a1a1aa",
-                  textDecoration: "line-through",
-                }}>
-                  €828
+                  €29
                 </span>
                 <span style={{
                   fontSize: "15px",
                   color: "#71717a",
                 }}>
-                  / year HT
+                  / month HT
                 </span>
-                <span style={{
-                  background: "#dcfce7",
-                  color: "#166534",
-                  padding: "4px 12px",
-                  borderRadius: "20px",
-                  fontSize: "13px",
-                  fontWeight: "600",
-                }}>
-                  -50%
-                </span>
-              </div>
-              <div style={{
-                fontSize: "16px",
-                fontWeight: "600",
-                color: "#f97316",
-              }}>
-                €34.50/month
               </div>
             </div>
 
@@ -1499,7 +1477,7 @@ export default function App() {
                     alignItems: "center",
                     gap: "12px",
                     padding: "12px 0",
-                    borderBottom: index < features.length - 1 ? "1px solid #f4f4f5" : "none",
+                    borderBottom: index < features.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
                   }}
                 >
                   <svg
@@ -1516,7 +1494,7 @@ export default function App() {
                   </svg>
                   <span style={{
                     fontSize: "15px",
-                    color: "#3f3f46",
+                    color: "#e4e4e7",
                     fontWeight: "500",
                   }}>
                     {feature}
@@ -1530,7 +1508,7 @@ export default function App() {
               style={{
                 width: "100%",
                 padding: "16px 24px",
-                background: "#f97316",
+                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
                 border: "none",
                 borderRadius: "12px",
                 color: "#ffffff",
@@ -1543,8 +1521,8 @@ export default function App() {
                 gap: "8px",
                 transition: "all 0.2s ease",
               }}
-              onMouseOver={(e) => e.currentTarget.style.background = "#ea580c"}
-              onMouseOut={(e) => e.currentTarget.style.background = "#f97316"}
+              onMouseOver={(e) => e.currentTarget.style.opacity = "0.9"}
+              onMouseOut={(e) => e.currentTarget.style.opacity = "1"}
               onClick={() => window.open("https://buy.stripe.com/your-stripe-link", "_blank")}
             >
               Unlock Early Access
@@ -1565,8 +1543,6 @@ export default function App() {
             fontSize: "13px",
           }}>
             <span>57 days left</span>
-            <span style={{ color: "#d4d4d8" }}>·</span>
-            <span>99 spots remaining</span>
           </div>
         </div>
       );
