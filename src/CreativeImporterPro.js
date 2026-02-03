@@ -6081,43 +6081,96 @@ export default function CreativeImporterPro(props = {}) {
                 {/* Progress bars for each creative */}
                 {isCreating && Object.keys(uploadProgress).length > 0 && (
                   <div style={{
-                    marginTop: "12px",
-                    padding: "12px",
+                    marginTop: "16px",
+                    padding: "16px",
                     background: "rgba(99,102,241,0.1)",
                     border: "1px solid rgba(99,102,241,0.3)",
-                    borderRadius: "8px",
+                    borderRadius: "10px",
                   }}>
-                    <p style={{ fontSize: "11px", color: "#a5b4fc", marginBottom: "12px", fontWeight: "600" }}>
-                      Progression des créatives
-                    </p>
-                    {uploadedFiles.map(file => {
+                    {/* Global progress bar */}
+                    {(() => {
+                      const totalFiles = uploadedFiles.length;
+                      const completedFiles = uploadedFiles.filter(f => (uploadProgress[f.id]?.progress || 0) >= 100).length;
+                      const totalProgress = uploadedFiles.reduce((sum, f) => sum + (uploadProgress[f.id]?.progress || 0), 0);
+                      const avgProgress = totalFiles > 0 ? Math.round(totalProgress / totalFiles) : 0;
+                      return (
+                        <div style={{ marginBottom: "16px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", fontSize: "12px" }}>
+                            <span style={{ color: "#a5b4fc", fontWeight: "600" }}>Progression globale</span>
+                            <span style={{ color: "#22d3ee", fontWeight: "600" }}>{completedFiles}/{totalFiles} ({avgProgress}%)</span>
+                          </div>
+                          <div style={{ width: "100%", height: "10px", background: "rgba(0,0,0,0.4)", borderRadius: "5px", overflow: "hidden" }}>
+                            <div style={{
+                              width: `${avgProgress}%`,
+                              height: "100%",
+                              background: avgProgress >= 100 ? "linear-gradient(90deg, #10b981, #22d3ee)" : "linear-gradient(90deg, #6366f1, #8b5cf6, #22d3ee)",
+                              transition: "width 0.3s ease",
+                              borderRadius: "5px"
+                            }}></div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Individual file progress */}
+                    <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+                    {uploadedFiles.map((file, index) => {
                       const progress = uploadProgress[file.id] || { progress: 0, status: 'pending' };
-                      const statusAbbrev = progress.status === 'uploading' ? 'UP' : progress.status === 'processing' ? 'PR' : progress.status === 'uploaded' ? 'OK' : progress.status === 'creating' ? 'CR' : progress.status === 'done' ? 'OK' : progress.status === 'error' ? 'ER' : '...';
-                      const statusDesc = progress.status === 'uploading' ? 'Upload...' : progress.status === 'processing' ? 'Traitement vidéo...' : progress.status === 'uploaded' ? 'Uploadé' : progress.status === 'creating' ? 'Création...' : progress.status === 'done' ? 'Terminé' : progress.status === 'error' ? 'Erreur' : 'En attente';
+                      const statusColors = {
+                        pending: { text: "#71717a", bar: "#52525b" },
+                        uploading: { text: "#a5b4fc", bar: "linear-gradient(90deg, #6366f1, #8b5cf6)" },
+                        processing: { text: "#fbbf24", bar: "#fbbf24" },
+                        uploaded: { text: "#22d3ee", bar: "#22d3ee" },
+                        creating: { text: "#fbbf24", bar: "#fbbf24" },
+                        done: { text: "#10b981", bar: "#10b981" },
+                        error: { text: "#ef4444", bar: "#ef4444" }
+                      };
+                      const colors = statusColors[progress.status] || statusColors.pending;
+                      const statusLabels = {
+                        pending: "En attente",
+                        uploading: "Upload...",
+                        processing: "Traitement...",
+                        uploaded: "Uploadé",
+                        creating: "Création...",
+                        done: "Terminé",
+                        error: "Erreur"
+                      };
 
                       return (
-                        <div key={file.id} style={{ marginBottom: "8px" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "#e4e4e7", marginBottom: "4px" }}>
-                            <span>[{statusAbbrev}] {file.name}</span>
-                            <span>{statusDesc} ({progress.progress}%)</span>
+                        <div key={file.id} style={{ marginBottom: "10px", padding: "8px", background: "rgba(0,0,0,0.2)", borderRadius: "6px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                              <span style={{
+                                width: "20px", height: "20px",
+                                borderRadius: "50%",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontSize: "10px", fontWeight: "600", color: colors.text,
+                                border: `2px solid ${colors.text}`
+                              }}>
+                                {progress.status === 'done' ? "✓" : index + 1}
+                              </span>
+                              <span style={{ fontSize: "11px", fontWeight: "500", color: "#e4e4e7", maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {file.name}
+                              </span>
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                              <span style={{ fontSize: "12px", fontWeight: "700", color: colors.text }}>{progress.progress}%</span>
+                              <span style={{ fontSize: "9px", color: colors.text, marginLeft: "6px" }}>{statusLabels[progress.status]}</span>
+                            </div>
                           </div>
-                          <div style={{
-                            width: "100%",
-                            height: "6px",
-                            background: "rgba(0,0,0,0.3)",
-                            borderRadius: "3px",
-                            overflow: "hidden"
-                          }}>
+                          <div style={{ width: "100%", height: "6px", background: "rgba(0,0,0,0.3)", borderRadius: "3px", overflow: "hidden" }}>
                             <div style={{
                               width: `${progress.progress}%`,
                               height: "100%",
-                              background: progress.status === 'error' ? "#ef4444" : progress.status === 'done' ? "#10b981" : "linear-gradient(90deg, #6366f1, #8b5cf6)",
-                              transition: "width 0.3s ease"
+                              background: colors.bar,
+                              transition: "width 0.3s ease",
+                              borderRadius: "3px"
                             }}></div>
                           </div>
                         </div>
                       );
                     })}
+                    </div>
                   </div>
                 )}
               </div>
