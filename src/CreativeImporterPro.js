@@ -2628,15 +2628,35 @@ export default function CreativeImporterPro(props = {}) {
       let unmappedHashes = []; // For single ads mode
 
       if (adType === "multi") {
-        // MULTI-PLACEMENT: ALL files in ONE group = ONE ad
-        // console.log(`📦 Multi-Placement mode: combining ALL ${validHashes.length} files into ONE ad`);
-        effectiveGroups = [{
-          key: 'multi_placement_group',
-          baseName: null,
-          files: uploadedFiles.filter(f => validHashes.some(h => h.fileId === f.id)),
-          fileIds: validHashes.map(h => h.fileId),
-          isMultiFormat: true,
-        }];
+        // MULTI-PLACEMENT: Use multiGroups - each group = ONE ad
+        // Each multiGroup has { feed: fileId, story: fileId }
+        if (multiGroups.length > 0) {
+          effectiveGroups = multiGroups
+            .filter(group => group.feed || group.story) // Only groups with at least one file
+            .map((group, idx) => {
+              const fileIds = [group.feed, group.story].filter(Boolean);
+              const files = uploadedFiles.filter(f => fileIds.includes(f.id));
+              return {
+                key: `multi_${idx}`,
+                baseName: group.name,
+                files: files,
+                fileIds: fileIds,
+                isMultiFormat: group.feed && group.story, // Has both feed AND story
+                feedFileId: group.feed,
+                storyFileId: group.story,
+              };
+            });
+          console.log(`📦 Multi-Placement mode: ${effectiveGroups.length} groups from multiGroups`);
+        } else {
+          // Fallback: create one group with all files
+          effectiveGroups = [{
+            key: 'multi_placement_group',
+            baseName: null,
+            files: uploadedFiles.filter(f => validHashes.some(h => h.fileId === f.id)),
+            fileIds: validHashes.map(h => h.fileId),
+            isMultiFormat: true,
+          }];
+        }
       } else if (adType === "single") {
         // SINGLE ADS: Each file becomes its own ad
         unmappedHashes = [...validHashes];
@@ -2764,37 +2784,30 @@ export default function CreativeImporterPro(props = {}) {
           // console.log(`🎨 Using asset_feed_spec with asset_customization_rules`);
 
           // Build asset_customization_rules for story vs feed placements
-          // Include Instagram only if we have a real Instagram account
+          // IMPORTANT: Must include a DEFAULT rule that covers all other placements
           const assetCustomizationRules = [];
 
-          // Rule for story/reels placements (vertical 9:16)
+          // Rule 1: Story/Reels placements (vertical 9:16) → use STORY_IMG
           const storyRule = {
             customization_spec: {
-              publisher_platforms: hasInstagramCapability ? ["facebook", "instagram", "messenger"] : ["facebook", "messenger"],
+              publisher_platforms: ["facebook"],
               facebook_positions: ["story", "facebook_reels"],
-              messenger_positions: ["story"],
             },
             image_label: { name: "STORY_IMG" }
           };
           if (hasInstagramCapability) {
+            storyRule.customization_spec.publisher_platforms.push("instagram");
             storyRule.customization_spec.instagram_positions = ["story", "reels"];
           }
           assetCustomizationRules.push(storyRule);
 
-          // Rule for feed placements (square/portrait)
-          const feedRule = {
-            customization_spec: {
-              publisher_platforms: hasInstagramCapability ? ["facebook", "instagram", "audience_network", "messenger"] : ["facebook", "audience_network", "messenger"],
-              facebook_positions: ["feed", "instant_article", "instream_video", "marketplace"],
-              audience_network_positions: ["classic", "rewarded_video"],
-              messenger_positions: ["messenger_home"],
-            },
+          // Rule 2: DEFAULT rule - Feed image for all other placements
+          // This is REQUIRED by Meta API to cover unspecified placements
+          const defaultRule = {
+            customization_spec: {},  // Empty spec = matches everything else (default)
             image_label: { name: "FEED_IMG" }
           };
-          if (hasInstagramCapability) {
-            feedRule.customization_spec.instagram_positions = ["stream", "explore", "profile_feed"];
-          }
-          assetCustomizationRules.push(feedRule);
+          assetCustomizationRules.push(defaultRule);
 
           // Build images array with labels
           const images = [
@@ -6592,47 +6605,87 @@ export default function CreativeImporterPro(props = {}) {
                   {selectedCountries.map((c) => GEO_ZONES[c]?.code).join("-")}]{" "}
                   {campaignName || "Campaign"}
                 </div>
-                {Object.entries(groupedFiles).map(([key, group]) => {
-                  const p = META_PLACEMENTS[group.format] || {
-                    abbrev: "F",
-                    color: "#71717a",
-                    bgColor: "rgba(255,255,255,0.05)",
-                  };
-                  return (
-                    <div
-                      key={key}
-                      style={{ marginLeft: "20px", marginBottom: "8px" }}
-                    >
+                {/* Show multiGroups when in Multi-Placement mode, otherwise show groupedFiles */}
+                {adType === "multi" ? (
+                  // Multi-Placement mode: show each multiGroup as 1 ad
+                  multiGroups.filter(g => g.feed || g.story).map((group, idx) => {
+                    const feedFile = uploadedFiles.find(f => f.id === group.feed);
+                    const storyFile = uploadedFiles.find(f => f.id === group.story);
+                    return (
                       <div
-                        style={{
-                          padding: "8px 12px",
-                          background: p.bgColor,
-                          borderRadius: "6px",
-                        }}
+                        key={group.id}
+                        style={{ marginLeft: "20px", marginBottom: "8px" }}
                       >
-                        {p.icon} {p.name || "Mixed"}{" "}
-                        <span style={{ float: "right", color: "#71717a" }}>
-                          {group.files.length}
-                        </span>
-                      </div>
-                      {group.files.map((f) => (
                         <div
-                          key={f.id}
                           style={{
-                            marginLeft: "20px",
-                            marginTop: "4px",
-                            padding: "4px 8px",
-                            fontSize: "10px",
-                            color: "#a1a1aa",
-                            borderLeft: "2px solid #22c55e",
+                            padding: "8px 12px",
+                            background: "rgba(139,92,246,0.15)",
+                            borderRadius: "6px",
+                            color: "#a78bfa",
                           }}
                         >
-                          {f.type === "video" ? "V" : "I"} {f.adName}
+                          🎯 {group.name || `Ad ${idx + 1}`}{" "}
+                          <span style={{ float: "right", color: "#71717a", fontSize: "11px" }}>
+                            {feedFile && storyFile ? "Feed + Story" : feedFile ? "Feed only" : "Story only"}
+                          </span>
                         </div>
-                      ))}
-                    </div>
-                  );
-                })}
+                        {feedFile && (
+                          <div style={{ marginLeft: "20px", marginTop: "4px", padding: "4px 8px", fontSize: "10px", color: "#22c55e", borderLeft: "2px solid #22c55e" }}>
+                            📱 Feed: {feedFile.adName}
+                          </div>
+                        )}
+                        {storyFile && (
+                          <div style={{ marginLeft: "20px", marginTop: "4px", padding: "4px 8px", fontSize: "10px", color: "#a855f7", borderLeft: "2px solid #a855f7" }}>
+                            📲 Story: {storyFile.adName}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  // Single ads mode: show groupedFiles
+                  Object.entries(groupedFiles).map(([key, group]) => {
+                    const p = META_PLACEMENTS[group.format] || {
+                      abbrev: "F",
+                      color: "#71717a",
+                      bgColor: "rgba(255,255,255,0.05)",
+                    };
+                    return (
+                      <div
+                        key={key}
+                        style={{ marginLeft: "20px", marginBottom: "8px" }}
+                      >
+                        <div
+                          style={{
+                            padding: "8px 12px",
+                            background: p.bgColor,
+                            borderRadius: "6px",
+                          }}
+                        >
+                          {p.icon} {p.name || "Mixed"}{" "}
+                          <span style={{ float: "right", color: "#71717a" }}>
+                            {group.files.length}
+                          </span>
+                        </div>
+                        {group.files.map((f) => (
+                          <div
+                            key={f.id}
+                            style={{
+                              marginLeft: "20px",
+                              marginTop: "4px",
+                              padding: "4px 8px",
+                              fontSize: "10px",
+                              color: "#a1a1aa",
+                              borderLeft: "2px solid #22c55e",
+                            }}
+                          >
+                            {f.type === "video" ? "V" : "I"} {f.adName}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
             <div style={{ marginTop: "24px" }}>
