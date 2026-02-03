@@ -1523,7 +1523,7 @@ export default function App() {
               }}
               onMouseOver={(e) => e.currentTarget.style.opacity = "0.9"}
               onMouseOut={(e) => e.currentTarget.style.opacity = "1"}
-              onClick={() => window.open("https://buy.stripe.com/your-stripe-link", "_blank")}
+              onClick={() => window.open("https://buy.stripe.com/9B66oG1RkaK639n67S1ZS0v", "_blank")}
             >
               Unlock Early Access
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
