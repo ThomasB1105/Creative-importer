@@ -1380,6 +1380,174 @@ export default function App() {
       );
     }
 
+    // Billing page
+    if (activeModule === "settings-billing") {
+      const features = [
+        "Unlimited creatives",
+        "Unlimited ad accounts",
+        "Unlimited spend",
+        "Multi-format (1:1, 4:5, 9:16, 16:9)",
+        "A+ Creative Enhancements",
+        "2h consulting media buying included",
+        "Priority support",
+      ];
+
+      return (
+        <div style={{
+          padding: "40px",
+          maxWidth: "600px",
+          margin: "0 auto",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}>
+          {/* Early Access Badge */}
+          <div style={{
+            background: "rgba(99,102,241,0.15)",
+            color: "#a5b4fc",
+            padding: "8px 16px",
+            borderRadius: "20px",
+            fontSize: "13px",
+            fontWeight: "600",
+            marginBottom: "24px",
+            border: "1px solid rgba(99,102,241,0.3)",
+          }}>
+            Early Access
+          </div>
+
+          {/* Main Card */}
+          <div style={{
+            background: "rgba(15,15,20,0.8)",
+            borderRadius: "20px",
+            padding: "40px",
+            width: "100%",
+            border: "1px solid rgba(255,255,255,0.1)",
+            boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+          }}>
+            {/* Title */}
+            <h1 style={{
+              fontSize: "32px",
+              fontWeight: "700",
+              color: "#fafafa",
+              margin: "0 0 8px",
+            }}>
+              Launch Offer Q1 2026
+            </h1>
+            <p style={{
+              fontSize: "15px",
+              color: "#71717a",
+              margin: "0 0 32px",
+              lineHeight: "1.5",
+            }}>
+              Join the first 100 users and help shape upcoming features
+            </p>
+
+            {/* Price Section */}
+            <div style={{ marginBottom: "32px" }}>
+              <div style={{
+                display: "flex",
+                alignItems: "baseline",
+                gap: "12px",
+                flexWrap: "wrap",
+                marginBottom: "8px",
+              }}>
+                <span style={{
+                  fontSize: "48px",
+                  fontWeight: "700",
+                  color: "#fafafa",
+                }}>
+                  €29
+                </span>
+                <span style={{
+                  fontSize: "15px",
+                  color: "#71717a",
+                }}>
+                  / month HT
+                </span>
+              </div>
+            </div>
+
+            {/* Features List */}
+            <div style={{ marginBottom: "32px" }}>
+              {features.map((feature, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    padding: "12px 0",
+                    borderBottom: index < features.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                  }}
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#22c55e"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span style={{
+                    fontSize: "15px",
+                    color: "#e4e4e7",
+                    fontWeight: "500",
+                  }}>
+                    {feature}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* CTA Button */}
+            <button
+              style={{
+                width: "100%",
+                padding: "16px 24px",
+                background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                border: "none",
+                borderRadius: "12px",
+                color: "#ffffff",
+                fontSize: "16px",
+                fontWeight: "600",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                transition: "all 0.2s ease",
+              }}
+              onMouseOver={(e) => e.currentTarget.style.opacity = "0.9"}
+              onMouseOut={(e) => e.currentTarget.style.opacity = "1"}
+              onClick={() => window.open("https://buy.stripe.com/9B66oG1RkaK639n67S1ZS0v", "_blank")}
+            >
+              Unlock Early Access
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Footer Info */}
+          <div style={{
+            marginTop: "24px",
+            display: "flex",
+            alignItems: "center",
+            gap: "16px",
+            color: "#71717a",
+            fontSize: "13px",
+          }}>
+            <span>57 days left</span>
+          </div>
+        </div>
+      );
+    }
+
     // Welcome/Dashboard view
     return (
       <div style={styles.welcomeContainer}>

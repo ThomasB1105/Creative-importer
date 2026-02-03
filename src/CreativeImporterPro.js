@@ -757,6 +757,46 @@ export default function CreativeImporterPro(props = {}) {
     return groups;
   }, [uploadedFiles]);
 
+  // Auto-match function: automatically create multiGroups from files with same base name
+  const handleAutoMatch = useCallback(() => {
+    const newGroups = [];
+    let groupIndex = 1;
+
+    Object.entries(autoGroupedFiles).forEach(([baseName, group]) => {
+      // Find story file (9:16)
+      const storyFile = group.files.find(f => f.format === "story");
+      // Find feed file (1:1, 4:5, or 16:9) - prioritize 1:1, then 4:5
+      const feedFile = group.files.find(f => f.format === "feed_square")
+        || group.files.find(f => f.format === "feed_portrait")
+        || group.files.find(f => f.format === "feed_landscape");
+
+      // Only create a group if we have at least one file
+      if (storyFile || feedFile) {
+        // Check if this group would have multi-placement (both feed and story)
+        const isMultiPlacement = storyFile && feedFile;
+
+        newGroups.push({
+          id: Date.now() + groupIndex,
+          name: baseName || `Ad ${groupIndex}`,
+          feed: feedFile?.id || null,
+          story: storyFile?.id || null,
+          isAutoMatched: true,
+          isComplete: isMultiPlacement, // Mark if both placements are filled
+        });
+        groupIndex++;
+      }
+    });
+
+    // Sort groups: complete groups first (both feed & story), then incomplete
+    newGroups.sort((a, b) => {
+      if (a.isComplete && !b.isComplete) return -1;
+      if (!a.isComplete && b.isComplete) return 1;
+      return 0;
+    });
+
+    setMultiGroups(newGroups);
+  }, [autoGroupedFiles]);
+
   // Legacy groupedFiles for backward compatibility
   const groupedFiles = useMemo(() => {
     let groups = {};
@@ -4542,24 +4582,47 @@ export default function CreativeImporterPro(props = {}) {
                   <span style={{ fontSize: "14px", fontWeight: "600", color: "#fafafa" }}>
                     🎯 Multi-Placement Ads ({multiGroups.length})
                   </span>
-                  <button
-                    onClick={() => setMultiGroups(prev => [...prev, { id: Date.now(), name: `Ad ${prev.length + 1}`, feed: null, story: null }])}
-                    style={{
-                      padding: "8px 16px",
-                      background: "linear-gradient(135deg, #22c55e, #16a34a)",
-                      border: "none",
-                      borderRadius: "8px",
-                      color: "#fff",
-                      fontSize: "13px",
-                      fontWeight: "500",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <span>+</span> Nouveau groupe
-                  </button>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    {/* Auto-Match Button */}
+                    <button
+                      onClick={handleAutoMatch}
+                      style={{
+                        padding: "8px 16px",
+                        background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                        border: "none",
+                        borderRadius: "8px",
+                        color: "#fff",
+                        fontSize: "13px",
+                        fontWeight: "500",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                      title="Associer automatiquement les fichiers par nom"
+                    >
+                      <span>✨</span> Auto-Match
+                    </button>
+                    {/* Manual Group Button */}
+                    <button
+                      onClick={() => setMultiGroups(prev => [...prev, { id: Date.now(), name: `Ad ${prev.length + 1}`, feed: null, story: null }])}
+                      style={{
+                        padding: "8px 16px",
+                        background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                        border: "none",
+                        borderRadius: "8px",
+                        color: "#fff",
+                        fontSize: "13px",
+                        fontWeight: "500",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      <span>+</span> Nouveau groupe
+                    </button>
+                  </div>
                 </div>
 
                 {multiGroups.length === 0 ? (
@@ -4572,7 +4635,7 @@ export default function CreativeImporterPro(props = {}) {
                   }}>
                     <div style={{ fontSize: "32px", marginBottom: "12px" }}>🎨</div>
                     <div style={{ fontSize: "14px", color: "#a1a1aa", marginBottom: "8px" }}>Aucun groupe créé</div>
-                    <div style={{ fontSize: "12px", color: "#71717a" }}>Cliquez sur "Nouveau groupe" pour créer une pub multi-placement</div>
+                    <div style={{ fontSize: "12px", color: "#71717a" }}>Cliquez sur "Auto-Match" pour associer automatiquement ou "Nouveau groupe" pour mapper manuellement</div>
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
