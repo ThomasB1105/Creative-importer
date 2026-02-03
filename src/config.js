@@ -20,6 +20,13 @@ export const META_APP = {
 // 5. Ajoutez les origines JavaScript autorisées (votre domaine)
 // 6. Ajoutez les URIs de redirection autorisés
 // 7. Configurez REACT_APP_GOOGLE_CLIENT_ID dans Vercel
+// Debug log - remove after testing
+console.log("ENV CHECK:", {
+  hasClientId: !!process.env.REACT_APP_GOOGLE_CLIENT_ID,
+  hasApiKey: !!process.env.REACT_APP_GOOGLE_API_KEY,
+  clientIdPreview: (process.env.REACT_APP_GOOGLE_CLIENT_ID || "").substring(0, 10) + "...",
+});
+
 export const GOOGLE_DRIVE_CONFIG = {
   clientId: process.env.REACT_APP_GOOGLE_CLIENT_ID || "",
   apiKey: process.env.REACT_APP_GOOGLE_API_KEY || "",
