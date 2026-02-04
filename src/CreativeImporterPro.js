@@ -2765,12 +2765,84 @@ export default function CreativeImporterPro(props = {}) {
         const creativeData = new FormData();
         creativeData.append("name", adName);
 
-        // SIMPLIFIED: Always use object_story_spec with feed image
-        // asset_customization_rules is buggy and unreliable in Meta API
-        // The feed image will be used, Meta will auto-adapt for stories if needed
-        {
-          // APPROACH 2: Simple object_story_spec for single asset
-          // console.log(`📝 Using simple object_story_spec (no placement customization needed)`);
+        // Check if we have different assets for feed vs story placements
+        const hasDifferentAssets = needsDynamicCreative &&
+          feedFiles.length > 0 && storyFiles.length > 0 &&
+          primaryAsset.hashData.hash !== storyAsset.hashData.hash;
+
+        if (hasDifferentAssets && !isVideo) {
+          // MULTI-PLACEMENT: Use asset_feed_spec with asset_customization_rules
+          // This allows different images for feed placements vs story/reels placements
+          console.log(`📐 Multi-placement ad: Feed image=${primaryAsset.file.name}, Story image=${storyAsset.file.name}`);
+
+          const ctaType = objective === "leadform"
+            ? getLeadFormCTA(callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE")
+            : (callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE");
+
+          const ctaValue = objective === "leadform" && selectedLeadForm
+            ? { lead_gen_form_id: selectedLeadForm.id }
+            : { link: destinationUrl.trim() };
+
+          // Define images with labels for referencing in customization rules
+          const images = [
+            {
+              hash: primaryAsset.hashData.hash,
+              adlabels: [{ name: "FEED_IMAGE" }]
+            },
+            {
+              hash: storyAsset.hashData.hash,
+              adlabels: [{ name: "STORY_IMAGE" }]
+            }
+          ];
+
+          // Customization rules: first rule for story/reels, second is default (fallback for feed)
+          const assetCustomizationRules = [
+            {
+              // Rule 1: Story and Reels placements use the 9:16 story image
+              customization_spec: {
+                publisher_platforms: ["facebook", "instagram"],
+                facebook_positions: ["story", "facebook_reels"],
+                instagram_positions: ["story", "reels"]
+              },
+              image_label: { name: "STORY_IMAGE" }
+            },
+            {
+              // Rule 2: Default rule (empty customization_spec) for all other placements
+              // This is required by Meta API as a fallback with lowest priority
+              customization_spec: {},
+              image_label: { name: "FEED_IMAGE" }
+            }
+          ];
+
+          const assetFeedSpec = {
+            images: images,
+            bodies: [{ text: filteredTexts[0] || "" }],
+            titles: [{ text: filteredHeadlines[0] || "" }],
+            descriptions: [{ text: "" }],
+            link_urls: [{ website_url: destinationUrl.trim() }],
+            call_to_action_types: [ctaType],
+            ad_formats: ["SINGLE_IMAGE"],
+            asset_customization_rules: assetCustomizationRules,
+            ...(objective === "leadform" && selectedLeadForm && {
+              call_to_actions: [{
+                type: ctaType,
+                value: ctaValue
+              }]
+            })
+          };
+
+          // object_story_spec is still required for page_id
+          const objectStorySpec = {
+            page_id: selectedPage.id
+          };
+
+          console.log(`📝 asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
+          creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
+          creativeData.append("asset_feed_spec", JSON.stringify(assetFeedSpec));
+
+        } else {
+          // SINGLE ASSET: Use simple object_story_spec (no placement customization needed)
+          console.log(`📸 Single asset ad: ${primaryAsset.file.name}`);
 
           let objectStorySpec;
           if (isVideo) {
@@ -2815,10 +2887,6 @@ export default function CreativeImporterPro(props = {}) {
             };
           }
 
-          // NOTE: instagram_actor_id removed - causes validation errors
-          // Meta auto-assigns Instagram from the connected FB page
-
-          // console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
           creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
         }
 
