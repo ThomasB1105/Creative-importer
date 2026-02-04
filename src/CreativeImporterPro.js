@@ -1145,8 +1145,6 @@ export default function CreativeImporterPro(props = {}) {
     for (const file of valid) {
       const dim = await getMediaDimensions(file);
       const format = detectFormat(dim.width, dim.height);
-      // Generate visual fingerprint for auto-matching
-      const fingerprint = await getMediaFingerprint(file);
       processed.push({
         id: Date.now() + "-" + Math.random(),
         name: file.name,
@@ -1158,7 +1156,6 @@ export default function CreativeImporterPro(props = {}) {
         height: dim.height,
         format,
         placement: META_PLACEMENTS[format],
-        fingerprint, // Visual fingerprint for similarity matching
       });
     }
     setUploadedFiles((p) => [...p, ...processed]);
@@ -2442,16 +2439,10 @@ export default function CreativeImporterPro(props = {}) {
         }
       }
 
-      if (budgetType === "cbo" && cboMode === "existing_adset" && !globalNeedsDynamicCreative) {
-        // Use existing adset ONLY if we don't need dynamic creative
+      if (budgetType === "cbo" && cboMode === "existing_adset") {
+        // Use existing adset - NO need for is_dynamic_creative with asset_customization_rules
         adsetId = selectedAdset?.id;
         console.log(`✅ Using existing adset: ${adsetId}`);
-      } else if (budgetType === "cbo" && cboMode === "existing_adset" && globalNeedsDynamicCreative) {
-        // Multi-placement needs is_dynamic_creative - must create NEW adset
-        console.log(`🎨 Multi-placement requires new adset with is_dynamic_creative=true`);
-        const adsetName = nomenclature.adset(null, "multi");
-        adsetId = await createAdset(adsetName, null, true);
-        results.adsets.push({ id: adsetId, name: adsetName });
       } else if (!isAbo1x1 && !isAboMulti) {
         // Create single adset for CBO or ABO existing modes
         // Enable is_dynamic_creative when we have multi-placement with different formats
@@ -2774,80 +2765,10 @@ export default function CreativeImporterPro(props = {}) {
         const creativeData = new FormData();
         creativeData.append("name", adName);
 
-        // TWO APPROACHES:
-        // 1. If we have different assets for feed vs story: use asset_feed_spec with asset_customization_rules
-        // 2. If only one asset: use simple object_story_spec
-
-        if (needsDynamicCreative && !isVideo) {
-          // APPROACH 1: asset_feed_spec with asset_customization_rules
-          // This is the proper Meta API way to do placement asset customization
-          // console.log(`🎨 Using asset_feed_spec with asset_customization_rules`);
-
-          // Build asset_customization_rules for story vs feed placements
-          // IMPORTANT: Must include a DEFAULT rule that covers all other placements
-          const assetCustomizationRules = [];
-
-          // Rule 1: Story/Reels placements (vertical 9:16) → use STORY_IMG
-          const storyRule = {
-            customization_spec: {
-              publisher_platforms: ["facebook"],
-              facebook_positions: ["story", "facebook_reels"],
-            },
-            image_label: { name: "STORY_IMG" }
-          };
-          if (hasInstagramCapability) {
-            storyRule.customization_spec.publisher_platforms.push("instagram");
-            storyRule.customization_spec.instagram_positions = ["story", "reels"];
-          }
-          assetCustomizationRules.push(storyRule);
-
-          // Rule 2: DEFAULT rule - Feed image for all other placements
-          // This is REQUIRED by Meta API to cover unspecified placements
-          const defaultRule = {
-            customization_spec: {},  // Empty spec = matches everything else (default)
-            image_label: { name: "FEED_IMG" }
-          };
-          assetCustomizationRules.push(defaultRule);
-
-          // Build images array with labels
-          const images = [
-            {
-              hash: storyAsset.hashData.hash,
-              adlabels: [{ name: "STORY_IMG" }]
-            },
-            {
-              hash: primaryAsset.hashData.hash,
-              adlabels: [{ name: "FEED_IMG" }]
-            }
-          ];
-
-          // Build asset_feed_spec
-          const assetFeedSpec = {
-            optimization_type: "ASSET_CUSTOMIZATION",
-            ad_formats: ["SINGLE_IMAGE"],
-            asset_customization_rules: assetCustomizationRules,
-            images: images,
-            bodies: [{ text: filteredTexts[0] || "" }],
-            link_urls: [{ website_url: destinationUrl.trim() }],
-            call_to_action_types: [callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"],
-          };
-          // Add titles only if we have one (avoid empty array)
-          if (filteredHeadlines[0]) {
-            assetFeedSpec.titles = [{ text: filteredHeadlines[0] }];
-          }
-
-          console.log(`📝 asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
-
-          creativeData.append("asset_feed_spec", JSON.stringify(assetFeedSpec));
-
-          // object_story_spec is needed for page_id
-          const objectStorySpec = {
-            page_id: selectedPage.id,
-          };
-          console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
-          creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
-
-        } else {
+        // SIMPLIFIED: Always use object_story_spec with feed image
+        // asset_customization_rules is buggy and unreliable in Meta API
+        // The feed image will be used, Meta will auto-adapt for stories if needed
+        {
           // APPROACH 2: Simple object_story_spec for single asset
           // console.log(`📝 Using simple object_story_spec (no placement customization needed)`);
 
