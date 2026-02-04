@@ -2831,9 +2831,11 @@ export default function CreativeImporterPro(props = {}) {
             })
           };
 
-          // object_story_spec is still required for page_id
+          // object_story_spec is required for page_id and instagram_actor_id
+          // instagram_actor_id is REQUIRED for asset_feed_spec with Instagram placements
           const objectStorySpec = {
-            page_id: selectedPage.id
+            page_id: selectedPage.id,
+            ...(instagramActorId && { instagram_actor_id: instagramActorId })
           };
 
           console.log(`📝 asset_feed_spec:`, JSON.stringify(assetFeedSpec, null, 2));
