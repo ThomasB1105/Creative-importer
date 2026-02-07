@@ -43,17 +43,17 @@ const OPTIMIZATION_EVENTS = {
 };
 
 const CALL_TO_ACTIONS = [
-  { id: "LEARN_MORE", name: "En savoir plus" },
-  { id: "SHOP_NOW", name: "Acheter" },
-  { id: "SIGN_UP", name: "S'inscrire" },
-  { id: "DOWNLOAD", name: "Télécharger" },
-  { id: "APPLY_NOW", name: "Postuler" },
-  { id: "BOOK_NOW", name: "Réserver" },
-  { id: "CONTACT_US", name: "Nous contacter" },
-  { id: "GET_QUOTE", name: "Devis" },
-  { id: "SUBSCRIBE", name: "S'abonner" },
-  { id: "WATCH_MORE", name: "Voir plus" },
-  { id: "NO_BUTTON", name: "Pas de bouton" },
+  { id: "LEARN_MORE", name: "En savoir plus", leadFormCompatible: true },
+  { id: "SHOP_NOW", name: "Acheter", leadFormCompatible: false },
+  { id: "SIGN_UP", name: "S'inscrire", leadFormCompatible: true },
+  { id: "DOWNLOAD", name: "Télécharger", leadFormCompatible: true },
+  { id: "APPLY_NOW", name: "Postuler", leadFormCompatible: true },
+  { id: "BOOK_NOW", name: "Réserver", leadFormCompatible: false },
+  { id: "CONTACT_US", name: "Nous contacter", leadFormCompatible: false },
+  { id: "GET_QUOTE", name: "Devis", leadFormCompatible: true },
+  { id: "SUBSCRIBE", name: "S'abonner", leadFormCompatible: true },
+  { id: "WATCH_MORE", name: "Voir plus", leadFormCompatible: false },
+  { id: "NO_BUTTON", name: "Pas de bouton", leadFormCompatible: false },
 ];
 
 const META_PLACEMENTS = {
@@ -101,6 +101,20 @@ const CTA_OPTIONS = [
   { id: "sign_up", name: "S'inscrire" },
   { id: "contact_us", name: "Nous contacter" },
 ];
+
+// CTAs compatible with lead_gen_form_id via Meta API
+// Note: CONTACT_US works in Meta UI but NOT via API
+const LEAD_FORM_VALID_CTAS = ["LEARN_MORE", "SIGN_UP", "SUBSCRIBE", "APPLY_NOW", "GET_QUOTE", "DOWNLOAD"];
+
+// Map incompatible CTAs to compatible ones for Lead Forms
+const getLeadFormCTA = (cta) => {
+  const upperCta = cta.toUpperCase();
+  if (LEAD_FORM_VALID_CTAS.includes(upperCta)) {
+    return upperCta;
+  }
+  // Map incompatible CTAs to SIGN_UP (most common for lead forms)
+  return "SIGN_UP";
+};
 
 const detectFormat = (w, h) => {
   const r = w / h;
@@ -202,13 +216,16 @@ const authHelpers = {
 
   // Generate OAuth URL
   getOAuthUrl() {
-    // Permissions de base qui ne nécessitent pas d'App Review Facebook
+    // Permissions nécessaires pour la gestion des publicités et lead forms
+    // Note: leads_retrieval nécessite une App Review Facebook pour être approuvée
     const permissions = [
       "ads_management",
       "ads_read",
       "business_management",
       "pages_read_engagement",
       "pages_show_list",
+      "pages_manage_ads",
+      "leads_retrieval", // Requis pour accéder aux lead forms
     ].join(",");
 
     return (
@@ -344,22 +361,34 @@ const createMetaApi = (accessToken) => ({
 
   async fetchAdsets(campaignId) {
     try {
-      // Simplified: no filtering, filter client-side
-      const res = await fetch(
-        `${this.baseUrl}/${campaignId}/adsets?fields=id,name,status,daily_budget&limit=100&access_token=${accessToken}`
-      );
+      console.log("🔍 Fetching adsets for campaign:", campaignId);
+      const apiUrl = `${this.baseUrl}/${campaignId}/adsets?fields=id,name,status,daily_budget&limit=100&access_token=${accessToken}`;
+      console.log("🔍 Adsets API URL:", apiUrl.replace(accessToken, "ACCESS_TOKEN_HIDDEN"));
+
+      // Use proxy to avoid CORS issues (like we do for lead forms)
+      const proxyUrl = `/api/facebook-proxy?endpoint=${encodeURIComponent(apiUrl)}`;
+      const res = await fetch(proxyUrl);
+      console.log("🔍 Adsets API response status:", res.status);
+
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
       const data = await res.json();
+      console.log("🔍 Adsets API raw response:", data);
+
       if (data.error) {
+        console.error("❌ Adsets API error:", data.error);
         throw new Error(data.error.message || "Erreur lors de la récupération des adsets");
       }
-      // Filter ACTIVE and PAUSED adsets client-side
-      const activeAdsets = (data.data || []).filter(a =>
-        a.status === "ACTIVE" || a.status === "PAUSED"
-      );
-      return activeAdsets;
+
+      // Log all adsets with their status
+      const allAdsets = data.data || [];
+      console.log("🔍 All adsets received:", allAdsets.map(a => ({ id: a.id, name: a.name, status: a.status })));
+
+      // Return all adsets without filtering - let users see all available adsets
+      // Previously filtered by ACTIVE/PAUSED which might exclude usable adsets
+      console.log("✅ Total adsets found:", allAdsets.length);
+      return allAdsets;
     } catch (error) {
       console.error("fetchAdsets error:", error);
       throw error;
@@ -411,6 +440,7 @@ export default function CreativeImporterPro(props = {}) {
   const [budgetType, setBudgetType] = useState("cbo");
   const [cboMode, setCboMode] = useState("new");
   const [aboMode, setAboMode] = useState("1:1:1");
+  const [maxAdsPerAdset, setMaxAdsPerAdset] = useState(5); // For ABO Multi (1-X-Y)
   const [existingCampaigns, setExistingCampaigns] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [existingAdsets, setExistingAdsets] = useState([]);
@@ -441,12 +471,64 @@ export default function CreativeImporterPro(props = {}) {
   const [objective, setObjective] = useState("conversions");
   const [optimizationEvent, setOptimizationEvent] = useState("purchase");
   const [callToAction, setCallToAction] = useState("LEARN_MORE");
+
+  // Lead Forms (for Lead Form objective)
+  const [leadForms, setLeadForms] = useState([]);
+  const [selectedLeadForm, setSelectedLeadForm] = useState(null);
+  const [isLoadingLeadForms, setIsLoadingLeadForms] = useState(false);
+
   const [budget, setBudget] = useState("50");
   const [selectedCountries, setSelectedCountries] = useState(["france"]);
   const [primaryTexts, setPrimaryTexts] = useState([""]);  // Array of texts
   const [headlines, setHeadlines] = useState([""]);  // Array of headlines
   const [destinationUrl, setDestinationUrl] = useState("");
   const [bidStrategy, setBidStrategy] = useState("LOWEST_COST_WITHOUT_CAP"); // Bid strategy selection
+
+  // Attribution Window Settings
+  const [attributionClickWindow, setAttributionClickWindow] = useState("7d"); // 1d, 7d
+  const [attributionViewWindow, setAttributionViewWindow] = useState("none"); // none, 1d (engaged view - videos)
+  const [attributionClassicViewWindow, setAttributionClassicViewWindow] = useState("none"); // none, 1d (classic view)
+
+  // Scheduling (Programmation)
+  const [enableScheduling, setEnableScheduling] = useState(false);
+  const [scheduleStartDate, setScheduleStartDate] = useState("");
+  const [scheduleStartTime, setScheduleStartTime] = useState("00:01");
+  const [enableEndDate, setEnableEndDate] = useState(false);
+  const [scheduleEndDate, setScheduleEndDate] = useState("");
+  const [scheduleEndTime, setScheduleEndTime] = useState("23:59");
+
+  // Helper to get tomorrow's date in YYYY-MM-DD format
+  const getTomorrowDate = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
+
+  // Auto-set tomorrow's date when scheduling is enabled
+  const handleSchedulingToggle = (enabled) => {
+    setEnableScheduling(enabled);
+    if (enabled && !scheduleStartDate) {
+      setScheduleStartDate(getTomorrowDate());
+      setScheduleStartTime("00:01");
+    }
+  };
+
+  // Nomenclature templates with dynamic fields
+  const [nomenclatureFields, setNomenclatureFields] = useState({
+    product: "",
+    strategy: "testing", // testing | scaling
+    customField1: "",
+    customField2: "",
+  });
+  const [nomenclatureTemplate, setNomenclatureTemplate] = useState({
+    campaign: "{CLIENT}_{COUNTRY}_{BUDGET}_{OBJECTIVE}_{CAMPAIGN}",
+    adset: "{CAMPAIGN}_Broad",
+    ad: "Ads{NUM}_{MEDIA}_{DATE}",
+  });
+  const [savedTemplates, setSavedTemplates] = useState(() => {
+    const saved = localStorage.getItem("nomenclatureTemplates");
+    return saved ? JSON.parse(saved) : [];
+  });
 
   // Campaign creation states
   const [isCreating, setIsCreating] = useState(false);
@@ -583,7 +665,12 @@ export default function CreativeImporterPro(props = {}) {
       .fetchPixels(selectedAdAccount.id)
       .then((data) => {
         setPixels(data);
-        if (data.length > 0) setSelectedPixel(data[0]);
+        // If sharedPixel is provided (from project settings), use it if it exists in the loaded pixels
+        if (sharedPixel && data.some(p => p.id === sharedPixel.id)) {
+          setSelectedPixel(sharedPixel);
+        } else if (data.length > 0) {
+          setSelectedPixel(data[0]);
+        }
       })
       .catch(() => {})
       .finally(() => setIsLoadingPixels(false));
@@ -605,6 +692,7 @@ export default function CreativeImporterPro(props = {}) {
   useEffect(() => {
     if (!selectedCampaign || !accessToken) return;
 
+    console.log("🔄 Loading adsets for campaign:", selectedCampaign.name, "ID:", selectedCampaign.id);
     setIsLoadingAdsets(true);
     setExistingAdsets([]);
     setSelectedAdset(null);
@@ -612,10 +700,102 @@ export default function CreativeImporterPro(props = {}) {
     const api = createMetaApi(accessToken);
     api
       .fetchAdsets(selectedCampaign.id)
-      .then(setExistingAdsets)
-      .catch(() => {})
+      .then((adsets) => {
+        console.log("✅ Adsets loaded:", adsets.length, "adsets found");
+        setExistingAdsets(adsets);
+      })
+      .catch((error) => {
+        console.error("❌ Failed to load adsets:", error);
+      })
       .finally(() => setIsLoadingAdsets(false));
   }, [selectedCampaign, accessToken]);
+
+  // Load lead forms when objective is leadform and page is selected
+  useEffect(() => {
+    // Lead forms API requires a Page Access Token, not User Access Token
+    if (objective !== "leadform" || !selectedPage || !selectedPage.access_token) {
+      setLeadForms([]);
+      setSelectedLeadForm(null);
+      return;
+    }
+
+    setIsLoadingLeadForms(true);
+    setLeadForms([]);
+    setSelectedLeadForm(null);
+
+    const pageId = selectedPage.id;
+    const pageAccessToken = selectedPage.access_token; // Use Page Access Token!
+    const apiUrl = `https://graph.facebook.com/${META_APP.apiVersion}/${pageId}/leadgen_forms?fields=id,name,status,created_time,thank_you_page,privacy_policy_url&limit=100&access_token=${pageAccessToken}`;
+
+    console.log("📋 Fetching lead forms for page:", selectedPage.name, "ID:", pageId);
+    console.log("📋 Using Page Access Token (required for leadgen_forms)");
+
+    // Fetch lead forms from the page
+    fetch(`/api/facebook-proxy?endpoint=${encodeURIComponent(apiUrl)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        console.log("📋 Lead forms API response:", data);
+        if (data.error) {
+          console.error("❌ Lead forms API error:", data.error);
+          console.error("❌ Error code:", data.error.code, "Type:", data.error.type);
+          console.error("❌ Error message:", data.error.message);
+          // Show error to user if it's a permission issue
+          if (data.error.code === 200 || data.error.message?.includes("permission")) {
+            console.error("⚠️ Permission issue detected! User needs to re-login with leads_retrieval permission.");
+          }
+          return;
+        }
+        if (data.data) {
+          // Show all forms (ACTIVE, DRAFT, etc.) - don't filter by status
+          const forms = data.data
+            .sort((a, b) => new Date(b.created_time) - new Date(a.created_time));
+          console.log(`📋 Found ${forms.length} lead forms:`, forms);
+          setLeadForms(forms);
+          if (forms.length > 0) setSelectedLeadForm(forms[0]);
+        } else {
+          console.log("📋 No lead forms data in response. Response keys:", Object.keys(data));
+        }
+      })
+      .catch((error) => {
+        console.error("❌ Error loading lead forms:", error);
+      })
+      .finally(() => setIsLoadingLeadForms(false));
+  }, [objective, selectedPage]);
+
+  // Reset CTA to compatible one when switching to leadform objective
+  useEffect(() => {
+    if (objective === "leadform") {
+      const currentCTA = CALL_TO_ACTIONS.find(c => c.id === callToAction);
+      if (currentCTA && !currentCTA.leadFormCompatible) {
+        setCallToAction("SIGN_UP"); // Default to SIGN_UP for lead forms
+      }
+    }
+  }, [objective, callToAction]);
+
+  // Auto-fill destination URL from lead form when selected
+  useEffect(() => {
+    if (objective === "leadform" && selectedLeadForm) {
+      console.log("📋 Lead form full data:", selectedLeadForm);
+      console.log("📋 thank_you_page:", selectedLeadForm.thank_you_page);
+
+      // Get URL from lead form's thank_you_page ONLY (not privacy policy)
+      let formUrl = null;
+
+      // Try different possible structures for thank_you_page URL
+      if (selectedLeadForm.thank_you_page) {
+        const tyPage = selectedLeadForm.thank_you_page;
+        // Meta API can return it in different formats
+        formUrl = tyPage.website_url || tyPage.url || tyPage.button_url || null;
+        console.log("📋 Found thank_you_page URL:", formUrl);
+      }
+
+      // Only auto-fill if we found a proper URL and field is empty
+      if (formUrl && !destinationUrl) {
+        console.log("📋 Auto-filling destination URL from thank you page:", formUrl);
+        setDestinationUrl(formUrl);
+      }
+    }
+  }, [objective, selectedLeadForm]);
 
   const handleLogin = () => {
     window.location.href = authHelpers.getOAuthUrl();
@@ -829,40 +1009,63 @@ export default function CreativeImporterPro(props = {}) {
     return groups;
   }, [uploadedFiles, splitByMediaType, adType, autoGroupedFiles]);
 
-  // Nomenclature dynamique
+  // Nomenclature dynamique avec templates
   const nomenclature = useMemo(() => {
     const countries = selectedCountries
       .map((c) => GEO_ZONES[c]?.code)
       .join("")
       .toUpperCase();
-    const budget = budgetType.toUpperCase();
+    const budgetStr = budgetType.toUpperCase();
     const obj = OBJECTIVES[objective]?.name || "Conversions";
-
-    const campaign = [
-      clientCode || "XXX",
-      countries || "FR",
-      budget,
-      obj,
-      campaignName || "campagne",
-    ]
-      .filter(Boolean)
-      .join("_");
-
-    const adset = `${campaignName || "campagne"}_Broad`;
 
     const today = new Date();
     const dateStr = `${String(today.getDate()).padStart(2, "0")}${String(
       today.getMonth() + 1
     ).padStart(2, "0")}${String(today.getFullYear()).slice(-2)}`;
 
-    const ad = (num, mediaType) =>
-      `Ads${num}_${mediaType}_${dateStr}`;
+    // Token replacements
+    const tokens = {
+      "{CLIENT}": clientCode || "XXX",
+      "{COUNTRY}": countries || "FR",
+      "{BUDGET}": budgetStr,
+      "{OBJECTIVE}": obj,
+      "{CAMPAIGN}": campaignName || "campagne",
+      "{DATE}": dateStr,
+      "{PRODUCT}": nomenclatureFields.product || "",
+      "{STRATEGY}": nomenclatureFields.strategy?.toUpperCase() || "TESTING",
+      "{CUSTOM1}": nomenclatureFields.customField1 || "",
+      "{CUSTOM2}": nomenclatureFields.customField2 || "",
+    };
+
+    // Replace tokens in template
+    const replaceTokens = (template) => {
+      let result = template;
+      Object.entries(tokens).forEach(([token, value]) => {
+        result = result.replace(new RegExp(token.replace(/[{}]/g, "\\$&"), "g"), value);
+      });
+      // Clean up multiple underscores and trailing/leading underscores
+      return result.replace(/_+/g, "_").replace(/^_|_$/g, "");
+    };
+
+    const campaign = replaceTokens(nomenclatureTemplate.campaign);
+    const adset = replaceTokens(nomenclatureTemplate.adset);
+
+    const ad = (num, mediaType) => {
+      let adTemplate = nomenclatureTemplate.ad;
+      return replaceTokens(adTemplate)
+        .replace("{NUM}", num)
+        .replace("{MEDIA}", mediaType);
+    };
 
     return { campaign, adset, ad };
-  }, [clientCode, selectedCountries, budgetType, objective, campaignName]);
+  }, [clientCode, selectedCountries, budgetType, objective, campaignName, nomenclatureFields, nomenclatureTemplate]);
 
   const isStep2Valid =
-    primaryTexts[0]?.trim() && headlines[0]?.trim() && destinationUrl?.startsWith("http");
+    primaryTexts[0]?.trim() &&
+    headlines[0]?.trim() &&
+    (objective === "leadform"
+      ? selectedLeadForm !== null
+      : destinationUrl?.startsWith("http"));
 
   const structurePreview = useMemo(() => {
     const numGroups = Object.keys(groupedFiles).length;
@@ -1394,24 +1597,74 @@ export default function CreativeImporterPro(props = {}) {
 
               // console.log(`📤 All chunks uploaded`);
 
-              // Phase 3: Finish upload
-              const finishData = new FormData();
-              finishData.append("upload_phase", "finish");
-              finishData.append("upload_session_id", upload_session_id);
-              finishData.append("access_token", accessToken);
+              // Wait a bit before finish phase - Facebook needs time to process chunks
+              console.log(`⏳ Waiting 5 seconds before finish phase for ${file.name}...`);
+              await new Promise(resolve => setTimeout(resolve, 5000));
 
-              const finishResponse = await fetch(videoUploadUrl, {
-                method: "POST",
-                body: finishData
-              });
+              // Phase 3: Finish upload with retry logic
+              let finishSuccess = false;
+              let finishAttempt = 0;
+              const maxFinishAttempts = 5;
+              let lastFinishError = null;
 
-              if (!finishResponse.ok) {
-                throw new Error(`Finish phase failed: ${finishResponse.status}`);
+              while (!finishSuccess && finishAttempt < maxFinishAttempts) {
+                finishAttempt++;
+                try {
+                  console.log(`📤 Finish attempt ${finishAttempt}/${maxFinishAttempts} for ${file.name}`);
+
+                  const finishData = new FormData();
+                  finishData.append("upload_phase", "finish");
+                  finishData.append("upload_session_id", upload_session_id);
+                  finishData.append("access_token", accessToken);
+
+                  const finishResponse = await fetch(videoUploadUrl, {
+                    method: "POST",
+                    body: finishData
+                  });
+
+                  if (!finishResponse.ok) {
+                    const errorText = await finishResponse.text();
+                    console.error(`Finish attempt ${finishAttempt} failed:`, finishResponse.status, errorText);
+                    lastFinishError = new Error(`Finish phase failed: ${finishResponse.status}`);
+
+                    // Wait before retry (exponential backoff: 5s, 10s, 20s, 40s)
+                    if (finishAttempt < maxFinishAttempts) {
+                      const waitTime = 5000 * Math.pow(2, finishAttempt - 1);
+                      console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
+                      await new Promise(resolve => setTimeout(resolve, waitTime));
+                    }
+                    continue;
+                  }
+
+                  const finishResult = await finishResponse.json();
+                  if (finishResult.error) {
+                    console.error(`Finish attempt ${finishAttempt} error:`, finishResult.error);
+                    lastFinishError = new Error(finishResult.error.message);
+
+                    if (finishAttempt < maxFinishAttempts) {
+                      const waitTime = 5000 * Math.pow(2, finishAttempt - 1);
+                      console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
+                      await new Promise(resolve => setTimeout(resolve, waitTime));
+                    }
+                    continue;
+                  }
+
+                  finishSuccess = true;
+                  console.log(`✅ Finish phase succeeded for ${file.name}`);
+                } catch (err) {
+                  console.error(`Finish attempt ${finishAttempt} exception:`, err);
+                  lastFinishError = err;
+
+                  if (finishAttempt < maxFinishAttempts) {
+                    const waitTime = 5000 * Math.pow(2, finishAttempt - 1);
+                    console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
+                  }
+                }
               }
 
-              const finishResult = await finishResponse.json();
-              if (finishResult.error) {
-                throw new Error(finishResult.error.message);
+              if (!finishSuccess) {
+                throw lastFinishError || new Error('Finish phase failed after all attempts');
               }
 
               hash = video_id;
@@ -1588,12 +1841,13 @@ export default function CreativeImporterPro(props = {}) {
         campaignData.append("status", "ACTIVE");
         campaignData.append("special_ad_categories", JSON.stringify([]));
 
-        // Apply bid strategy
-        campaignData.append("bid_strategy", bidStrategy);
-        // console.log(`💰 Using bid strategy: ${bidStrategy}`);
-
         if (budgetType === "cbo") {
+          // CBO: Budget and bid strategy at campaign level
           campaignData.append("daily_budget", Math.round(parseFloat(budget) * 100));
+          campaignData.append("bid_strategy", bidStrategy);
+        } else {
+          // ABO: Budget at adset level, no bid_strategy at campaign level
+          campaignData.append("is_adset_budget_sharing_enabled", "false");
         }
 
         campaignData.append("access_token", accessToken);
@@ -1644,46 +1898,33 @@ export default function CreativeImporterPro(props = {}) {
           age_max: 65,
         };
 
-        // Add placement restrictions based on creative formats
+        // Add all placements by default for maximum reach
         // Use instagramActorId to check if we have Instagram capability (defined earlier in component)
         const canUseInstagram = !!instagramActorId;
 
-        if (isDynamicCreative) {
-          // Multi-placement mode: Facebook only, or Facebook + Instagram if we have an account
-          if (canUseInstagram) {
-            targeting.publisher_platforms = ['facebook', 'instagram'];
-          } else {
-            targeting.publisher_platforms = ['facebook'];
-          }
-        } else if (hasStoryOnly) {
-          if (canUseInstagram) {
-            targeting.publisher_platforms = ['facebook', 'instagram'];
-            targeting.facebook_positions = ['story'];
-            targeting.instagram_positions = ['story'];
-          } else {
-            targeting.publisher_platforms = ['facebook'];
-            targeting.facebook_positions = ['story'];
-          }
-        } else if (hasFeedOnly) {
-          if (canUseInstagram) {
-            targeting.publisher_platforms = ['facebook', 'instagram'];
-            targeting.facebook_positions = ['feed'];
-            targeting.instagram_positions = ['stream'];
-          } else {
-            targeting.publisher_platforms = ['facebook'];
-            targeting.facebook_positions = ['feed'];
-          }
+        // Enable all publisher platforms (Facebook, Instagram, Audience Network, Messenger)
+        if (canUseInstagram) {
+          targeting.publisher_platforms = ['facebook', 'instagram', 'audience_network', 'messenger'];
+          // Facebook positions: all main placements
+          targeting.facebook_positions = ['feed', 'story', 'instant_article', 'instream_video', 'marketplace', 'facebook_reels'];
+          // Instagram positions: all main placements
+          targeting.instagram_positions = ['stream', 'story', 'explore', 'reels', 'profile_feed'];
+          // Audience Network positions
+          targeting.audience_network_positions = ['classic', 'rewarded_video'];
+          // Messenger positions
+          targeting.messenger_positions = ['messenger_home', 'story'];
         } else {
-          // Default: Facebook only without Instagram account
-          if (!canUseInstagram) {
-            targeting.publisher_platforms = ['facebook'];
-          }
+          targeting.publisher_platforms = ['facebook', 'audience_network', 'messenger'];
+          targeting.facebook_positions = ['feed', 'story', 'instant_article', 'instream_video', 'marketplace', 'facebook_reels'];
+          targeting.audience_network_positions = ['classic', 'rewarded_video'];
+          targeting.messenger_positions = ['messenger_home', 'story'];
         }
 
         // Build promoted object
         const promotedObject = {
           pixel_id: selectedPixel.id,
           custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
+          conversion_location: "website",
         };
 
         const adsetData = new FormData();
@@ -1702,14 +1943,76 @@ export default function CreativeImporterPro(props = {}) {
           // console.log(`🎨 Dynamic creative enabled for this adset`);
         }
 
-        // Budget for ABO
+        // Budget and bid strategy for ABO (budget at adset level)
         if (budgetType === "abo") {
           const dailyBudget = Math.max(1000, Math.round(parseFloat(budget) * 100));
           adsetData.append("daily_budget", dailyBudget);
-          // console.log(`💰 Budget: ${dailyBudget} cents (${dailyBudget/100} EUR/day)`);
+          // For ABO, bid_strategy must be at adset level (defaults to LOWEST_COST_WITHOUT_CAP)
+          adsetData.append("bid_strategy", bidStrategy);
+          // console.log(`💰 Budget: ${dailyBudget} cents (${dailyBudget/100} EUR/day), bid_strategy: ${bidStrategy}`);
         }
 
+        // Scheduling (start_time / end_time) - ISO 8601 format
+        if (enableScheduling && scheduleStartDate) {
+          const startDateTime = new Date(`${scheduleStartDate}T${scheduleStartTime || "00:00"}:00`);
+          adsetData.append("start_time", startDateTime.toISOString());
+          console.log(`📅 Scheduled start: ${startDateTime.toISOString()}`);
+        }
+        if (enableScheduling && enableEndDate && scheduleEndDate) {
+          const endDateTime = new Date(`${scheduleEndDate}T${scheduleEndTime || "23:59"}:00`);
+          adsetData.append("end_time", endDateTime.toISOString());
+          console.log(`📅 Scheduled end: ${endDateTime.toISOString()}`);
+        }
+
+        // Attribution Window Settings
+        const attributionSpec = [];
+        // Click-through window (1 or 7 days)
+        const clickDays = attributionClickWindow === "1d" ? 1 : 7;
+        attributionSpec.push({
+          event_type: "CLICK_THROUGH",
+          window_days: clickDays
+        });
+        // Classic view-through window (optional, only if not "none")
+        if (attributionClassicViewWindow !== "none") {
+          const classicViewDays = attributionClassicViewWindow === "1d" ? 1 : 0;
+          if (classicViewDays > 0) {
+            attributionSpec.push({
+              event_type: "VIEW_THROUGH",
+              window_days: classicViewDays
+            });
+          }
+        }
+        // Engaged view window (optional, only if not "none" - videos only)
+        if (attributionViewWindow !== "none") {
+          const engagedViewDays = attributionViewWindow === "1d" ? 1 : 0;
+          if (engagedViewDays > 0) {
+            attributionSpec.push({
+              event_type: "ENGAGED_VIEW",
+              window_days: engagedViewDays
+            });
+          }
+        }
+        adsetData.append("attribution_spec", JSON.stringify(attributionSpec));
+        console.log(`📊 Attribution spec:`, attributionSpec);
+
         adsetData.append("access_token", accessToken);
+
+        // Debug: Log all parameters being sent
+        console.log(`📦 Creating adset "${adsetName}" with parameters:`, {
+          name: adsetName,
+          campaign_id: campaignId,
+          status: "ACTIVE",
+          billing_event: "IMPRESSIONS",
+          optimization_goal: "OFFSITE_CONVERSIONS",
+          adset_auto_targeting_enabled: "false",
+          promoted_object: promotedObject,
+          targeting: targeting,
+          is_dynamic_creative: isDynamicCreative,
+          daily_budget: budgetType === "abo" ? Math.max(1000, Math.round(parseFloat(budget) * 100)) : undefined,
+          bid_strategy: budgetType === "abo" ? bidStrategy : undefined,
+          budgetType: budgetType,
+          attribution_spec: attributionSpec,
+        });
 
         const adsetResponse = await fetch(
           `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/adsets`)}`,
@@ -1718,8 +2021,17 @@ export default function CreativeImporterPro(props = {}) {
 
         const adsetResult = await adsetResponse.json();
         if (adsetResult.error) {
-          console.error("❌ Adset creation error:", adsetResult.error);
-          throw new Error(`Adset: ${adsetResult.error.message}`);
+          console.error("❌ Adset creation error FULL:", JSON.stringify(adsetResult.error, null, 2));
+          console.error("❌ Error details:", {
+            message: adsetResult.error.message,
+            code: adsetResult.error.code,
+            error_subcode: adsetResult.error.error_subcode,
+            error_user_title: adsetResult.error.error_user_title,
+            error_user_msg: adsetResult.error.error_user_msg,
+            fbtrace_id: adsetResult.error.fbtrace_id,
+          });
+          const errorMsg = adsetResult.error.error_user_msg || adsetResult.error.message;
+          throw new Error(`Adset: ${errorMsg}${adsetResult.error.code ? ` (Code: ${adsetResult.error.code})` : ''}`);
         }
 
         // console.log(`✅ Adset created: ${adsetResult.id}`);
@@ -1728,9 +2040,11 @@ export default function CreativeImporterPro(props = {}) {
 
       // Step 3: Create adset(s) based on structure
       // For ABO 1-x-1: Create one adset per group (later in the loop)
+      // For ABO multi: Create multiple adsets with max Y ads per adset
       // For other modes: Create a single adset here
       let adsetId;
       const isAbo1x1 = budgetType === "abo" && aboMode === "1:1:1";
+      const isAboMulti = budgetType === "abo" && aboMode === "multi";
 
       // Multi-placement with different feed/story assets uses asset_feed_spec
       // This REQUIRES is_dynamic_creative on the adset
@@ -1743,6 +2057,29 @@ export default function CreativeImporterPro(props = {}) {
       const globalNeedsDynamicCreative = adType === "multi" && hasFeedFormat && hasStoryFormat;
       // console.log(`🎨 Global needs dynamic creative: ${globalNeedsDynamicCreative} (hasFeed: ${hasFeedFormat}, hasStory: ${hasStoryFormat})`);
 
+      // For ABO Multi: Create multiple adsets to distribute ads
+      let aboMultiAdsets = []; // Array of { id, name, adsCount }
+      if (isAboMulti) {
+        // Calculate total number of ads (groups + unmapped files)
+        const totalAds = effectiveGroups.length + unmappedHashes.length;
+        const numAdsets = Math.ceil(totalAds / maxAdsPerAdset);
+
+        console.log(`📦 ABO Multi: Creating ${numAdsets} adsets for ${totalAds} ads (max ${maxAdsPerAdset} per adset)`);
+
+        for (let adsetIndex = 0; adsetIndex < numAdsets; adsetIndex++) {
+          const adsetName = `${nomenclature.adset}_${adsetIndex + 1}`;
+          try {
+            const newAdsetId = await createAdset(adsetName, null, globalNeedsDynamicCreative);
+            aboMultiAdsets.push({ id: newAdsetId, name: adsetName, adsCount: 0 });
+            results.adsets.push({ id: newAdsetId, name: adsetName });
+            console.log(`✅ ABO Multi adset created: ${adsetName} (${newAdsetId})`);
+          } catch (err) {
+            console.error(`❌ Failed to create ABO Multi adset ${adsetIndex + 1}:`, err);
+            results.errors.push(`Adset creation failed: ${err.message}`);
+          }
+        }
+      }
+
       if (budgetType === "cbo" && cboMode === "existing_adset" && !globalNeedsDynamicCreative) {
         // Use existing adset ONLY if we don't need dynamic creative
         adsetId = selectedAdset?.id;
@@ -1752,13 +2089,14 @@ export default function CreativeImporterPro(props = {}) {
         console.log(`🎨 Multi-placement requires new adset with is_dynamic_creative=true`);
         adsetId = await createAdset(nomenclature.adset + "_multi", null, true);
         results.adsets.push({ id: adsetId, name: nomenclature.adset + "_multi" });
-      } else if (!isAbo1x1) {
-        // Create single adset for CBO or ABO multi modes
+      } else if (!isAbo1x1 && !isAboMulti) {
+        // Create single adset for CBO or ABO existing modes
         // Enable is_dynamic_creative when we have multi-placement with different formats
         adsetId = await createAdset(nomenclature.adset, null, globalNeedsDynamicCreative);
         results.adsets.push({ id: adsetId, name: nomenclature.adset });
       }
       // For ABO 1-x-1, adsets will be created in the group loop below
+      // For ABO Multi, adsets are already created above in aboMultiAdsets
 
       // Skip old adset creation code for non-1x1 modes
       if (false) {
@@ -1820,6 +2158,7 @@ export default function CreativeImporterPro(props = {}) {
         const promotedObject = {
           pixel_id: selectedPixel.id,
           custom_event_type: eventMapping[optimizationEvent] || "PURCHASE",
+          conversion_location: "website",
         };
 
 
@@ -1880,8 +2219,13 @@ export default function CreativeImporterPro(props = {}) {
       if (filteredTexts.length === 0) {
         throw new Error("Au moins un texte principal est requis pour créer les publicités");
       }
+      // URL is always required (even for lead forms - Meta requires external URL, not Facebook Page URL)
       if (!destinationUrl || !destinationUrl.trim()) {
         throw new Error("L'URL de destination est requise pour créer les publicités");
+      }
+      // Lead form is required for leadform objective
+      if (objective === "leadform" && !selectedLeadForm) {
+        throw new Error("Un formulaire Lead est requis pour créer les publicités Lead Form");
       }
 
       // Helper to get placement positions based on format
@@ -1962,6 +2306,17 @@ export default function CreativeImporterPro(props = {}) {
         }
       }
 
+      // Global ad counter for ABO Multi distribution
+      let globalAdIndex = 0;
+
+      // Helper function to get the adset ID for ABO Multi mode
+      const getAboMultiAdsetId = () => {
+        if (!isAboMulti || aboMultiAdsets.length === 0) return adsetId;
+        const adsetIndex = Math.floor(globalAdIndex / maxAdsPerAdset);
+        const safeIndex = Math.min(adsetIndex, aboMultiAdsets.length - 1);
+        return aboMultiAdsets[safeIndex]?.id;
+      };
+
       // Process each group: For ABO 1-x-1, create one adset per group
       for (let groupIndex = 0; groupIndex < effectiveGroups.length; groupIndex++) {
         const group = effectiveGroups[groupIndex];
@@ -1986,6 +2341,7 @@ export default function CreativeImporterPro(props = {}) {
         const needsDynamicCreative = adType === "multi" && feedFiles.length > 0 && storyFiles.length > 0;
 
         // For ABO 1-x-1: Create a new adset for this group
+        // For ABO Multi: Use the pre-created adsets with distribution
         let currentAdsetId = adsetId;
         if (isAbo1x1) {
           const adsetName = group.baseName
@@ -2000,6 +2356,9 @@ export default function CreativeImporterPro(props = {}) {
             results.errors.push(`Adset creation failed for group ${groupIndex + 1}: ${err.message}`);
             continue;
           }
+        } else if (isAboMulti) {
+          // Use pre-created adsets with round-robin distribution
+          currentAdsetId = getAboMultiAdsetId();
         }
 
         // Determine ad name
@@ -2047,8 +2406,9 @@ export default function CreativeImporterPro(props = {}) {
           // Rule for story/reels placements (vertical 9:16)
           const storyRule = {
             customization_spec: {
-              publisher_platforms: hasInstagramCapability ? ["facebook", "instagram"] : ["facebook"],
+              publisher_platforms: hasInstagramCapability ? ["facebook", "instagram", "messenger"] : ["facebook", "messenger"],
               facebook_positions: ["story", "facebook_reels"],
+              messenger_positions: ["story"],
             },
             image_label: { name: "STORY_IMG" }
           };
@@ -2060,13 +2420,15 @@ export default function CreativeImporterPro(props = {}) {
           // Rule for feed placements (square/portrait)
           const feedRule = {
             customization_spec: {
-              publisher_platforms: hasInstagramCapability ? ["facebook", "instagram"] : ["facebook"],
-              facebook_positions: ["feed"],
+              publisher_platforms: hasInstagramCapability ? ["facebook", "instagram", "audience_network", "messenger"] : ["facebook", "audience_network", "messenger"],
+              facebook_positions: ["feed", "instant_article", "instream_video", "marketplace"],
+              audience_network_positions: ["classic", "rewarded_video"],
+              messenger_positions: ["messenger_home"],
             },
             image_label: { name: "FEED_IMG" }
           };
           if (hasInstagramCapability) {
-            feedRule.customization_spec.instagram_positions = ["stream", "explore"];
+            feedRule.customization_spec.instagram_positions = ["stream", "explore", "profile_feed"];
           }
           assetCustomizationRules.push(feedRule);
 
@@ -2122,33 +2484,41 @@ export default function CreativeImporterPro(props = {}) {
                 message: filteredTexts[0] || "",
                 title: filteredHeadlines[0] || "",
                 call_to_action: {
-                  type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
-                  value: { link: destinationUrl.trim() }
+                  type: objective === "leadform"
+                    ? getLeadFormCTA(callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE")
+                    : (callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"),
+                  value: objective === "leadform" && selectedLeadForm
+                    ? { lead_gen_form_id: selectedLeadForm.id }
+                    : { link: destinationUrl.trim() }
                 },
                 ...(primaryAsset.hashData.thumbnailHash && { image_hash: primaryAsset.hashData.thumbnailHash })
               }
             };
           } else {
             // Image ad
+            const linkData = {
+              image_hash: primaryAsset.hashData.hash,
+              message: filteredTexts[0] || "",
+              name: filteredHeadlines[0] || "",
+              call_to_action: {
+                type: objective === "leadform"
+                  ? getLeadFormCTA(callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE")
+                  : (callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"),
+                value: objective === "leadform" && selectedLeadForm
+                  ? { lead_gen_form_id: selectedLeadForm.id }
+                  : { link: destinationUrl.trim() }
+              }
+            };
+            // Always use destination URL (Meta requires external URL, not Facebook Page URL for lead forms)
+            linkData.link = destinationUrl.trim();
             objectStorySpec = {
               page_id: selectedPage.id,
-              link_data: {
-                image_hash: primaryAsset.hashData.hash,
-                link: destinationUrl.trim(),
-                message: filteredTexts[0] || "",
-                name: filteredHeadlines[0] || "",
-                call_to_action: {
-                  type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
-                  value: { link: destinationUrl.trim() }
-                }
-              }
+              link_data: linkData
             };
           }
 
-          // Add Instagram actor if available (real account or PBIA)
-          if (instagramActorId) {
-            objectStorySpec.instagram_actor_id = instagramActorId;
-          }
+          // NOTE: instagram_actor_id removed - causes validation errors
+          // Meta auto-assigns Instagram from the connected FB page
 
           // console.log(`📝 object_story_spec:`, JSON.stringify(objectStorySpec, null, 2));
           creativeData.append("object_story_spec", JSON.stringify(objectStorySpec));
@@ -2227,6 +2597,7 @@ export default function CreativeImporterPro(props = {}) {
           });
         } else {
           results.ads.push({ id: adResult.id, name: adName });
+          globalAdIndex++; // Increment for ABO Multi distribution
           // console.log(`✅ Multi-format ad created: ${adResult.id}`);
           groupHashes.forEach(h => {
             setUploadProgress(prev => ({
@@ -2244,6 +2615,32 @@ export default function CreativeImporterPro(props = {}) {
         const file = uploadedFiles.find(f => f.id === hashData.fileId);
 
         const adName = nomenclature.ad(effectiveGroups.length + i + 1, file.format);
+
+        // Determine the adset ID for this unmapped file
+        let currentUnmappedAdsetId;
+        if (isAbo1x1) {
+          // ABO 1x1: Create a new adset for each unmapped file (consistent with 1:1:1 pattern)
+          const adsetName = `${nomenclature.adset}_${file.name.replace(/\.[^.]+$/, '')}`;
+          try {
+            currentUnmappedAdsetId = await createAdset(adsetName, [file], false);
+            results.adsets.push({ id: currentUnmappedAdsetId, name: adsetName });
+            console.log(`✅ ABO 1x1 adset created for unmapped file: ${adsetName} (${currentUnmappedAdsetId})`);
+          } catch (err) {
+            console.error(`❌ Failed to create adset for unmapped file ${file.name}:`, err);
+            results.errors.push(`Adset creation failed for ${file.name}: ${err.message}`);
+            setUploadProgress(prev => ({
+              ...prev,
+              [file.id]: { progress: 0, status: 'error' }
+            }));
+            continue;
+          }
+        } else if (isAboMulti) {
+          // ABO Multi: Use pre-created adsets with round-robin distribution
+          currentUnmappedAdsetId = getAboMultiAdsetId();
+        } else {
+          // CBO or other modes: Use the single adset
+          currentUnmappedAdsetId = adsetId;
+        }
 
         // Update progress: creating creative
         setUploadProgress(prev => ({
@@ -2276,10 +2673,12 @@ export default function CreativeImporterPro(props = {}) {
             image_hash: hashData.thumbnailHash, // REQUIRED by Facebook
             message: filteredTexts[i % filteredTexts.length],
             call_to_action: {
-              type: callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE",
-              value: {
-                link: destinationUrl.trim(),
-              },
+              type: objective === "leadform"
+                ? getLeadFormCTA(callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE")
+                : (callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"),
+              value: objective === "leadform" && selectedLeadForm
+                ? { lead_gen_form_id: selectedLeadForm.id }
+                : { link: destinationUrl.trim() },
             },
           };
 
@@ -2295,20 +2694,28 @@ export default function CreativeImporterPro(props = {}) {
         } else {
           // Images use link_data
           const linkData = {
-            link: destinationUrl.trim(),
             message: filteredTexts[i % filteredTexts.length],
             image_hash: hashData.hash,
           };
+
+          // Always use destination URL (Meta requires external URL, not Facebook Page URL for lead forms)
+          linkData.link = destinationUrl.trim();
 
           // Add headline only if available
           if (filteredHeadlines.length > 0) {
             linkData.name = filteredHeadlines[i % filteredHeadlines.length];
           }
 
-          // Add call_to_action only if not NO_BUTTON
-          if (callToAction !== "NO_BUTTON") {
+          // Add call_to_action
+          if (objective === "leadform" && selectedLeadForm) {
+            linkData.call_to_action = {
+              type: getLeadFormCTA(callToAction !== "NO_BUTTON" ? callToAction : "LEARN_MORE"),
+              value: { lead_gen_form_id: selectedLeadForm.id }
+            };
+          } else if (callToAction !== "NO_BUTTON") {
             linkData.call_to_action = {
               type: callToAction,
+              value: { link: destinationUrl.trim() }
             };
           }
 
@@ -2318,10 +2725,8 @@ export default function CreativeImporterPro(props = {}) {
           };
         }
 
-        // Add instagram_actor_id if we have a linked Instagram account or PBIA
-        if (instagramActorId) {
-          objectStorySpec.instagram_actor_id = instagramActorId;
-        }
+        // NOTE: instagram_actor_id removed - causes validation errors
+        // Meta auto-assigns Instagram from the connected FB page
 
         // console.log(`📝 Creating creative for ${file.name}:`, JSON.stringify(objectStorySpec, null, 2));
 
@@ -2375,13 +2780,15 @@ export default function CreativeImporterPro(props = {}) {
           [file.id]: { progress: 80, status: 'creating' }
         }));
 
-        // Create ad (unmapped files always use the main adsetId)
+        // Create ad (use the adset determined earlier in the loop)
         const adData = new FormData();
         adData.append("name", adName);
-        adData.append("adset_id", adsetId);
+        adData.append("adset_id", currentUnmappedAdsetId);
         adData.append("creative", JSON.stringify({ creative_id: creativeResult.id }));
         adData.append("status", "ACTIVE");
         adData.append("access_token", accessToken);
+
+        console.log(`📝 Creating ad: name=${adName}, adset_id=${currentUnmappedAdsetId}, creative_id=${creativeResult.id}`);
 
         const adResponse = await fetch(
           `/api/facebook-proxy?endpoint=${encodeURIComponent(`https://graph.facebook.com/${META_APP.apiVersion}/${selectedAdAccount.id}/ads`)}`,
@@ -2390,7 +2797,11 @@ export default function CreativeImporterPro(props = {}) {
 
         const adResult = await adResponse.json();
         if (adResult.error) {
-          console.error(`Error creating ad for ${file.name}:`, adResult.error);
+          console.error(`❌ Error creating ad for ${file.name}:`, adResult.error);
+          console.error(`❌ Error details - code: ${adResult.error.code}, subcode: ${adResult.error.error_subcode}, message: ${adResult.error.message}`);
+          if (adResult.error.error_user_msg) {
+            console.error(`❌ User message: ${adResult.error.error_user_msg}`);
+          }
           results.errors.push(`Ad failed for ${file.name}: ${adResult.error.message}`);
 
           // Update progress: error
@@ -2400,6 +2811,7 @@ export default function CreativeImporterPro(props = {}) {
           }));
         } else {
           results.ads.push({ id: adResult.id, name: adName });
+          globalAdIndex++; // Increment for ABO Multi distribution
           // console.log(`✅ Ad created: ${adResult.id}`);
 
           // Update progress: complete
@@ -3224,7 +3636,15 @@ export default function CreativeImporterPro(props = {}) {
                         {filteredCampaigns.map((c) => (
                           <div
                             key={c.id}
-                            onClick={() => setSelectedCampaign(c)}
+                            onClick={() => {
+                              setSelectedCampaign(c);
+                              // Detect objective from campaign
+                              if (c.objective === "OUTCOME_LEADS" || c.objective === "LEAD_GENERATION") {
+                                setObjective("leadform");
+                              } else if (c.objective === "OUTCOME_SALES" || c.objective === "CONVERSIONS") {
+                                setObjective("conversions");
+                              }
+                            }}
                             style={{
                               padding: "10px",
                               borderRadius: "6px",
@@ -3406,6 +3826,53 @@ export default function CreativeImporterPro(props = {}) {
                   ))}
                 </div>
 
+                {aboMode === "multi" && (
+                  <div
+                    style={{
+                      marginTop: "16px",
+                      padding: "14px",
+                      background: "rgba(0,0,0,0.2)",
+                      borderRadius: "10px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      🎯 Max ads par adset
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={maxAdsPerAdset}
+                      onChange={(e) => setMaxAdsPerAdset(Math.max(1, parseInt(e.target.value) || 1))}
+                      style={{
+                        width: "100%",
+                        padding: "10px 12px",
+                        borderRadius: "6px",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        background: "rgba(0,0,0,0.3)",
+                        color: "#fff",
+                        fontSize: "14px",
+                        outline: "none",
+                      }}
+                    />
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "#71717a",
+                        marginTop: "6px",
+                      }}
+                    >
+                      Les ads seront réparties automatiquement sur plusieurs adsets
+                    </div>
+                  </div>
+                )}
+
                 {aboMode === "existing" && (
                   <div
                     style={{
@@ -3461,7 +3928,15 @@ export default function CreativeImporterPro(props = {}) {
                         {filteredCampaigns.map((c) => (
                           <div
                             key={c.id}
-                            onClick={() => setSelectedCampaign(c)}
+                            onClick={() => {
+                              setSelectedCampaign(c);
+                              // Detect objective from campaign
+                              if (c.objective === "OUTCOME_LEADS" || c.objective === "LEAD_GENERATION") {
+                                setObjective("leadform");
+                              } else if (c.objective === "OUTCOME_SALES" || c.objective === "CONVERSIONS") {
+                                setObjective("conversions");
+                              }
+                            }}
                             style={{
                               padding: "10px",
                               borderRadius: "6px",
@@ -3697,40 +4172,141 @@ export default function CreativeImporterPro(props = {}) {
                     );
                   })()}
                 </div>
-                <div style={box}>
-                  <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
-                    Zones
-                  </p>
-                  <div
-                    style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}
-                  >
-                    {Object.entries(GEO_ZONES).map(([k, z]) => (
-                      <button
-                        key={k}
-                        onClick={() =>
-                          setSelectedCountries((p) =>
-                            p.includes(k) ? p.filter((c) => c !== k) : [...p, k]
-                          )
-                        }
+
+                {/* Programmation et Zones - masqués quand on utilise un adset existant */}
+                {!((budgetType === "cbo" && cboMode === "existing_adset") || (budgetType === "abo" && aboMode === "existing")) && (
+                  <>
+                    {/* Programmation (Scheduling) */}
+                    <div style={box}>
+                      <div
                         style={{
-                          padding: "8px 12px",
-                          borderRadius: "8px",
-                          border: selectedCountries.includes(k)
-                            ? "2px solid #6366f1"
-                            : "1px solid rgba(255,255,255,0.1)",
-                          background: selectedCountries.includes(k)
-                            ? "rgba(99,102,241,0.2)"
-                            : "transparent",
-                          color: "#fff",
-                          cursor: "pointer",
-                          fontSize: "12px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          marginBottom: enableScheduling ? "16px" : "0",
                         }}
                       >
-                        {z.flag} {z.code}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                        <p style={{ margin: 0, fontWeight: "600" }}>
+                          📅 Programmation
+                        </p>
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            cursor: "pointer",
+                            fontSize: "12px",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={enableScheduling}
+                            onChange={(e) => handleSchedulingToggle(e.target.checked)}
+                            style={{ cursor: "pointer" }}
+                          />
+                          Activer
+                        </label>
+                      </div>
+                      {enableScheduling && (
+                        <>
+                          <div style={{ marginBottom: "12px" }}>
+                            <span style={{ fontSize: "11px", color: "#71717a" }}>
+                              Date de début
+                            </span>
+                            <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                              <input
+                                type="date"
+                                value={scheduleStartDate}
+                                onChange={(e) => setScheduleStartDate(e.target.value)}
+                                min={new Date().toISOString().split('T')[0]}
+                                style={{ ...inp, flex: 2 }}
+                              />
+                              <input
+                                type="time"
+                                value={scheduleStartTime}
+                                onChange={(e) => setScheduleStartTime(e.target.value)}
+                                style={{ ...inp, flex: 1 }}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                                marginBottom: "8px",
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={enableEndDate}
+                                onChange={(e) => setEnableEndDate(e.target.checked)}
+                                style={{ cursor: "pointer" }}
+                              />
+                              Définir une date de fin
+                            </label>
+                            {enableEndDate && (
+                              <div style={{ display: "flex", gap: "8px" }}>
+                                <input
+                                  type="date"
+                                  value={scheduleEndDate}
+                                  onChange={(e) => setScheduleEndDate(e.target.value)}
+                                  min={scheduleStartDate || new Date().toISOString().split('T')[0]}
+                                  style={{ ...inp, flex: 2 }}
+                                />
+                                <input
+                                  type="time"
+                                  value={scheduleEndTime}
+                                  onChange={(e) => setScheduleEndTime(e.target.value)}
+                                  style={{ ...inp, flex: 1 }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    <div style={box}>
+                      <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
+                        Zones
+                      </p>
+                      <div
+                        style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}
+                      >
+                        {Object.entries(GEO_ZONES).map(([k, z]) => (
+                          <button
+                            key={k}
+                            onClick={() =>
+                              setSelectedCountries((p) =>
+                                p.includes(k) ? p.filter((c) => c !== k) : [...p, k]
+                              )
+                            }
+                            style={{
+                              padding: "8px 12px",
+                              borderRadius: "8px",
+                              border: selectedCountries.includes(k)
+                                ? "2px solid #6366f1"
+                                : "1px solid rgba(255,255,255,0.1)",
+                              background: selectedCountries.includes(k)
+                                ? "rgba(99,102,241,0.2)"
+                                : "transparent",
+                              color: "#fff",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                            }}
+                          >
+                            {z.flag} {z.code}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 {/* Only show Objective if creating new campaign */}
                 {!(budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) && (
                   <div style={box}>
@@ -3834,7 +4410,9 @@ export default function CreativeImporterPro(props = {}) {
                       overflowY: "auto",
                     }}
                   >
-                    {CALL_TO_ACTIONS.map((cta) => (
+                    {CALL_TO_ACTIONS
+                      .filter(cta => objective !== "leadform" || cta.leadFormCompatible)
+                      .map((cta) => (
                       <button
                         key={cta.id}
                         onClick={() => setCallToAction(cta.id)}
@@ -3925,6 +4503,109 @@ export default function CreativeImporterPro(props = {}) {
                     </div>
                   </div>
                 )}
+
+                {/* Attribution Window Settings */}
+                <div style={box}>
+                  <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
+                    Fenêtre d'attribution
+                  </p>
+
+                  {/* Click Attribution Window */}
+                  <div style={{ marginBottom: "14px" }}>
+                    <div style={{ fontSize: "11px", color: "#71717a", marginBottom: "8px" }}>
+                      Clics
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      {[
+                        { id: "1d", name: "1 jour" },
+                        { id: "7d", name: "7 jours" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          onClick={() => setAttributionClickWindow(opt.id)}
+                          style={{
+                            flex: 1,
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            border: attributionClickWindow === opt.id ? "2px solid #22d3ee" : "1px solid rgba(255,255,255,0.1)",
+                            background: attributionClickWindow === opt.id ? "rgba(34,211,238,0.2)" : "transparent",
+                            color: "#fff",
+                            cursor: "pointer",
+                            fontSize: "11px",
+                            fontWeight: "500",
+                          }}
+                        >
+                          {opt.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Classic View Attribution Window */}
+                  <div style={{ marginBottom: "14px" }}>
+                    <div style={{ fontSize: "11px", color: "#71717a", marginBottom: "8px" }}>
+                      Vues
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      {[
+                        { id: "none", name: "Aucune" },
+                        { id: "1d", name: "1 jour" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          onClick={() => setAttributionClassicViewWindow(opt.id)}
+                          style={{
+                            flex: 1,
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            border: attributionClassicViewWindow === opt.id ? "2px solid #f97316" : "1px solid rgba(255,255,255,0.1)",
+                            background: attributionClassicViewWindow === opt.id ? "rgba(249,115,22,0.2)" : "transparent",
+                            color: "#fff",
+                            cursor: "pointer",
+                            fontSize: "11px",
+                            fontWeight: "500",
+                          }}
+                        >
+                          {opt.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Engaged View Attribution Window */}
+                  <div>
+                    <div style={{ fontSize: "11px", color: "#71717a", marginBottom: "8px" }}>
+                      Vues actives (vidéos uniquement)
+                    </div>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      {[
+                        { id: "none", name: "Aucune" },
+                        { id: "1d", name: "1 jour" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          onClick={() => setAttributionViewWindow(opt.id)}
+                          style={{
+                            flex: 1,
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            border: attributionViewWindow === opt.id ? "2px solid #a78bfa" : "1px solid rgba(255,255,255,0.1)",
+                            background: attributionViewWindow === opt.id ? "rgba(167,139,250,0.2)" : "transparent",
+                            color: "#fff",
+                            cursor: "pointer",
+                            fontSize: "11px",
+                            fontWeight: "500",
+                          }}
+                        >
+                          {opt.name}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: "9px", color: "#71717a", marginTop: "8px" }}>
+                      Les vues actives comptabilisent les conversions après qu'un utilisateur a regardé au moins 10s de vidéo
+                    </div>
+                  </div>
+                </div>
               </div>
               <div
                 style={{
@@ -4101,10 +4782,58 @@ export default function CreativeImporterPro(props = {}) {
                     </button>
                   )}
 
-                  {/* URL */}
+                  {/* Lead Form selector when objective is leadform */}
+                  {objective === "leadform" && (
+                    <>
+                      <div style={{ marginBottom: "6px" }}>
+                        <span style={{ fontSize: "11px", color: "#71717a" }}>
+                          📋 Formulaire Lead (Requis) {isLoadingLeadForms && "(chargement...)"}
+                        </span>
+                      </div>
+                      {leadForms.length === 0 && !isLoadingLeadForms ? (
+                        <div
+                          style={{
+                            padding: "12px",
+                            background: "rgba(239,68,68,0.1)",
+                            border: "1px solid rgba(239,68,68,0.3)",
+                            borderRadius: "8px",
+                            fontSize: "11px",
+                            color: "#fca5a5",
+                            marginBottom: "16px",
+                          }}
+                        >
+                          Aucun formulaire actif trouvé. Créez un formulaire dans Meta Ads Manager.
+                        </div>
+                      ) : (
+                        <select
+                          value={selectedLeadForm?.id || ""}
+                          onChange={(e) => {
+                            const form = leadForms.find(f => f.id === e.target.value);
+                            setSelectedLeadForm(form);
+                          }}
+                          style={{
+                            ...inp,
+                            border: selectedLeadForm
+                              ? "1px solid rgba(34,197,94,0.5)"
+                              : "1px solid rgba(239,68,68,0.5)",
+                            marginBottom: "16px",
+                          }}
+                        >
+                          <option value="">Sélectionner un formulaire...</option>
+                          {leadForms.map((form) => (
+                            <option key={form.id} value={form.id}>
+                              {form.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </>
+                  )}
+
+                  {/* URL is always required (even for lead forms - Meta requires external URL) */}
                   <div style={{ marginBottom: "6px" }}>
                     <span style={{ fontSize: "11px", color: "#71717a" }}>
-                      URL de destination (Requis)
+                      🔗 URL de destination (Requis){objective === "leadform" && " - Site web de l'annonceur"}
                     </span>
                   </div>
                   <input
@@ -4123,17 +4852,47 @@ export default function CreativeImporterPro(props = {}) {
                   <p style={{ margin: "0 0 12px", fontWeight: "600" }}>
                     Nomenclature
                   </p>
+
+                  {/* Templates préenregistrés */}
+                  {savedTemplates.length > 0 && (
+                    <div style={{ marginBottom: "16px" }}>
+                      <span style={{ fontSize: "11px", color: "#71717a" }}>
+                        Templates sauvegardés
+                      </span>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "4px" }}>
+                        {savedTemplates.map((template, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setNomenclatureTemplate(template.template)}
+                            style={{
+                              padding: "4px 10px",
+                              borderRadius: "6px",
+                              border: "1px solid rgba(99,102,241,0.3)",
+                              background: "rgba(99,102,241,0.1)",
+                              color: "#a5b4fc",
+                              cursor: "pointer",
+                              fontSize: "11px",
+                            }}
+                          >
+                            {template.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Champs de base */}
                   <div
                     style={{
                       display: "grid",
                       gridTemplateColumns: "1fr 1fr",
                       gap: "10px",
-                      marginBottom: "16px",
+                      marginBottom: "12px",
                     }}
                   >
                     <div>
                       <span style={{ fontSize: "11px", color: "#71717a" }}>
-                        Code client
+                        Code client {"{CLIENT}"}
                       </span>
                       <input
                         value={clientCode}
@@ -4144,11 +4903,10 @@ export default function CreativeImporterPro(props = {}) {
                         style={{ ...inp, marginTop: "4px" }}
                       />
                     </div>
-                    {/* Only show campaign name if creating new campaign */}
                     {!(budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) && (
                       <div>
                         <span style={{ fontSize: "11px", color: "#71717a" }}>
-                          Nom de campagne
+                          Nom campagne {"{CAMPAIGN}"}
                         </span>
                         <input
                           value={campaignName}
@@ -4158,6 +4916,149 @@ export default function CreativeImporterPro(props = {}) {
                         />
                       </div>
                     )}
+                  </div>
+
+                  {/* Champs dynamiques supplémentaires */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "10px",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#71717a" }}>
+                        Produit {"{PRODUCT}"}
+                      </span>
+                      <input
+                        value={nomenclatureFields.product}
+                        onChange={(e) =>
+                          setNomenclatureFields(prev => ({ ...prev, product: e.target.value }))
+                        }
+                        placeholder="Ex: serum"
+                        style={{ ...inp, marginTop: "4px" }}
+                      />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#71717a" }}>
+                        Stratégie {"{STRATEGY}"}
+                      </span>
+                      <select
+                        value={nomenclatureFields.strategy}
+                        onChange={(e) =>
+                          setNomenclatureFields(prev => ({ ...prev, strategy: e.target.value }))
+                        }
+                        style={{ ...inp, marginTop: "4px" }}
+                      >
+                        <option value="testing">Testing</option>
+                        <option value="scaling">Scaling</option>
+                        <option value="retargeting">Retargeting</option>
+                        <option value="lookalike">Lookalike</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Champs personnalisés */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "10px",
+                      marginBottom: "16px",
+                    }}
+                  >
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#71717a" }}>
+                        Custom 1 {"{CUSTOM1}"}
+                      </span>
+                      <input
+                        value={nomenclatureFields.customField1}
+                        onChange={(e) =>
+                          setNomenclatureFields(prev => ({ ...prev, customField1: e.target.value }))
+                        }
+                        placeholder="Optionnel"
+                        style={{ ...inp, marginTop: "4px" }}
+                      />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#71717a" }}>
+                        Custom 2 {"{CUSTOM2}"}
+                      </span>
+                      <input
+                        value={nomenclatureFields.customField2}
+                        onChange={(e) =>
+                          setNomenclatureFields(prev => ({ ...prev, customField2: e.target.value }))
+                        }
+                        placeholder="Optionnel"
+                        style={{ ...inp, marginTop: "4px" }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Éditeur de templates */}
+                  <div
+                    style={{
+                      background: "rgba(0,0,0,0.2)",
+                      borderRadius: "8px",
+                      padding: "12px",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    <div style={{ fontSize: "11px", color: "#a5b4fc", marginBottom: "8px" }}>
+                      Templates (tokens: {"{CLIENT}"} {"{COUNTRY}"} {"{BUDGET}"} {"{OBJECTIVE}"} {"{CAMPAIGN}"} {"{PRODUCT}"} {"{STRATEGY}"} {"{DATE}"} {"{CUSTOM1}"} {"{CUSTOM2}"})
+                    </div>
+                    <div style={{ marginBottom: "8px" }}>
+                      <span style={{ fontSize: "10px", color: "#71717a" }}>Campagne</span>
+                      <input
+                        value={nomenclatureTemplate.campaign}
+                        onChange={(e) =>
+                          setNomenclatureTemplate(prev => ({ ...prev, campaign: e.target.value }))
+                        }
+                        style={{ ...inp, marginTop: "2px", fontSize: "11px" }}
+                      />
+                    </div>
+                    <div style={{ marginBottom: "8px" }}>
+                      <span style={{ fontSize: "10px", color: "#71717a" }}>Adset</span>
+                      <input
+                        value={nomenclatureTemplate.adset}
+                        onChange={(e) =>
+                          setNomenclatureTemplate(prev => ({ ...prev, adset: e.target.value }))
+                        }
+                        style={{ ...inp, marginTop: "2px", fontSize: "11px" }}
+                      />
+                    </div>
+                    <div style={{ marginBottom: "8px" }}>
+                      <span style={{ fontSize: "10px", color: "#71717a" }}>Ad (utiliser {"{NUM}"} et {"{MEDIA}"})</span>
+                      <input
+                        value={nomenclatureTemplate.ad}
+                        onChange={(e) =>
+                          setNomenclatureTemplate(prev => ({ ...prev, ad: e.target.value }))
+                        }
+                        style={{ ...inp, marginTop: "2px", fontSize: "11px" }}
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
+                        const name = prompt("Nom du template:");
+                        if (name) {
+                          const newTemplates = [...savedTemplates, { name, template: nomenclatureTemplate }];
+                          setSavedTemplates(newTemplates);
+                          localStorage.setItem("nomenclatureTemplates", JSON.stringify(newTemplates));
+                        }
+                      }}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: "6px",
+                        border: "1px solid rgba(34,197,94,0.3)",
+                        background: "rgba(34,197,94,0.1)",
+                        color: "#22c55e",
+                        cursor: "pointer",
+                        fontSize: "11px",
+                      }}
+                    >
+                      💾 Sauvegarder ce template
+                    </button>
                   </div>
 
                   {/* Preview de la nomenclature */}
@@ -4173,7 +5074,6 @@ export default function CreativeImporterPro(props = {}) {
                       Aperçu de la structure
                     </div>
                     <div style={{ fontSize: "11px", lineHeight: "1.6" }}>
-                      {/* Show campaign name only if creating new campaign */}
                       {!(budgetType === "cbo" && (cboMode === "existing_new_adset" || cboMode === "existing_adset")) && (
                         <div style={{ marginBottom: "4px" }}>
                           <span style={{ color: "#71717a" }}>Campagne:</span>{" "}
@@ -4182,7 +5082,6 @@ export default function CreativeImporterPro(props = {}) {
                           </span>
                         </div>
                       )}
-                      {/* Show adset name only if creating new adset */}
                       {!(budgetType === "cbo" && cboMode === "existing_adset") && (
                         <div style={{ marginBottom: "4px" }}>
                           <span style={{ color: "#71717a" }}>Adset:</span>{" "}
@@ -4191,7 +5090,6 @@ export default function CreativeImporterPro(props = {}) {
                           </span>
                         </div>
                       )}
-                      {/* Always show ad name */}
                       <div>
                         <span style={{ color: "#71717a" }}>Ad (exemple):</span>{" "}
                         <span style={{ color: "#f59e0b", fontWeight: "500" }}>

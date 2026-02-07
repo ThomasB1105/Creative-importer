@@ -17,7 +17,7 @@ export const GEO_ZONES = {
   switzerland: { name: "Suisse", code: "CH", flag: "🇨🇭" },
   canada: { name: "Canada", code: "CA", flag: "🇨🇦" },
   usa: { name: "USA", code: "US", flag: "🇺🇸" },
-  uk: { name: "UK", code: "UK", flag: "🇬🇧" },
+  uk: { name: "UK", code: "GB", flag: "🇬🇧" },
   germany: { name: "Allemagne", code: "DE", flag: "🇩🇪" },
 };
 
@@ -174,15 +174,18 @@ export const authHelpers = {
 
   // Generate OAuth URL
   getOAuthUrl() {
-    // Permissions pour l'app
+    // Permissions nécessaires pour la gestion des publicités et lead forms
+    // Note: leads_retrieval nécessite une App Review Facebook pour être approuvée
     const permissions = [
       "ads_management",
       "ads_read",
       "business_management",
       "pages_read_engagement",
       "pages_show_list",
+      "pages_manage_ads",
       "pages_read_user_content",  // Dépendance de instagram_basic
       "instagram_basic",          // Pour lire les comptes Instagram liés aux pages
+      "leads_retrieval",          // Requis pour accéder aux lead forms
     ].join(",");
 
     return (
